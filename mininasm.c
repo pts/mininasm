@@ -1308,7 +1308,7 @@ void incbin(fname)
         return;
     }
     
-    while (size = fread(buf, 1, 30, input)) {
+    while ((size = fread(buf, 1, 30, input)) > 0) {
         for (i = 0; i < size; i++) {
             emit_byte(buf[i]);
         }
