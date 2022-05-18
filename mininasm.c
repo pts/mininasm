@@ -1,9 +1,8 @@
 /*
- ** TinyASM - 8086/8088 assembler for DOS
+ ** mininasm: NASM-compatible mini assembler for 8086, able to run on DOS and on modern systems
+ ** mininasm modifications by pts@fazekas.hu at Wed May 18 21:39:36 CEST 2022
  **
- ** by Oscar Toledo G.
- **
- ** Creation date: Oct/01/2019.
+ ** based on tinyasm by Oscar Toledo G, starting Oct/01/2019.
  */
 
 #include <stdio.h>
@@ -1654,7 +1653,7 @@ int main(argc, argv)
      */
     if (argc == 1) {
         fprintf(stderr, "Typical usage:\n");
-        fprintf(stderr, "tinyasm -f bin input.asm -o input.bin\n");
+        fprintf(stderr, "mininasm -f bin input.asm -o input.bin\n");
         exit(1);
     }
     
