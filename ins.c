@@ -6,8 +6,6 @@
  ** based on tinyasm by Oscar Toledo G, starting Oct/01/2019.
  */
 
-#include <stdio.h>
-
 /*
  ** This should have been 3 entries per line but DeSmet C only allows 500 strings per module.
  */
@@ -278,6 +276,6 @@ char *instruction_set[] = {
     "INC\0%dw16\0xff %d16000%d16",
     "DEC\0%dw16\0xff %d16001%d16",
     "PUSH\0%d16\0xff %d16110%d16",
-    NULL,NULL,NULL
+    0/*NULL*/,0/*NULL*/,0/*NULL*/
 };
 

@@ -5,10 +5,45 @@
  ** based on tinyasm by Oscar Toledo G, starting Oct/01/2019.
  */
 
+#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
+#define ATTRIBUTE_NORETURN __attribute__((noreturn))
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned long uint32_t;
+typedef char int8_t;
+typedef short int16_t;
+typedef long int32_t;
+typedef unsigned int size_t;  /* TODO(pts): 64-bit tcc. */
+#define NULL ((void*)0)
+typedef struct FILE FILE;
+extern FILE *stderr;
+void *malloc(size_t size);
+size_t strlen(const char *s);
+int fprintf(FILE *stream, const char *format, ...);
+int sprintf(char *str, const char *format, ...);
+FILE *fopen(const char *path, const char *mode);
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+char *fgets(char *s, int size, FILE *stream);
+int fclose(FILE *stream);
+int remove(const char *pathname);
+void ATTRIBUTE_NORETURN exit(int status);
+char *strcpy(char *dest, const char *src);
+int strcmp(const char *s1, const char *s2);
+char *strcat(char *dest, const char *src);
+int memcmp(const void *s1, const void *s2, size_t n);
+int isalpha(int c);
+int isspace(int c);
+int isdigit(int c);
+int isxdigit(int c);
+int tolower(int c);
+int toupper(int c);
+#else
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#endif
 
 #define DEBUG
 
