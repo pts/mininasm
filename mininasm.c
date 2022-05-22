@@ -39,10 +39,14 @@ int isxdigit(int c);
 int tolower(int c);
 int toupper(int c);
 #else
+#ifdef __DOSMC__
+#include "dosmclib.h"
+#else  /* Standard C. gcc -ansi -pedantic -s -O2 -W -Wall -o mininasm mininasm.c ins.c */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#endif
 #endif
 
 #define DEBUG
