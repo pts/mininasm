@@ -3,6 +3,15 @@
  ** mininasm modifications by pts@fazekas.hu at Wed May 18 21:39:36 CEST 2022
  **
  ** based on tinyasm by Oscar Toledo G, starting Oct/01/2019.
+ **
+ ** Compilation instructions (pick any one):
+ **
+ **   $ gcc -fno-pic -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
+ **
+ **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c && ls -ld mininasm.tcc
+ **
+ **   $ dosmc -mt mininasm.c ins.c dosmclib.c bbprintf.c && ls -ld mininasm.com
+ **
  */
 
 #ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
