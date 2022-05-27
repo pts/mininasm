@@ -15,6 +15,7 @@
  */
 
 #ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
+#ifdef __i386
 #define ATTRIBUTE_NORETURN __attribute__((noreturn))
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -29,7 +30,6 @@ extern FILE *stderr;
 void *malloc(size_t size);
 size_t strlen(const char *s);
 int fprintf(FILE *stream, const char *format, ...);
-int sprintf(char *str, const char *format, ...);
 FILE *fopen(const char *path, const char *mode);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
@@ -47,6 +47,14 @@ int isdigit(int c);
 int isxdigit(int c);
 int tolower(int c);
 int toupper(int c);
+typedef char *va_list;  /* i386 only */
+#define va_start(ap,last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)  /* i386 only */
+#define va_arg(ap,type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only */
+#define va_copy(dest, src) (dest) = (src)  /* i386 only */
+#define va_end(ap)  /* i386 only */
+#else
+#error tcc is only supported on i386
+#endif
 #else
 #ifdef __DOSMC__
 #include "dosmclib.h"
@@ -57,6 +65,8 @@ int toupper(int c);
 #include <ctype.h>
 #endif
 #endif
+
+#include "bbprintf.h"
 
 #define DEBUG
 
@@ -1282,9 +1292,9 @@ void process_instruction()
             c++;
         }
         if (instruction_set[c] == NULL) {
-            char m[25 + MAX_SIZE];
+            char m[25 + MAX_SIZE];  /* !! get rid of large local variables, for small stack */
             
-            sprintf(m, "Undefined instruction '%s %s'", part, p);
+            bbsprintf(m, "Undefined instruction '%s %s'", part, p);
             message(1, m);
             break;
         } else {
@@ -1310,13 +1320,13 @@ void incbin(fname)
     char *fname;
 {
     FILE *input;
-    char buf[256];
+    char buf[256];  /* !! get rid of large local variables, for small stack */
     int size;
     int i;
     
     input = fopen(fname, "r");
     if (input == NULL) {
-        sprintf(buf, "Error: Cannot open '%s' for input", fname);
+        bbsprintf(buf, "Error: Cannot open '%s' for input", fname);
         message(1, buf);
         return;
     }
@@ -1416,7 +1426,7 @@ void do_assembly(fname)
                                 if (find_label(name)) {
                                     char m[18 + MAX_SIZE];
                                     
-                                    sprintf(m, "Redefined label '%s'", name);
+                                    bbsprintf(m, "Redefined label '%s'", name);
                                     message(1, m);
                                 } else {
                                     last_label = define_label(name, instruction_value);
@@ -1426,7 +1436,7 @@ void do_assembly(fname)
                                 if (last_label == NULL) {
                                     char m[33 + MAX_SIZE];
                                     
-                                    sprintf(m, "Inconsistency, label '%s' not found", name);
+                                    bbsprintf(m, "Inconsistency, label '%s' not found", name);
                                     message(1, m);
                                 } else {
                                     if (last_label->value != instruction_value) {
@@ -1453,7 +1463,7 @@ void do_assembly(fname)
                         if (find_label(name)) {
                             char m[18 + MAX_SIZE];
                             
-                            sprintf(m, "Redefined label '%s'", name);
+                            bbsprintf(m, "Redefined label '%s'", name);
                             message(1, m);
                         } else {
                             last_label = define_label(name, address);
@@ -1463,7 +1473,7 @@ void do_assembly(fname)
                         if (last_label == NULL) {
                             char m[33 + MAX_SIZE];
                             
-                            sprintf(m, "Inconsistency, label '%s' not found", name);
+                            bbsprintf(m, "Inconsistency, label '%s' not found", name);
                             message(1, m);
                         } else {
                             if (last_label->value != address) {
