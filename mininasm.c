@@ -199,7 +199,7 @@ struct label MY_FAR *define_label(name, value)
     struct label MY_FAR *label;
     struct label MY_FAR *explore;
     int c;
-    
+
     /* Allocate label */
     label = malloc(sizeof(struct label) + strlen(name));
     if (label == NULL) {
@@ -207,13 +207,13 @@ struct label MY_FAR *define_label(name, value)
         exit(1);
         return NULL;
     }
-    
+
     /* Fill label */
     label->left = NULL;
     label->right = NULL;
     label->value = value;
     strcpy_far(label->name, name);
-    
+
     /* Populate binary tree */
     if (label_list == NULL) {
         label_list = label;
@@ -247,7 +247,7 @@ struct label MY_FAR *find_label(name)
 {
     struct label MY_FAR *explore;
     int c;
-    
+
     /* Follows a binary tree */
     explore = label_list;
     while (explore != NULL) {
@@ -298,11 +298,11 @@ char *match_addressing(p, width)
     int reg2;
     char *p2;
     int *bits;
-    
+
     bits = &instruction_addressing;
     instruction_offset = 0;
     instruction_offset_width = 0;
-    
+
     p = avoid_spaces(p);
     if (*p == '[') {
         p = avoid_spaces(p + 1);
@@ -433,7 +433,7 @@ char *match_register(p, width, value)
 {
     char reg[3];
     int c;
-    
+
     p = avoid_spaces(p);
     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
         return NULL;
@@ -527,7 +527,7 @@ char *match_expression(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level1(p, value);
     if (p == NULL)
         return NULL;
@@ -554,7 +554,7 @@ char *match_expression_level1(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level2(p, value);
     if (p == NULL)
         return NULL;
@@ -581,7 +581,7 @@ char *match_expression_level2(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level3(p, value);
     if (p == NULL)
         return NULL;
@@ -608,7 +608,7 @@ char *match_expression_level3(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level4(p, value);
     if (p == NULL)
         return NULL;
@@ -642,7 +642,7 @@ char *match_expression_level4(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level5(p, value);
     if (p == NULL)
         return NULL;
@@ -676,7 +676,7 @@ char *match_expression_level5(p, value)
     int *value;
 {
     int value1;
-    
+
     p = match_expression_level6(p, value);
     if (p == NULL)
         return NULL;
@@ -730,7 +730,7 @@ char *match_expression_level6(p, value)
     int c;
     char *p2;
     struct label MY_FAR *label;
-    
+
     p = avoid_spaces(p);
     if (*p == '(') {    /* Handle parenthesized expressions */
         p++;
@@ -901,7 +901,7 @@ char *match(p, pattern, decode)
     int bit;
     int qualifier;
     char *base;
-    
+
     undefined = 0;
     while (*pattern) {
 /*        fputc(*pattern, stdout);*/
@@ -1208,7 +1208,7 @@ void to_lowercase(p)
 void separate(void)
 {
     char *p2;
-    
+
     while (*p && isspace(*p))
         p++;
     prev_p = p;
@@ -1298,7 +1298,7 @@ void process_instruction()
     char *p2 = NULL;
     char *p3;
     int c;
-    
+
     if (strcmp(part, "DB") == 0) {  /* Define byte */
         while (1) {
             p = avoid_spaces(p);
@@ -1359,7 +1359,7 @@ void process_instruction()
                 while (*p2++) ;
                 p3 = p2;
                 while (*p3++) ;
-                
+
                 p2 = match(p, p2, p3);
                 if (p2 != NULL) {
                     p = p2;
@@ -1397,7 +1397,7 @@ void incbin(fname)
 {
     int input_fd;
     int size;
-    
+
     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
         bbprintf(&message_bbb, "Error: Cannot open '%s' for input", fname);
@@ -1595,7 +1595,7 @@ void do_assembly(fname)
                             }
                             last_label->value = address;
                         }
-                        
+
                     }
                 }
             }
@@ -1717,7 +1717,7 @@ void do_assembly(fname)
                         } else {
                             while (address < instruction_value)
                                 emit_byte(0);
-                            
+
                         }
                     }
                     check_end(p2);
@@ -1822,7 +1822,7 @@ int main(argc, argv)
     int d;
     char *p;
     char *ifname;
-    
+
     /*
      ** If ran without arguments then show usage
      */
@@ -1831,7 +1831,7 @@ int main(argc, argv)
         (void)!write(2, msg, sizeof(msg));
         return 1;
     }
-    
+
     /*
      ** Start to collect arguments
      */
@@ -1925,12 +1925,12 @@ int main(argc, argv)
             c++;
         }
     }
-    
+
     if (ifname == NULL) {
         message(1, "No input filename provided");
         return 1;
     }
-    
+
     /*
      ** Do first step of assembly
      */
@@ -1939,7 +1939,7 @@ int main(argc, argv)
     do_assembly(ifname);
     message_flush(NULL);
     if (!errors) {
-        
+
         /*
          ** Do second step of assembly and generate final output
          */
@@ -1967,7 +1967,7 @@ int main(argc, argv)
             assembler_step = 2;
             first_time = 1;
             do_assembly(ifname);
-            
+
             if (listing_fd >= 0 && change == 0) {
                 bbprintf(&message_bbb /* listing_fd */, "\r\n%05d ERRORS FOUND\r\n", errors);
                 bbprintf(&message_bbb /* listing_fd */, "%05d WARNINGS FOUND\r\n\r\n", warnings);

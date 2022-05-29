@@ -24,12 +24,12 @@ following improvements:
 
 Below is a copy of the README of tinyasm.
 
-,--------.,--.                                          
-'--.  .--'`--',--,--, ,--. ,--.,--,--. ,---. ,--,--,--. 
-   |  |   ,--.|      \ \  '  /' ,-.  |(  .-' |        | 
-   |  |   |  ||  ||  |  \   ' \ '-'  |.-'  `)|  |  |  | 
-   `--'   `--'`--''--'.-'  /   `--`--'`----' `--`--`--' 
-                      `---'                             
+,--------.,--.
+'--.  .--'`--',--,--, ,--. ,--.,--,--. ,---. ,--,--,--.
+   |  |   ,--.|      \ \  '  /' ,-.  |(  .-' |        |
+   |  |   |  ||  ||  |  \   ' \ '-'  |.-'  `)|  |  |  |
+   `--'   `--'`--''--'.-'  /   `--`--'`----' `--`--`--'
+                      `---'
 Tinyasm 8086/8088 assembler
 by Oscar Toledo G. Oct/02/2019
 
@@ -96,7 +96,7 @@ are implemented the following directives:
 	%endif
 	%include
 	incline
-	times 
+	times
 	use16
 	cpu 8086
 	equ
@@ -110,9 +110,9 @@ The following operators are implemented:
 	&	Binary AND
 	<<	Shift to left
 	>>	Shift to right
-	+	Addition 
-	-	Subtraction 
-	* 	Multiplication 
+	+	Addition
+	-	Subtraction
+	* 	Multiplication
 	/	Division (unsigned 16-bit)
 	%	Modulo operator
 	(expr)	Parenthesis
@@ -196,7 +196,7 @@ The test cases come from my own programs:
 	https://github.com/nanochess/bootRogue
 
 
->> ATTENTION <<        
+>> ATTENTION <<
 
 Would you like to learn 8086/8088 programming? Then you
 must get my new book Programming Boot Sector Games including

@@ -129,7 +129,7 @@ char *instruction_set[] = {
     "TEST\0%r8,%d8\0x84 %d8%r8%d8",
     "TEST\0%d16,%r16\0x85 %d16%r16%d16",
     "TEST\0%r16,%d16\0x85 %d16%r16%d16",
-    
+
     "MOV\0AL,[%i16]\0xa0 %i16",
     "MOV\0AX,[%i16]\0xa1 %i16",
     "MOV\0[%i16],AL\0xa2 %i16",
@@ -138,7 +138,7 @@ char *instruction_set[] = {
     "MOV\0%d16,%r16\0x89 %d16%r16%d16",
     "MOV\0%r8,%d8\0x8a %d8%r8%d8",
     "MOV\0%r16,%d16\0x8b %d16%r16%d16",
-    
+
     "MOV\0%d16,ES\0x8c %d16000%d16",
     "MOV\0%d16,CS\0x8c %d16001%d16",
     "MOV\0%d16,SS\0x8c %d16010%d16",
