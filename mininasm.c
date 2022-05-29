@@ -837,22 +837,23 @@ char *match_expression_level6(p, value)
     return NULL;
 }
 
+void emit_bytes(const char *s, int size)  {
+    address += size;
+    if (assembler_step == 2) {
+        fwrite(s, 1, size, output);
+        bytes += size;
+        if (g != NULL) {
+            for (; size > 0 && g != generated + sizeof(generated); *g++ = *s++, --size) {}
+        }
+    }
+}
+
 /*
  ** Emit one byte to output
  */
-void emit_byte(int byte)
-{
-    char buf[1];
-    
-    if (assembler_step == 2) {
-        if (g != NULL && g < generated + sizeof(generated))
-            *g++ = byte;
-        buf[0] = byte;
-        /* Cannot use fputc because DeSmet C expands to CR LF */
-        fwrite(buf, 1, 1, output);
-        bytes++;
-    }
-    address++;
+void emit_byte(int byte) {
+    const char c = byte;
+    emit_bytes(&c, 1);
 }
 
 /*
@@ -1319,7 +1320,6 @@ void process_instruction()
             c++;
         }
         if (instruction_set[c] == NULL) {
-            /* !! get rid of large local variables, for small stack */
             message_start(1);
             bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
             message_end();
@@ -1347,9 +1347,7 @@ void incbin(fname)
     char *fname;
 {
     FILE *input;
-    char buf[256];  /* !! get rid of large local variables, for small stack */
     int size;
-    int i;
     
     input = fopen(fname, "r");
     if (input == NULL) {
@@ -1358,13 +1356,12 @@ void incbin(fname)
         message_end();
         return;
     }
-    
-    while ((size = fread(buf, 1, 30, input)) > 0) {  /* !! Why only 30? Use sizeof(buf). */
-        for (i = 0; i < size; i++) {
-            emit_byte(buf[i]);
-        }
+
+    message_flush(NULL);  /* Because we reuse message_buf below. */
+    g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
+    while ((size = fread(message_buf, 1, sizeof(message_buf), input)) > 0) {
+        emit_bytes(message_buf, size);
     }
-    
     fclose(input);
 }
 
