@@ -153,7 +153,9 @@ char *reg1[16] = {
     "DI"
 };
 
-void message();
+void message(int error, const char *message);
+void message_start(int error);
+void message_end(void);
 char *match_register(), *match_expression(),
      *match_expression_level1(), *match_expression_level2(),
      *match_expression_level3(), *match_expression_level4(),
@@ -1216,10 +1218,7 @@ struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_bu
 /*
  ** Generate a message
  */
-void message(error, message)
-    int error;
-    char *message;
-{
+void message_start(int error) {
     const char *msg_prefix;
     if (error) {
         msg_prefix = "Error: ";
@@ -1228,8 +1227,18 @@ void message(error, message)
         msg_prefix = "Warning: ";
         warnings++;
     }
-    bbprintf(&message_bbb, "%s: %s at line %d\n", msg_prefix, message, line_number);
+    bbprintf(&message_bbb, "%s", msg_prefix);
+}
+
+void message_end(void) {
+    bbprintf(&message_bbb, " at line %d\n", line_number);
     message_flush(NULL);
+}
+
+void message(int error, const char *message) {
+    message_start(error);
+    bbprintf(&message_bbb, "%s", message);
+    message_end();
 }
 
 /*
