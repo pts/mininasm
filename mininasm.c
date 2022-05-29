@@ -32,7 +32,6 @@ size_t strlen(const char *s);
 FILE *fopen(const char *path, const char *mode);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-char *fgets(char *s, int size, FILE *stream);
 int fclose(FILE *stream);
 int remove(const char *pathname);
 void ATTRIBUTE_NORETURN exit(int status);
@@ -102,7 +101,6 @@ int instruction_value2;
 
 #define MAX_SIZE        256
 
-char line[MAX_SIZE];
 char part[MAX_SIZE];
 char name[MAX_SIZE];
 char expr_name[MAX_SIZE];
@@ -1201,7 +1199,6 @@ void check_end(p)
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         message(1, "extra characters at end of line");
-        errors++;
     }
 }
 
@@ -1379,6 +1376,8 @@ void incbin(fname)
     fclose(input);
 }
 
+char line_buf[512];
+
 /*
  ** Do an assembler step
  */
@@ -1389,6 +1388,10 @@ void do_assembly(fname)
     char *p2;
     char *p3;
     char *pfname;
+    char *line;
+    char *linep;
+    char *liner;
+    char *line_rend;
     int level;
     int avoid_level;
     int times;
@@ -1396,13 +1399,13 @@ void do_assembly(fname)
     int pline;
     int include;
     int align;
+    int got;
 
     input = fopen(fname, "r");
     if (input == NULL) {
         message_start(1);
         bbprintf(&message_bbb, "cannot open '%s' for input", fname);
         message_end();
-        errors++;
         return;
     }
 
@@ -1414,7 +1417,34 @@ void do_assembly(fname)
     global_label[0] = '\0';
     line_number = 0;
     base = 0;
-    while (fgets(line, sizeof(line), input)) {
+    linep = line_rend = line_buf;
+    while (linep) {  /* Read and process next line from input. */
+        for (p = line = linep; p != line_rend && *p != '\n'; ++p) {}
+        if (p == line_rend) {
+            if (line != line_buf) {
+                if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;  /* Too much copy per line (thus too slow). This won't be triggered, because the `>= MAX_SIZE' check triggers first. */
+                for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
+                line_rend = p = liner;
+                line = linep = line_buf;
+            }
+            if ((got = fread(line_rend, 1, line_buf + sizeof(line_buf) - line_rend, input)) < 0) {
+                message(1, "error reading assembly file");
+                break;
+            }
+            if (got == 0) {  /* End of file (EOF). */
+              if (line_rend == line_buf) break;
+              *line_rend = '\0';
+              linep = NULL;
+              goto after_line_read;
+            }
+            line_rend += got;
+            for (; p != line_rend && *p != '\n'; ++p) {}
+            if (p == line_rend) goto line_too_long;
+        }
+        *p = '\0';  /* Change trailing '\n' to '\0'. */
+        linep = p + 1;
+       after_line_read:
+
         line_number++;
         p = line;
         while (*p) {
@@ -1434,9 +1464,12 @@ void do_assembly(fname)
             *p = toupper(*p);
             p++;
         }
-        if (p > line && *(p - 1) == '\n')
-            p--;
-        *p = '\0';
+        if (p != line && *(p - 1) == '\r')
+            *--p = '\0';
+        if (p - line >= MAX_SIZE) { line_too_long:
+            message(1, "assembly line too long");
+            break;
+        }
 
         base = address;
         g = generated;
@@ -1533,10 +1566,8 @@ void do_assembly(fname)
                 p = match_expression(p, &instruction_value);
                 if (p == NULL) {
                     message(1, "Bad expression");
-                    errors++;
                 } else if (undefined) {
                     message(1, "Undefined labels");
-                    errors++;
                 }
                 if (instruction_value != 0) {
                     ;
@@ -1721,6 +1752,7 @@ void do_assembly(fname)
         }
         if (include == 1) {
             part[strlen(part) - 1] = '\0';
+            /* !!! Seek back in line buffer. */
             do_assembly(part + 1);
         }
         if (include == 2) {
@@ -1910,7 +1942,6 @@ int main(argc, argv)
                 change_number++;
                 if (change_number == 5) {
                     message(1, "Aborted: Couldn't stabilize moving label");
-                    errors++;
                 }
             }
             if (errors) {
