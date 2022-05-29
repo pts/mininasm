@@ -154,7 +154,7 @@ char *match_register(), *match_expression(),
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
-#define exit(status)	_exit(status)
+#define exit(status) _exit(status)
 #endif
 
 /*
@@ -739,7 +739,7 @@ char *match_expression_level6(p, value)
         *value = number;
         return p;
     }
-    if (p[0] == '0' && tolower(p[1]) == 'x' && isxdigit(p[2])) {	/* Hexadecimal */
+    if (p[0] == '0' && tolower(p[1]) == 'x' && isxdigit(p[2])) {  /* Hexadecimal */
         p += 2;
         number = 0;
         while (isxdigit(p[0])) {
@@ -753,7 +753,7 @@ char *match_expression_level6(p, value)
         *value = number;
         return p;
     }
-    if (p[0] == '$' && isdigit(p[1])) {	/* Hexadecimal */
+    if (p[0] == '$' && isdigit(p[1])) {  /* Hexadecimal */
         /* This is nasm syntax, notice no letter is allowed after $ */
         /* So it's preferrable to use prefix 0x for hexadecimal */
         p += 1;
@@ -863,7 +863,7 @@ char *match(p, pattern, decode)
     undefined = 0;
     while (*pattern) {
 /*        fputc(*pattern, stdout);*/
-        if (*pattern == '%') {	/* Special */
+        if (*pattern == '%') {  /* Special */
             pattern++;
             if (*pattern == 'd') {  /* Addressing */
                 pattern++;
@@ -1406,7 +1406,7 @@ void do_assembly(fname)
             separate();
             if (part[0] == '\0' && (*p == '\0' || *p == ';'))    /* Empty line */
                 break;
-            if (part[0] != '\0' && part[strlen(part) - 1] == ':') {	/* Label */
+            if (part[0] != '\0' && part[strlen(part) - 1] == ':') {  /* Label */
                 part[strlen(part) - 1] = '\0';
                 if (part[0] == '.') {
                     strcpy(name, global_label);
@@ -1625,8 +1625,8 @@ void do_assembly(fname)
                     align = address / instruction_value;
                     align = align * instruction_value;
                     align = align + instruction_value;
-		    while (address < align)
-		        emit_byte(0x90);
+                    while (address < align)
+                        emit_byte(0x90);
                     check_end(p2);
                 }
                 break;
