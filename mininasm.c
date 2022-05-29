@@ -1732,7 +1732,7 @@ int main(argc, argv)
     if (argc == 1) {
         fprintf(stderr, "Typical usage:\n");
         fprintf(stderr, "mininasm -f bin input.asm -o input.bin\n");
-        exit(1);
+        return 1;
     }
     
     /*
@@ -1750,7 +1750,7 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -f\n");
-                    exit(1);
+                    return 1;
                 } else {
                     to_lowercase(argv[c]);
                     if (strcmp(argv[c], "bin") == 0) {
@@ -1759,7 +1759,7 @@ int main(argc, argv)
                         default_start_address = 0x0100;
                     } else {
                         fprintf(stderr, "Error: only 'bin', 'com' supported for -f (it is '%s')\n", argv[c]);
-                        exit(1);
+                        return 1;
                     }
                     c++;
                 }
@@ -1767,10 +1767,10 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -o\n");
-                    exit(1);
+                    return 1;
                 } else if (output_filename != NULL) {
                     fprintf(stderr, "Error: already a -o argument is present\n");
-                    exit(1);
+                    return 1;
                 } else {
                     output_filename = argv[c];
                     c++;
@@ -1779,10 +1779,10 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -l\n");
-                    exit(1);
+                    return 1;
                 } else if (listing_filename != NULL) {
                     fprintf(stderr, "Error: already a -l argument is present\n");
-                    exit(1);
+                    return 1;
                 } else {
                     listing_filename = argv[c];
                     c++;
@@ -1799,10 +1799,10 @@ int main(argc, argv)
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
                         fprintf(stderr, "Error: wrong label definition\n");
-                        exit(1);
+                        return 1;
                     } else if (undefined) {
                         fprintf(stderr, "Error: non-constant label definition\n");
-                        exit(1);
+                        return 1;
                     } else {
                         define_label(argv[c] + 2, instruction_value);
                     }
@@ -1810,12 +1810,12 @@ int main(argc, argv)
                 c++;
             } else {
                 fprintf(stderr, "Error: unknown argument %s\n", argv[c]);
-                exit(1);
+                return 1;
             }
         } else {
             if (ifname != NULL) {
                 fprintf(stderr, "Error: more than one input file name: %s\n", argv[c]);
-                exit(1);
+                return 1;
             } else {
                 ifname = argv[c];
             }
@@ -1825,7 +1825,7 @@ int main(argc, argv)
     
     if (ifname == NULL) {
         fprintf(stderr, "No input filename provided\n");
-        exit(1);
+        return 1;
     }
     
     /*
@@ -1841,7 +1841,7 @@ int main(argc, argv)
          */
         if (output_filename == NULL) {
             fprintf(stderr, "No output filename provided\n");
-            exit(1);
+            return 1;
         }
         change_number = 0;
         do {
@@ -1850,13 +1850,13 @@ int main(argc, argv)
                 listing = fopen(listing_filename, "w");
                 if (listing == NULL) {
                     fprintf(stderr, "Error: couldn't open '%s' as listing file\n", output_filename);
-                    exit(1);
+                    return 1;
                 }
             }
             output = fopen(output_filename, "wb");
             if (output == NULL) {
                 fprintf(stderr, "Error: couldn't open '%s' as output file\n", output_filename);
-                exit(1);
+                return 1;
             }
             assembler_step = 2;
             first_time = 1;
@@ -1885,12 +1885,12 @@ int main(argc, argv)
                 remove(output_filename);
                 if (listing_filename != NULL)
                     remove(listing_filename);
-                exit(1);
+                return 1;
             }
         } while (change) ;
 
-        exit(0);
+        return 0;
     }
 
-    exit(1);
+    return 1;
 }
