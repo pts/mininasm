@@ -29,7 +29,6 @@ typedef struct FILE FILE;
 extern FILE *stderr;
 void *malloc(size_t size);
 size_t strlen(const char *s);
-int fprintf(FILE *stream, const char *format, ...);
 FILE *fopen(const char *path, const char *mode);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
@@ -240,16 +239,16 @@ struct label *find_label(name)
 }
 
 /*
- ** Sort recursively labels (already done by binary tree)
+ ** Print labels sorted to listing (already done by binary tree).
  */
-void sort_labels(node)
+void print_labels_sorted_to_listing(node)
     struct label *node;
 {
     if (node->left != NULL)
-        sort_labels(node->left);
-    fprintf(listing, "%-20s %04x\n", node->name, node->value);
+        print_labels_sorted_to_listing(node->left);
+    bbprintf(&message_bbb, "%-20s %04x\n", node->name, node->value);
     if (node->right != NULL)
-        sort_labels(node->right);
+        print_labels_sorted_to_listing(node->right);
 }
 
 /*
@@ -1211,11 +1210,14 @@ char message_buf[512];
 void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
     (void)bbb;  /* message_bbb. */
-    fwrite(message_buf, 1, size, stderr);
-    if (listing != NULL) fwrite(message_buf, 1, size, listing);
-    message_bbb.p = message_buf;
+    if (size) {
+        if (message_bbb.data) fwrite(message_buf, 1, size, stderr);
+        if (listing != NULL) fwrite(message_buf, 1, size, listing);
+        message_bbb.p = message_buf;
+    }
 }
 
+/* data = 0 means write to listing only, = 1 means write to stderr + listing. */
 struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
 
 /*
@@ -1230,6 +1232,10 @@ void message_start(int error) {
         msg_prefix = "Warning: ";
         warnings++;
     }
+    if (!message_bbb.data) {
+        message_flush(NULL);  /* Flush listing. */
+        message_bbb.data = (void*)1;
+    }
     bbprintf(&message_bbb, "%s", msg_prefix);
 }
 
@@ -1240,6 +1246,7 @@ void message_end(void) {
       bbwrite1(&message_bbb, '\n');
     }
     message_flush(NULL);
+    message_bbb.data = (void*)0;  /* Write subsequent bytes to listing only (no stderr). */
 }
 
 void message(int error, const char *message) {
@@ -1699,18 +1706,18 @@ void do_assembly(fname)
         }
         if (assembler_step == 2 && listing != NULL) {
             if (first_time)
-                fprintf(listing, "      ");
+                bbprintf(&message_bbb /* listing */, "      ");
             else
-                fprintf(listing, "%04X  ", base);
+                bbprintf(&message_bbb /* listing */, "%04X  ", base);
             p = generated;
             while (p < g) {
-                fprintf(listing, "%02X", *p++ & 255);
+                bbprintf(&message_bbb /* listing */, "%02X", *p++ & 255);
             }
             while (p < generated + sizeof(generated)) {
-                fprintf(listing, "  ");
+                bbprintf(&message_bbb /* listing */, "  ");
                 p++;
             }
-            fprintf(listing, "  %05d %s\n", line_number, line);
+            bbprintf(&message_bbb /* listing */, "  %05d %s\n", line_number, line);
         }
         if (include == 1) {
             part[strlen(part) - 1] = '\0';
@@ -1852,6 +1859,7 @@ int main(argc, argv)
     assembler_step = 1;
     first_time = 1;
     do_assembly(ifname);
+    message_flush(NULL);
     if (!errors) {
         
         /*
@@ -1885,17 +1893,19 @@ int main(argc, argv)
             do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
-                fprintf(listing, "\n%05d ERRORS FOUND\n", errors);
-                fprintf(listing, "%05d WARNINGS FOUND\n\n", warnings);
-                fprintf(listing, "%05d PROGRAM BYTES\n\n", bytes);
+                bbprintf(&message_bbb /* listing */, "\n%05d ERRORS FOUND\n", errors);
+                bbprintf(&message_bbb /* listing */, "%05d WARNINGS FOUND\n\n", warnings);
+                bbprintf(&message_bbb /* listing */, "%05d PROGRAM BYTES\n\n", bytes);
                 if (label_list != NULL) {
-                    fprintf(listing, "%-20s VALUE/ADDRESS\n\n", "LABEL");
-                    sort_labels(label_list);
+                    bbprintf(&message_bbb /* listing */, "%-20s VALUE/ADDRESS\n\n", "LABEL");
+                    print_labels_sorted_to_listing(label_list);
                 }
             }
             fclose(output);
-            if (listing_filename != NULL)
+            if (listing_filename != NULL) {
+                message_flush(NULL);
                 fclose(listing);
+            }
             if (change) {
                 change_number++;
                 if (change_number == 5) {

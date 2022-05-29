@@ -12,7 +12,6 @@ _WCNORETURN static void unimplemented(const char *func) {
 
 FILE *stderr;
 void *malloc(size_t size) { (void)size; unimplemented("malloc"); }
-int fprintf(FILE *stream, const char *format, ...) { (void)stream; (void)format; unimplemented("fprintf"); }
 FILE *fopen(const char *path, const char *mode) { (void)path; (void)mode; unimplemented("fopen"); }
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) { (void)ptr; (void)size; (void)nmemb; (void)stream; unimplemented("fread"); }
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) { (void)ptr; (void)size; (void)nmemb; (void)stream; unimplemented("fwrite"); }
