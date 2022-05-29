@@ -24,13 +24,13 @@ typedef char int8_t;
 typedef short int16_t;
 typedef long int32_t;
 typedef unsigned int size_t;  /* TODO(pts): 64-bit tcc. */
+typedef int ssize_t;  /* TODO(pts): 64-bit tcc. */
 #define NULL ((void*)0)
 typedef struct FILE FILE;
 extern FILE *stderr;
 void *malloc(size_t size);
 size_t strlen(const char *s);
 FILE *fopen(const char *path, const char *mode);
-size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 int fclose(FILE *stream);
 int remove(const char *pathname);
@@ -50,6 +50,15 @@ typedef char *va_list;  /* i386 only */
 #define va_arg(ap,type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only */
 #define va_copy(dest, src) (dest) = (src)  /* i386 only */
 #define va_end(ap)  /* i386 only */
+ssize_t read(int fd, void *buf, size_t count);
+ssize_t write(int fd, const void *buf, size_t count);
+#define O_RDONLY 0
+#define O_WRONLY 1
+#define O_RDWR 2
+int open(const char *pathname, int flags, ...);  /* int mode */
+int creat(const char *pathname, int mode);
+int close(int fd);
+#define open2(pathname, flags) open(pathname, flags)
 #else
 #error tcc is only supported on i386
 #endif
@@ -57,11 +66,18 @@ typedef char *va_list;  /* i386 only */
 #ifdef __DOSMC__
 #include "dosmclib.h"
 #else  /* Standard C. gcc -ansi -pedantic -s -O2 -W -Wall -o mininasm mininasm.c ins.c */
+#include <ctype.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+#include <unistd.h>
+#define open2(pathname, flags) open(pathname, flags)
 #endif
+#endif
+
+#ifndef O_BINARY  /* Unix. */
+#define O_BINARY 0
 #endif
 
 #include "bbprintf.h"
@@ -1357,11 +1373,10 @@ void reset_address()
 void incbin(fname)
     char *fname;
 {
-    FILE *input;
+    int input_fd;
     int size;
     
-    input = fopen(fname, "r");
-    if (input == NULL) {
+    if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
         bbprintf(&message_bbb, "Error: Cannot open '%s' for input", fname);
         message_end();
@@ -1370,10 +1385,15 @@ void incbin(fname)
 
     message_flush(NULL);  /* Because we reuse message_buf below. */
     g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
-    while ((size = fread(message_buf, 1, sizeof(message_buf), input)) > 0) {
+    while ((size = read(input_fd, message_buf, sizeof(message_buf))) > 0) {
         emit_bytes(message_buf, size);
     }
-    fclose(input);
+    if (size < 0) {
+        message_start(1);
+        bbprintf(&message_bbb, "Error: Error reading from '%s'", fname);
+        message_end();
+    }
+    close(input_fd);
 }
 
 char line_buf[512];
@@ -1384,7 +1404,6 @@ char line_buf[512];
 void do_assembly(fname)
     char *fname;
 {
-    FILE *input;
     char *p2;
     char *p3;
     char *pfname;
@@ -1400,9 +1419,9 @@ void do_assembly(fname)
     int include;
     int align;
     int got;
+    int input_fd;
 
-    input = fopen(fname, "r");
-    if (input == NULL) {
+    if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
         bbprintf(&message_bbb, "cannot open '%s' for input", fname);
         message_end();
@@ -1427,7 +1446,7 @@ void do_assembly(fname)
                 line_rend = p = liner;
                 line = linep = line_buf;
             }
-            if ((got = fread(line_rend, 1, line_buf + sizeof(line_buf) - line_rend, input)) < 0) {
+            if ((got = read(input_fd, line_rend, line_buf + sizeof(line_buf) - line_rend)) < 0) {
                 message(1, "error reading assembly file");
                 break;
             }
@@ -1752,15 +1771,18 @@ void do_assembly(fname)
         }
         if (include == 1) {
             part[strlen(part) - 1] = '\0';
-            /* !!! Seek back in line buffer. */
+#if 0
             do_assembly(part + 1);
+#else
+            message(1, "%include is broken because of input line buffering");  /* !!! */
+#endif
         }
         if (include == 2) {
             part[strlen(part) - 1] = '\0';
             incbin(part + 1);
         }
     }
-    fclose(input);
+    close(input_fd);
     line_number = pline;
     input_filename = pfname;
 }
