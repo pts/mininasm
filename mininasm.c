@@ -1015,7 +1015,9 @@ char *match(p, pattern, decode)
                 }
             } else if (*pattern == 'f') {   /* FAR pointer */
                 pattern++;
-                if (*pattern == '3' && pattern[1] == '2') {
+                if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                    return NULL;
+                } else if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
                     p2 = match_expression(p, &instruction_value2);
                     if (p2 == NULL)
