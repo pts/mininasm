@@ -82,6 +82,14 @@ int close(int fd);
 #define O_BINARY 0
 #endif
 
+#ifdef __DOSMC__
+#define MY_FAR far
+#else
+#define MY_FAR
+#define strcpy_far(dest, src) strcpy(dest, src)
+#define strcmp_far(s1, s2) strcmp(s1, s2)
+#endif
+
 #include "bbprintf.h"
 
 /* Example usage:
@@ -136,14 +144,14 @@ int change;
 int change_number;
 
 struct label {
-    struct label *left;
-    struct label *right;
+    struct label MY_FAR *left;
+    struct label MY_FAR *right;
     int value;
     char name[1];
 };
 
-struct label *label_list;
-struct label *last_label;
+struct label MY_FAR *label_list;
+struct label MY_FAR *last_label;
 int undefined;
 
 extern char *instruction_set[];
@@ -184,12 +192,12 @@ char *match_register(), *match_expression(),
 /*
  ** Define a new label
  */
-struct label *define_label(name, value)
+struct label MY_FAR *define_label(name, value)
     char *name;
     int value;
 {
-    struct label *label;
-    struct label *explore;
+    struct label MY_FAR *label;
+    struct label MY_FAR *explore;
     int c;
     
     /* Allocate label */
@@ -204,7 +212,7 @@ struct label *define_label(name, value)
     label->left = NULL;
     label->right = NULL;
     label->value = value;
-    strcpy(label->name, name);
+    strcpy_far(label->name, name);
     
     /* Populate binary tree */
     if (label_list == NULL) {
@@ -212,7 +220,7 @@ struct label *define_label(name, value)
     } else {
         explore = label_list;
         while (1) {
-            c = strcmp(label->name, explore->name);
+            c = strcmp_far(label->name, explore->name);
             if (c < 0) {
                 if (explore->left == NULL) {
                     explore->left = label;
@@ -234,16 +242,16 @@ struct label *define_label(name, value)
 /*
  ** Find a label
  */
-struct label *find_label(name)
+struct label MY_FAR *find_label(name)
     char *name;
 {
-    struct label *explore;
+    struct label MY_FAR *explore;
     int c;
     
     /* Follows a binary tree */
     explore = label_list;
     while (explore != NULL) {
-        c = strcmp(name, explore->name);
+        c = strcmp_far(name, explore->name);
         if (c == 0)
             return explore;
         if (c < 0)
@@ -258,8 +266,9 @@ struct label *find_label(name)
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
 void print_labels_sorted_to_listing_fd(node)
-    struct label *node;
+    struct label MY_FAR *node;
 {
+    /* !! Limit recursion depth for stack usage by doing iteration of only left or right node. */
     if (node->left != NULL)
         print_labels_sorted_to_listing_fd(node->left);
     bbprintf(&message_bbb, "%-20s %04x\r\n", node->name, node->value);
@@ -720,7 +729,7 @@ char *match_expression_level6(p, value)
     int number;
     int c;
     char *p2;
-    struct label *label;
+    struct label MY_FAR *label;
     
     p = avoid_spaces(p);
     if (*p == '(') {    /* Handle parenthesized expressions */
