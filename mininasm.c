@@ -31,9 +31,6 @@ typedef struct FILE FILE;
 extern FILE *stderr;
 void *malloc(size_t size);
 size_t strlen(const char *s);
-FILE *fopen(const char *path, const char *mode);
-size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-int fclose(FILE *stream);
 int remove(const char *pathname);
 void ATTRIBUTE_NORETURN exit(int status);
 char *strcpy(char *dest, const char *src);
@@ -100,10 +97,10 @@ char *input_filename;
 int line_number;
 
 char *output_filename;
-FILE *output;
+int output_fd;
 
 char *listing_filename;
-FILE *listing;
+int listing_fd = -1;
 
 int assembler_step;
 int default_start_address;
@@ -258,16 +255,16 @@ struct label *find_label(name)
 }
 
 /*
- ** Print labels sorted to listing (already done by binary tree).
+ ** Print labels sorted to listing_fd (already done by binary tree).
  */
-void print_labels_sorted_to_listing(node)
+void print_labels_sorted_to_listing_fd(node)
     struct label *node;
 {
     if (node->left != NULL)
-        print_labels_sorted_to_listing(node->left);
+        print_labels_sorted_to_listing_fd(node->left);
     bbprintf(&message_bbb, "%-20s %04x\r\n", node->name, node->value);
     if (node->right != NULL)
-        print_labels_sorted_to_listing(node->right);
+        print_labels_sorted_to_listing_fd(node->right);
 }
 
 /*
@@ -862,7 +859,7 @@ char *match_expression_level6(p, value)
 void emit_bytes(const char *s, int size)  {
     address += size;
     if (assembler_step == 2) {
-        fwrite(s, 1, size, output);
+        (void)!write(output_fd, s, size);
         bytes += size;
         if (g != NULL) {
             for (; size > 0 && g != generated + sizeof(generated); *g++ = *s++, --size) {}
@@ -1229,13 +1226,13 @@ void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
     (void)bbb;  /* message_bbb. */
     if (size) {
-        if (message_bbb.data) fwrite(message_buf, 1, size, stderr);
-        if (listing != NULL) fwrite(message_buf, 1, size, listing);
+        if (message_bbb.data) (void)!write(2 /* stderr */, message_buf, size);
+        if (listing_fd >= 0) (void)!write(listing_fd, message_buf, size);
         message_bbb.p = message_buf;
     }
 }
 
-/* data = 0 means write to listing only, = 1 means write to stderr + listing. */
+/* data = 0 means write to listing_fd only, = 1 means write to stderr + listing_fd. */
 struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
 
 /*
@@ -1251,7 +1248,7 @@ void message_start(int error) {
         warnings++;
     }
     if (!message_bbb.data) {
-        message_flush(NULL);  /* Flush listing. */
+        message_flush(NULL);  /* Flush listing_fd. */
         message_bbb.data = (void*)1;
     }
     bbprintf(&message_bbb, "%s", msg_prefix);
@@ -1267,7 +1264,7 @@ void message_end(void) {
       bbprintf(&message_bbb, "\r\n");
     }
     message_flush(NULL);
-    message_bbb.data = (void*)0;  /* Write subsequent bytes to listing only (no stderr). */
+    message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 }
 
 void message(int error, const char *message) {
@@ -1762,20 +1759,20 @@ void do_assembly(fname)
             }
             break;
         }
-        if (assembler_step == 2 && listing != NULL) {
+        if (assembler_step == 2 && listing_fd >= 0) {
             if (first_time)
-                bbprintf(&message_bbb /* listing */, "      ");
+                bbprintf(&message_bbb /* listing_fd */, "      ");
             else
-                bbprintf(&message_bbb /* listing */, "%04X  ", base);
+                bbprintf(&message_bbb /* listing_fd */, "%04X  ", base);
             p = generated;
             while (p < g) {
-                bbprintf(&message_bbb /* listing */, "%02X", *p++ & 255);
+                bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
             }
             while (p < generated + sizeof(generated)) {
-                bbprintf(&message_bbb /* listing */, "  ");
+                bbprintf(&message_bbb /* listing_fd */, "  ");
                 p++;
             }
-            bbprintf(&message_bbb /* listing */, "  %05d %s\r\n", line_number, line);
+            bbprintf(&message_bbb /* listing_fd */, "  %05d %s\r\n", line_number, line);
         }
         if (include == 1) {
             if (linep != NULL && lseek(input_fd, linep - line_rend, SEEK_CUR) < 0) {
@@ -1814,7 +1811,7 @@ int main(argc, argv)
      */
     if (argc == 1) {
         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
-        fwrite(msg, 1, sizeof(msg), stderr);
+        (void)!write(2, msg, sizeof(msg));
         return 1;
     }
     
@@ -1937,16 +1934,14 @@ int main(argc, argv)
         do {
             change = 0;
             if (listing_filename != NULL) {
-                listing = fopen(listing_filename, "w");
-                if (listing == NULL) {
+                if ((listing_fd = creat(listing_filename, 0644)) < 0) {
                     message_start(1);
                     bbprintf(&message_bbb, "couldn't open '%s' as listing file", output_filename);
                     message_end();
                     return 1;
                 }
             }
-            output = fopen(output_filename, "wb");
-            if (output == NULL) {
+            if ((output_fd = creat(output_filename, 0644)) < 0) {
                 message_start(1);
                 bbprintf(&message_bbb, "couldn't open '%s' as output file", output_filename);
                 message_end();
@@ -1956,19 +1951,19 @@ int main(argc, argv)
             first_time = 1;
             do_assembly(ifname);
             
-            if (listing != NULL && change == 0) {
-                bbprintf(&message_bbb /* listing */, "\r\n%05d ERRORS FOUND\r\n", errors);
-                bbprintf(&message_bbb /* listing */, "%05d WARNINGS FOUND\r\n\r\n", warnings);
-                bbprintf(&message_bbb /* listing */, "%05d PROGRAM BYTES\r\n\r\n", bytes);
+            if (listing_fd >= 0 && change == 0) {
+                bbprintf(&message_bbb /* listing_fd */, "\r\n%05d ERRORS FOUND\r\n", errors);
+                bbprintf(&message_bbb /* listing_fd */, "%05d WARNINGS FOUND\r\n\r\n", warnings);
+                bbprintf(&message_bbb /* listing_fd */, "%05d PROGRAM BYTES\r\n\r\n", bytes);
                 if (label_list != NULL) {
-                    bbprintf(&message_bbb /* listing */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
-                    print_labels_sorted_to_listing(label_list);
+                    bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
+                    print_labels_sorted_to_listing_fd(label_list);
                 }
             }
-            fclose(output);
+            close(output_fd);
             if (listing_filename != NULL) {
                 message_flush(NULL);
-                fclose(listing);
+                close(listing_fd);
             }
             if (change) {
                 change_number++;

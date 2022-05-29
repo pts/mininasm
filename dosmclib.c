@@ -10,8 +10,4 @@ _WCNORETURN static void unimplemented(const char *func) {
   exit(126);
 }
 
-FILE *stderr;
 void *malloc(size_t size) { (void)size; unimplemented("malloc"); }
-FILE *fopen(const char *path, const char *mode) { (void)path; (void)mode; unimplemented("fopen"); }
-size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) { (void)ptr; (void)size; (void)nmemb; (void)stream; unimplemented("fwrite"); }
-int fclose(FILE *stream) { (void)stream; unimplemented("fclose"); }
