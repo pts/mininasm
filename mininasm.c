@@ -1142,6 +1142,7 @@ char *match(p, pattern, decode)
     if (assembler_step == 2) {
         if (undefined) {
             fprintf(stderr, "Error: undefined label '%s' at line %d\n", undefined_name, line_number);
+            errors++;
         }
     }
     return p;
@@ -1496,8 +1497,10 @@ void do_assembly(fname)
                 p = match_expression(p, &instruction_value);
                 if (p == NULL) {
                     message(1, "Bad expression");
+                    errors++;
                 } else if (undefined) {
                     message(1, "Undefined labels");
+                    errors++;
                 }
                 if (instruction_value != 0) {
                     ;
