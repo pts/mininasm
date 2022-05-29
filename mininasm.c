@@ -153,6 +153,7 @@ char *reg1[16] = {
     "DI"
 };
 
+struct bbprintf_buf message_bbb;
 void message(int error, const char *message);
 void message_start(int error);
 void message_end(void);
@@ -1150,9 +1151,9 @@ char *match(p, pattern, decode)
     }
     if (assembler_step == 2) {
         if (undefined) {
-            char m[19 + MAX_SIZE];
-            bbsprintf(m, "Undefined label '%s'", undefined_name);
-            message(1, m);
+            message_start(1);
+            bbprintf(&message_bbb, "Undefined label '%s'", undefined_name);
+            message_end();
         }
     }
     return p;
@@ -1202,8 +1203,6 @@ void check_end(p)
 }
 
 char message_buf[512];
-
-struct bbprintf_buf message_bbb;
 
 void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
@@ -1320,10 +1319,10 @@ void process_instruction()
             c++;
         }
         if (instruction_set[c] == NULL) {
-            char m[25 + MAX_SIZE];  /* !! get rid of large local variables, for small stack */
-            
-            bbsprintf(m, "Undefined instruction '%s %s'", part, p);
-            message(1, m);
+            /* !! get rid of large local variables, for small stack */
+            message_start(1);
+            bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
+            message_end();
             break;
         } else {
             p = p2;
@@ -1354,12 +1353,13 @@ void incbin(fname)
     
     input = fopen(fname, "r");
     if (input == NULL) {
-        bbsprintf(buf, "Error: Cannot open '%s' for input", fname);
-        message(1, buf);
+        message_start(1);
+        bbprintf(&message_bbb, "Error: Cannot open '%s' for input", fname);
+        message_end();
         return;
     }
     
-    while ((size = fread(buf, 1, 30, input)) > 0) {
+    while ((size = fread(buf, 1, 30, input)) > 0) {  /* !! Why only 30? Use sizeof(buf). */
         for (i = 0; i < size; i++) {
             emit_byte(buf[i]);
         }
@@ -1452,20 +1452,18 @@ void do_assembly(fname)
                         } else {
                             if (assembler_step == 1) {
                                 if (find_label(name)) {
-                                    char m[18 + MAX_SIZE];
-                                    
-                                    bbsprintf(m, "Redefined label '%s'", name);
-                                    message(1, m);
+                                    message_start(1);
+                                    bbprintf(&message_bbb, "Redefined label '%s'", name);
+                                    message_end();
                                 } else {
                                     last_label = define_label(name, instruction_value);
                                 }
                             } else {
                                 last_label = find_label(name);
                                 if (last_label == NULL) {
-                                    char m[33 + MAX_SIZE];
-                                    
-                                    bbsprintf(m, "Inconsistency, label '%s' not found", name);
-                                    message(1, m);
+                                    message_start(1);
+                                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
+                                    message_end();
                                 } else {
                                     if (last_label->value != instruction_value) {
 #ifdef DEBUG
@@ -1489,20 +1487,18 @@ void do_assembly(fname)
                     }
                     if (assembler_step == 1) {
                         if (find_label(name)) {
-                            char m[18 + MAX_SIZE];
-                            
-                            bbsprintf(m, "Redefined label '%s'", name);
-                            message(1, m);
+                            message_start(1);
+                            bbprintf(&message_bbb, "Redefined label '%s'", name);
+                            message_end();
                         } else {
                             last_label = define_label(name, address);
                         }
                     } else {
                         last_label = find_label(name);
                         if (last_label == NULL) {
-                            char m[33 + MAX_SIZE];
-                            
-                            bbsprintf(m, "Inconsistency, label '%s' not found", name);
-                            message(1, m);
+                            message_start(1);
+                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
+                            message_end();
                         } else {
                             if (last_label->value != address) {
 #ifdef DEBUG
