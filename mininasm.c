@@ -1228,7 +1228,11 @@ void message_start(int error) {
 }
 
 void message_end(void) {
-    bbprintf(&message_bbb, " at line %d\n", line_number);
+    if (line_number) {
+      bbprintf(&message_bbb, " at line %d\n", line_number);
+    } else {
+      bbwrite1(&message_bbb, '\n');
+    }
     message_flush(NULL);
 }
 

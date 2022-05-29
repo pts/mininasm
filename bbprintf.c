@@ -38,7 +38,7 @@ typedef char *va_list;  /* i386 only */
 
 #include "bbprintf.h"
 
-static void printchar(struct bbprintf_buf *bbb, int c) {
+void bbwrite1(struct bbprintf_buf *bbb, int c) {
   while (bbb->p == bbb->buf_end) {
     bbb->flush(bbb);
   }
@@ -60,16 +60,16 @@ static int prints(struct bbprintf_buf *bbb, const char *string, int width, int p
   }
   if (!(pad & PAD_RIGHT)) {
     for (; width > 0; --width) {
-      printchar(bbb, padchar);
+      bbwrite1(bbb, padchar);
       ++pc;
     }
   }
   for (; *string ; ++string) {
-    printchar(bbb, *string);
+    bbwrite1(bbb, *string);
     ++pc;
   }
   for (; width > 0; --width) {
-    printchar(bbb, padchar);
+    bbwrite1(bbb, padchar);
     ++pc;
   }
   return pc;
@@ -108,7 +108,7 @@ static int printi(struct bbprintf_buf *bbb, int i, int b, int sg, int width, int
 
   if (neg) {
     if (width &&(pad & PAD_ZERO)) {
-      printchar(bbb, '-');
+      bbwrite1(bbb, '-');
       ++pc;
       --width;
     }
@@ -168,7 +168,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         /* char are converted to int then pushed on the stack */
         scr[0] = (char)va_arg(args, int);
         if (width == 0) {  /* Print '\0'. */
-          printchar(bbb, scr[0]);
+          bbwrite1(bbb, scr[0]);
           ++pc;
         } else {
           scr[1] = '\0';
@@ -177,7 +177,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         continue;
       }
     } else { out:
-      printchar(bbb, *format);
+      bbwrite1(bbb, *format);
       ++pc;
     }
   }
