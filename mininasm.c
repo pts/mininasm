@@ -265,7 +265,7 @@ void print_labels_sorted_to_listing(node)
 {
     if (node->left != NULL)
         print_labels_sorted_to_listing(node->left);
-    bbprintf(&message_bbb, "%-20s %04x\n", node->name, node->value);
+    bbprintf(&message_bbb, "%-20s %04x\r\n", node->name, node->value);
     if (node->right != NULL)
         print_labels_sorted_to_listing(node->right);
 }
@@ -1259,9 +1259,12 @@ void message_start(int error) {
 
 void message_end(void) {
     if (line_number) {
-      bbprintf(&message_bbb, " at line %d\n", line_number);
+      /* We must use \r\n, because this will end up on stderr, and on DOS
+       * with O_BINARY, just a \n doesn't break the line properly.
+       */
+      bbprintf(&message_bbb, " at line %d\r\n", line_number);
     } else {
-      bbwrite1(&message_bbb, '\n');
+      bbprintf(&message_bbb, "\r\n");
     }
     message_flush(NULL);
     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing only (no stderr). */
@@ -1772,13 +1775,14 @@ void do_assembly(fname)
                 bbprintf(&message_bbb /* listing */, "  ");
                 p++;
             }
-            bbprintf(&message_bbb /* listing */, "  %05d %s\n", line_number, line);
+            bbprintf(&message_bbb /* listing */, "  %05d %s\r\n", line_number, line);
         }
         if (include == 1) {
             if (linep != NULL && lseek(input_fd, linep - line_rend, SEEK_CUR) < 0) {
                 message(1, "Cannot seek in source file");
             } else {
                 part[strlen(part) - 1] = '\0';
+                /* !! impose a limit on recursion depth for an upper limit of stack use */
                 do_assembly(part + 1);
                 /* Clear line read buffer, it has been clobbered by the inner do_assembly(...) call. */
                 if (linep) linep = line_rend = line_buf;
@@ -1809,7 +1813,7 @@ int main(argc, argv)
      ** If ran without arguments then show usage
      */
     if (argc == 1) {
-        static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\nmininasm -f bin input.asm -o input.bin\n");
+        static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
         fwrite(msg, 1, sizeof(msg), stderr);
         return 1;
     }
@@ -1953,11 +1957,11 @@ int main(argc, argv)
             do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
-                bbprintf(&message_bbb /* listing */, "\n%05d ERRORS FOUND\n", errors);
-                bbprintf(&message_bbb /* listing */, "%05d WARNINGS FOUND\n\n", warnings);
-                bbprintf(&message_bbb /* listing */, "%05d PROGRAM BYTES\n\n", bytes);
+                bbprintf(&message_bbb /* listing */, "\r\n%05d ERRORS FOUND\r\n", errors);
+                bbprintf(&message_bbb /* listing */, "%05d WARNINGS FOUND\r\n\r\n", warnings);
+                bbprintf(&message_bbb /* listing */, "%05d PROGRAM BYTES\r\n\r\n", bytes);
                 if (label_list != NULL) {
-                    bbprintf(&message_bbb /* listing */, "%-20s VALUE/ADDRESS\n\n", "LABEL");
+                    bbprintf(&message_bbb /* listing */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                     print_labels_sorted_to_listing(label_list);
                 }
             }
