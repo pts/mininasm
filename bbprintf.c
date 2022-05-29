@@ -144,7 +144,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         width += *format - '0';
       }
       if (*format == 's') {
-        register char *s =(char *)va_arg(args, int);
+        register char *s = va_arg(args, char*);
         pc += prints(bbb, s?s:"(null)", width, pad);
         continue;
       }
