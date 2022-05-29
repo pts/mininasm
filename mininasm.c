@@ -68,6 +68,13 @@ typedef char *va_list;  /* i386 only */
 
 #include "bbprintf.h"
 
+/* Example usage:
+ * static const STRING_WITHOUT_NUL(msg, "Hello, World!\r\n$");
+ * ... printmsgx(msg);
+ */
+#define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value) - 1] = value
+
+
 #define DEBUG
 
 char *input_filename;
@@ -1141,8 +1148,9 @@ char *match(p, pattern, decode)
     }
     if (assembler_step == 2) {
         if (undefined) {
-            fprintf(stderr, "Error: undefined label '%s' at line %d\n", undefined_name, line_number);
-            errors++;
+            char m[19 + MAX_SIZE];
+            bbsprintf(m, "Undefined label '%s'", undefined_name);
+            message(1, m);
         }
     }
     return p;
@@ -1198,19 +1206,24 @@ void message(error, message)
     int error;
     char *message;
 {
+    static const char msg_error[] = "Error: ";
+    static const char msg_warning[] = "Warning: ";
+    const char *msg_prefix;
+    char msg_suffix[12 + 3 * sizeof(int)];
+
     if (error) {
-        fprintf(stderr, "Error: %s at line %d\n", message, line_number);
+        msg_prefix = msg_error;
         errors++;
     } else {
-        fprintf(stderr, "Warning: %s at line %d\n", message, line_number);
+        msg_prefix = msg_warning;
         warnings++;
     }
+    bbsprintf(msg_suffix, " at line %d\n", line_number);
+    fwrite(msg_prefix, 1, strlen(msg_prefix), stderr);
+    fwrite(message, 1, strlen(message), stderr);
+    fwrite(msg_suffix, 1, strlen(msg_suffix), stderr);
     if (listing != NULL) {
-        if (error) {
-            fprintf(listing, "Error: %s at line %d\n", message, line_number);
-        } else {
-            fprintf(listing, "Warning: %s at line %d\n", message, line_number);
-        }
+        fprintf(listing, "%s%s%s", msg_prefix, message, msg_suffix);
     }
 }
 
