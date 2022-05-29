@@ -1199,6 +1199,20 @@ void check_end(p)
     }
 }
 
+char message_buf[512];
+
+struct bbprintf_buf message_bbb;
+
+void message_flush(struct bbprintf_buf *bbb) {
+    const int size = message_bbb.p - message_buf;
+    (void)bbb;  /* message_bbb. */
+    fwrite(message_buf, 1, size, stderr);
+    if (listing != NULL) fwrite(message_buf, 1, size, listing);
+    message_bbb.p = message_buf;
+}
+
+struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
+
 /*
  ** Generate a message
  */
@@ -1206,25 +1220,16 @@ void message(error, message)
     int error;
     char *message;
 {
-    static const char msg_error[] = "Error: ";
-    static const char msg_warning[] = "Warning: ";
     const char *msg_prefix;
-    char msg_suffix[12 + 3 * sizeof(int)];
-
     if (error) {
-        msg_prefix = msg_error;
+        msg_prefix = "Error: ";
         errors++;
     } else {
-        msg_prefix = msg_warning;
+        msg_prefix = "Warning: ";
         warnings++;
     }
-    bbsprintf(msg_suffix, " at line %d\n", line_number);
-    fwrite(msg_prefix, 1, strlen(msg_prefix), stderr);
-    fwrite(message, 1, strlen(message), stderr);
-    fwrite(msg_suffix, 1, strlen(msg_suffix), stderr);
-    if (listing != NULL) {
-        fprintf(listing, "%s%s%s", msg_prefix, message, msg_suffix);
-    }
+    bbprintf(&message_bbb, "%s: %s at line %d\n", msg_prefix, message, line_number);
+    message_flush(NULL);
 }
 
 /*
