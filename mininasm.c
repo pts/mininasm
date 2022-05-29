@@ -107,7 +107,6 @@ char line[MAX_SIZE];
 char part[MAX_SIZE];
 char name[MAX_SIZE];
 char expr_name[MAX_SIZE];
-char undefined_name[MAX_SIZE];
 char global_label[MAX_SIZE];
 char *prev_p;
 char *p;
@@ -828,7 +827,12 @@ char *match_expression_level6(p, value)
         if (label == NULL) {
             *value = 0;
             undefined++;
-            strcpy(undefined_name, expr_name);
+            if (assembler_step == 2) {
+                message_start(1);
+                /* This will be printed twice for `jmp', but once for `jc'. */
+                bbprintf(&message_bbb, "Undefined label '%s'", expr_name);
+                message_end();
+            }
         } else {
             *value = label->value;
         }
@@ -1148,13 +1152,6 @@ char *match(p, pattern, decode)
                     emit_byte(instruction_offset >> 8);
                 }
             }
-        }
-    }
-    if (assembler_step == 2) {
-        if (undefined) {
-            message_start(1);
-            bbprintf(&message_bbb, "Undefined label '%s'", undefined_name);
-            message_end();
         }
     }
     return p;
