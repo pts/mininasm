@@ -166,9 +166,14 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
       }
       if (*format == 'c') {
         /* char are converted to int then pushed on the stack */
-        scr[0] =(char)va_arg(args, int);
-        scr[1] = '\0';
-        pc += prints(bbb, scr, width, pad);
+        scr[0] = (char)va_arg(args, int);
+        if (width == 0) {  /* Print '\0'. */
+          printchar(bbb, scr[0]);
+          ++pc;
+        } else {
+          scr[1] = '\0';
+          pc += prints(bbb, scr, width, pad);
+        }
         continue;
       }
     } else { out:
