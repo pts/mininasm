@@ -130,7 +130,7 @@ char *g;
 char generated[8];
 
 int errors;
-int warnings;
+int warnings;  /* !! remove this, currently there are no possible warnings */
 int bytes;
 int change;
 int change_number;
@@ -859,7 +859,10 @@ char *match_expression_level6(p, value)
 void emit_bytes(const char *s, int size)  {
     address += size;
     if (assembler_step == 2) {
-        (void)!write(output_fd, s, size);
+        if (write(output_fd, s, size) != size) {
+            message(1, "error writing to output file");
+            exit(3);
+        }
         bytes += size;
         if (g != NULL) {
             for (; size > 0 && g != generated + sizeof(generated); *g++ = *s++, --size) {}
@@ -1227,7 +1230,12 @@ void message_flush(struct bbprintf_buf *bbb) {
     (void)bbb;  /* message_bbb. */
     if (size) {
         if (message_bbb.data) (void)!write(2 /* stderr */, message_buf, size);
-        if (listing_fd >= 0) (void)!write(listing_fd, message_buf, size);
+        if (listing_fd >= 0) {
+            if (write(listing_fd, message_buf, size) != size) {
+                message(1, "error writing to listing file");
+                exit(3);
+            }
+        }
         message_bbb.p = message_buf;
     }
 }
