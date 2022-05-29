@@ -180,7 +180,7 @@ struct label *define_label(name, value)
     /* Allocate label */
     label = malloc(sizeof(struct label) + strlen(name));
     if (label == NULL) {
-        fprintf(stderr, "Out of memory for label\n");
+        message(1, "Out of memory for label");
         exit(1);
         return NULL;
     }
@@ -1135,10 +1135,14 @@ char *match(p, pattern, decode)
                         d = 1;
                         break;
                     } else {
-                        fprintf(stderr, "decode: internal error 2\n");
+                        message(1, "decode: internal error 2");
+                        exit(2);
                     }
                 } else {
-                    fprintf(stderr, "decode: internal error 1 (%s)\n", base);
+                    message_start(1);
+                    bbprintf(&message_bbb, "decode: internal error 1 (%s)", base);
+                    message_end();
+                    exit(2);
                     break;
                 }
             }
@@ -1195,7 +1199,7 @@ void check_end(p)
 {
     p = avoid_spaces(p);
     if (*p && *p != ';') {
-        fprintf(stderr, "Error: extra characters at end of line %d\n", line_number);
+        message(1, "extra characters at end of line");
         errors++;
     }
 }
@@ -1263,12 +1267,12 @@ void process_instruction()
                 if (*p) {
                     p++;
                 } else {
-                    fprintf(stderr, "Error: unterminated string at line %d\n", line_number);
+                    message(1, "unterminated string");
                 }
             } else {
                 p2 = match_expression(p, &instruction_value);
                 if (p2 == NULL) {
-                    fprintf(stderr, "Error: bad expression at line %d\n", line_number);
+                    message(1, "bad expression");
                     break;
                 }
                 emit_byte(instruction_value);
@@ -1288,7 +1292,7 @@ void process_instruction()
         while (1) {
             p2 = match_expression(p, &instruction_value);
             if (p2 == NULL) {
-                fprintf(stderr, "Error: bad expression at line %d\n", line_number);
+                message(1, "bad expression");
                 break;
             }
             emit_byte(instruction_value);
@@ -1386,7 +1390,9 @@ void do_assembly(fname)
 
     input = fopen(fname, "r");
     if (input == NULL) {
-        fprintf(stderr, "Error: cannot open '%s' for input\n", fname);
+        message_start(1);
+        bbprintf(&message_bbb, "cannot open '%s' for input", fname);
+        message_end();
         errors++;
         return;
     }
@@ -1465,7 +1471,7 @@ void do_assembly(fname)
                                 } else {
                                     if (last_label->value != instruction_value) {
 #ifdef DEBUG
-/*                                        fprintf(stderr, "Woops: label '%s' changed value from %04x to %04x\n", last_label->name, last_label->value, instruction_value);*/
+/*                                        message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
 #endif
                                         change = 1;
                                     }
@@ -1478,7 +1484,7 @@ void do_assembly(fname)
                     }
                     if (first_time == 1) {
 #ifdef DEBUG
-                        /*                        fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
+                        /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
 #endif
                         first_time = 0;
                         reset_address();
@@ -1500,7 +1506,7 @@ void do_assembly(fname)
                         } else {
                             if (last_label->value != address) {
 #ifdef DEBUG
-/*                                fprintf(stderr, "Woops: label '%s' changed value from %04x to %04x\n", last_label->name, last_label->value, address);*/
+/*                                message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, address); message_end(); */
 #endif
                                 change = 1;
                             }
@@ -1577,7 +1583,7 @@ void do_assembly(fname)
             }
             if (avoid_level != -1 && level >= avoid_level) {
 #ifdef DEBUG
-                /*fprintf(stderr, "Avoiding '%s'\n", line);*/
+                /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
 #endif
                 break;
             }
@@ -1657,7 +1663,7 @@ void do_assembly(fname)
             }
             if (first_time == 1) {
 #ifdef DEBUG
-                /*fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
+                /* message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end(); */
 #endif
                 first_time = 0;
                 reset_address();
@@ -1734,8 +1740,8 @@ int main(argc, argv)
      ** If ran without arguments then show usage
      */
     if (argc == 1) {
-        fprintf(stderr, "Typical usage:\n");
-        fprintf(stderr, "mininasm -f bin input.asm -o input.bin\n");
+        static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\nmininasm -f bin input.asm -o input.bin\n");
+        fwrite(msg, 1, sizeof(msg), stderr);
         return 1;
     }
     
@@ -1753,7 +1759,7 @@ int main(argc, argv)
             if (d == 'f') { /* Format */
                 c++;
                 if (c >= argc) {
-                    fprintf(stderr, "Error: no argument for -f\n");
+                    message(1, "no argument for -f");
                     return 1;
                 } else {
                     to_lowercase(argv[c]);
@@ -1762,7 +1768,9 @@ int main(argc, argv)
                     } else if (strcmp(argv[c], "com") == 0) {
                         default_start_address = 0x0100;
                     } else {
-                        fprintf(stderr, "Error: only 'bin', 'com' supported for -f (it is '%s')\n", argv[c]);
+                        message_start(1);
+                        bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[c]);
+                        message_end();
                         return 1;
                     }
                     c++;
@@ -1770,10 +1778,10 @@ int main(argc, argv)
             } else if (d == 'o') {  /* Object file name */
                 c++;
                 if (c >= argc) {
-                    fprintf(stderr, "Error: no argument for -o\n");
+                    message(1, "no argument for -o");
                     return 1;
                 } else if (output_filename != NULL) {
-                    fprintf(stderr, "Error: already a -o argument is present\n");
+                    message(1, "already a -o argument is present");
                     return 1;
                 } else {
                     output_filename = argv[c];
@@ -1782,10 +1790,10 @@ int main(argc, argv)
             } else if (d == 'l') {  /* Listing file name */
                 c++;
                 if (c >= argc) {
-                    fprintf(stderr, "Error: no argument for -l\n");
+                    message(1, "no argument for -l");
                     return 1;
                 } else if (listing_filename != NULL) {
-                    fprintf(stderr, "Error: already a -l argument is present\n");
+                    message(1, "already a -l argument is present");
                     return 1;
                 } else {
                     listing_filename = argv[c];
@@ -1802,10 +1810,10 @@ int main(argc, argv)
                     undefined = 0;
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
-                        fprintf(stderr, "Error: wrong label definition\n");
+                        message(1, "wrong label definition");
                         return 1;
                     } else if (undefined) {
-                        fprintf(stderr, "Error: non-constant label definition\n");
+                        message(1, "non-constant label definition");
                         return 1;
                     } else {
                         define_label(argv[c] + 2, instruction_value);
@@ -1813,12 +1821,16 @@ int main(argc, argv)
                 }
                 c++;
             } else {
-                fprintf(stderr, "Error: unknown argument %s\n", argv[c]);
+                message_start(1);
+                bbprintf(&message_bbb, "unknown argument %s", argv[c]);
+                message_end();
                 return 1;
             }
         } else {
             if (ifname != NULL) {
-                fprintf(stderr, "Error: more than one input file name: %s\n", argv[c]);
+                message_start(1);
+                bbprintf(&message_bbb, "more than one input file name: %s", argv[c]);
+                message_end();
                 return 1;
             } else {
                 ifname = argv[c];
@@ -1828,7 +1840,7 @@ int main(argc, argv)
     }
     
     if (ifname == NULL) {
-        fprintf(stderr, "No input filename provided\n");
+        message(1, "No input filename provided");
         return 1;
     }
     
@@ -1844,7 +1856,7 @@ int main(argc, argv)
          ** Do second step of assembly and generate final output
          */
         if (output_filename == NULL) {
-            fprintf(stderr, "No output filename provided\n");
+            message(1, "No output filename provided");
             return 1;
         }
         change_number = 0;
@@ -1853,13 +1865,17 @@ int main(argc, argv)
             if (listing_filename != NULL) {
                 listing = fopen(listing_filename, "w");
                 if (listing == NULL) {
-                    fprintf(stderr, "Error: couldn't open '%s' as listing file\n", output_filename);
+                    message_start(1);
+                    bbprintf(&message_bbb, "couldn't open '%s' as listing file", output_filename);
+                    message_end();
                     return 1;
                 }
             }
             output = fopen(output_filename, "wb");
             if (output == NULL) {
-                fprintf(stderr, "Error: couldn't open '%s' as output file\n", output_filename);
+                message_start(1);
+                bbprintf(&message_bbb, "couldn't open '%s' as output file", output_filename);
+                message_end();
                 return 1;
             }
             assembler_step = 2;
@@ -1881,7 +1897,7 @@ int main(argc, argv)
             if (change) {
                 change_number++;
                 if (change_number == 5) {
-                    fprintf(stderr, "Aborted: Couldn't stabilize moving label\n");
+                    message(1, "Aborted: Couldn't stabilize moving label");
                     errors++;
                 }
             }
