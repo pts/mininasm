@@ -95,7 +95,7 @@ are implemented the following directives:
 	%else
 	%endif
 	%include
-	incline
+	incbin
 	times
 	use16
 	cpu 8086
