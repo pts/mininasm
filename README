@@ -86,6 +86,10 @@ The local labels final name is derived from concatenation
 of the last global label (not starting with period) and
 the local label.
 
+The segment prefix must be the first word in the instructions, e.g.
+`es cmp al, [di]' works in both NASM and Tinyasm, but `cmp al, [es:di]'
+doesn't work in Tinyasm.
+
 There is only support for 8086/8088 processors, and only
 are implemented the following directives:
 
