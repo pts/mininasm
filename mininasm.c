@@ -1239,13 +1239,14 @@ void message_flush(struct bbprintf_buf *bbb) {
     (void)bbb;  /* message_bbb. */
     if (size) {
         if (message_bbb.data) (void)!write(2 /* stderr */, message_buf, size);
+        message_bbb.p = message_buf;
         if (listing_fd >= 0) {
             if (write(listing_fd, message_buf, size) != size) {
+                listing_fd = -1;
                 message(1, "error writing to listing file");
                 exit(3);
             }
         }
-        message_bbb.p = message_buf;
     }
 }
 
