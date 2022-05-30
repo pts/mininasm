@@ -193,7 +193,7 @@ struct label {
     struct label MY_FAR *left;
     struct label MY_FAR *right;
     int value;
-    char name[1];  /* !! Some extra bytes appended to label because of alignment. */
+    char name[1];
 };
 
 struct label MY_FAR *label_list;
@@ -247,7 +247,7 @@ struct label MY_FAR *define_label(name, value)
     int c;
 
     /* Allocate label */
-    label = (struct label MY_FAR*)malloc_far(sizeof(struct label) + strlen(name));
+    label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
     if (label == NULL) {
         message(1, "Out of memory for label");
         exit(1);
