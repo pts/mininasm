@@ -10,7 +10,7 @@
  **
  **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c && ls -ld mininasm.tcc
  **
- **   $ dosmc -mt mininasm.c ins.c dosmclib.c bbprintf.c && ls -ld mininasm.com
+ **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
  **
  */
 
@@ -66,8 +66,8 @@ int close(int fd);
 #endif
 #else
 #ifdef __DOSMC__
-#include "dosmclib.h"
-#else  /* Standard C. gcc -ansi -pedantic -s -O2 -W -Wall -o mininasm mininasm.c ins.c */
+#include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
+#else /* Standard C. */
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -83,11 +83,57 @@ int close(int fd);
 #endif
 
 #ifdef __DOSMC__
+#ifdef __DOSMC_COM__
+/* Below is a simple malloc implementation using an arena which is never
+ * freed. Blocks are rounded up to paragraph (16-byte) boundary.
+ * !! Don't round up blocks.
+ */
+unsigned malloc_p_para;  /* Paragraph (segment) of the first free byte on heap. */
+unsigned malloc_end_para;  /* Paragraph (segment) of end-of-heap. */
+static void malloc_init(void);
+#pragma aux malloc_init = \
+"mov ax, ds" \
+"add ax, 1000h"  /* This works only for DOS .com programs. !! Resize the stack to make the constant memory usage smaller. */ \
+"mov malloc_p_para, ax" \
+"mov ax, ds" \
+"dec ax" \
+"mov es, ax"  /* Memory Control Block (MCB). */ \
+"mov ax, ds" \
+"add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */ \
+"mov malloc_end_para, ax" \
+;
+static void far *malloc_far(int size);
+/* We can use an inline assembly function since we call malloc_far only once, so the code won't be copy-pasted many times. */
+#pragma aux malloc_far = \
+"mov es, malloc_p_para" \
+"add ax, 15" \
+"shr ax, 1" \
+"shr ax, 1" \
+"shr ax, 1" \
+"shr ax, 1" \
+"add ax, malloc_p_para" \
+"xchg bx, ax"  /* BX := size; AX := junk. */ \
+"xor ax, ax"  /* Zero offset in the far pointer. */ \
+"cmp bx, malloc_end_para" \
+"xchg bx, malloc_p_para" \
+"jna @$done" \
+"xchg bx, malloc_p_para"  /* Keep original malloc_p_para value. */ \
+"mov es, ax"  /* Set result pointer to NULL. */ \
+"@$done:" \
+value [es ax] \
+parm [ax] \
+modify [bx]
+#else
+#error Target must be DOS .comprogram with dosmc.
+#endif
 #define MY_FAR far
+/* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
 #else
 #define MY_FAR
 #define strcpy_far(dest, src) strcpy(dest, src)
 #define strcmp_far(s1, s2) strcmp(s1, s2)
+#define malloc_far(size) malloc(size)
+#define malloc_init() do {} while (0)
 #endif
 
 #include "bbprintf.h"
@@ -147,7 +193,7 @@ struct label {
     struct label MY_FAR *left;
     struct label MY_FAR *right;
     int value;
-    char name[1];
+    char name[1];  /* !! Some extra bytes appended to label because of alignment. */
 };
 
 struct label MY_FAR *label_list;
@@ -201,7 +247,7 @@ struct label MY_FAR *define_label(name, value)
     int c;
 
     /* Allocate label */
-    label = malloc(sizeof(struct label) + strlen(name));
+    label = (struct label MY_FAR*)malloc_far(sizeof(struct label) + strlen(name));
     if (label == NULL) {
         message(1, "Out of memory for label");
         exit(1);
@@ -271,7 +317,8 @@ void print_labels_sorted_to_listing_fd(node)
     /* !! Limit recursion depth for stack usage by doing iteration of only left or right node. */
     if (node->left != NULL)
         print_labels_sorted_to_listing_fd(node->left);
-    bbprintf(&message_bbb, "%-20s %04x\r\n", node->name, node->value);
+    strcpy_far(global_label, node->name);
+    bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, node->value);
     if (node->right != NULL)
         print_labels_sorted_to_listing_fd(node->right);
 }
@@ -1443,6 +1490,8 @@ void do_assembly(fname)
     int align;
     int got;
     int input_fd;
+
+    malloc_init();
 
     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
