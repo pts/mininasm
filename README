@@ -20,8 +20,7 @@ following improvements:
   arguments or multiline macros.)
 * It depends on fewer runtime (libc) functions, so it can be compiled to a
   DOS .com file smaller than tinyasm.
-  This hasn't been implemented yet.
-  Maximum savings: about 16 KiB .com program instead of 30 KiB .com program
+  Savings: about 16.4 KiB .com program instead of 30 KiB .com program
   with `owcc -bcom -Os'.
 
 Below is a copy of the README of tinyasm.
