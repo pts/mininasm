@@ -2043,6 +2043,7 @@ int main(argc, argv)
             }
             assembler_step = 2;
             first_time = 1;
+            address = start_address;
             do_assembly(ifname);
 
             if (listing_fd >= 0 && change == 0) {
