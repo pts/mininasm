@@ -1501,8 +1501,6 @@ void do_assembly(fname)
     int got;
     int input_fd;
 
-    malloc_init();
-
     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
         bbprintf(&message_bbb, "cannot open '%s' for input", fname);
@@ -2010,6 +2008,7 @@ int main(argc, argv)
      */
     assembler_step = 1;
     first_time = 1;
+    malloc_init();
     do_assembly(ifname);
     message_flush(NULL);
     if (!errors) {
