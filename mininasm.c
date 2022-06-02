@@ -91,40 +91,51 @@ __LINKER_FLAG(stack_size__0x800)  /* !! Make sure it is enough. */
 #ifndef __MOV_AX_PSP_MCB__
 #error Missing __MOV_AX_PSP_MCB__, please compile .c file with dosmc directly.
 #endif
-unsigned malloc_p_para;  /* Paragraph (segment) of the first free byte on heap. */
-unsigned malloc_end_para;  /* Paragraph (segment) of end-of-heap. */
+struct {
+  unsigned malloc_end_para;  /* Paragraph (segment) of end-of-heap. */
+  char far *malloc_p;  /* First free byte on the heap. */
+} __malloc_struct__;
 static void malloc_init(void);
 #pragma aux malloc_init = \
 "mov ax, ds" \
-"add ax, offset __sd_top__"\
-"mov malloc_p_para, ax" \
+"add ax, offset __sd_top__" \
+"mov word ptr [offset __malloc_struct__+4], ax"  /* Set segment of malloc_p, keep offset (as 0). */ \
 __MOV_AX_PSP_MCB__ \
 "mov es, ax"  /* Memory Control Block (MCB). */ \
 "mov ax, ds" \
 "add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */ \
-"mov malloc_end_para, ax" \
+"mov word ptr [offset __malloc_struct__], ax"  /* Set malloc_end_para. */ \
 ;
+/* Allocates `size' bytes unaligned. Returns the beginning of the allocated
+ * data. With this arena allocator there is no way to free afterwards.
+ */
 static void far *malloc_far(int size);
+
 /* We can use an inline assembly function since we call malloc_far only once, so the code won't be copy-pasted many times. */
 #pragma aux malloc_far = \
-"mov es, malloc_p_para" \
-"add ax, 15" \
-"shr ax, 1" \
-"shr ax, 1" \
-"shr ax, 1" \
-"shr ax, 1" \
-"add ax, malloc_p_para" \
-"xchg bx, ax"  /* BX := size; AX := junk. */ \
-"xor ax, ax"  /* Zero offset in the far pointer. */ \
-"cmp bx, malloc_end_para" \
-"xchg bx, malloc_p_para" \
-"jna @$done" \
-"xchg bx, malloc_p_para"  /* Keep original malloc_p_para value. */ \
-"mov es, ax"  /* Set result pointer to NULL. */ \
+"mov cl, 4" \
+"mov si, offset __malloc_struct__+2"  /* Offset part of malloc_p. */ \
+"add ax, [si]" \
+"mov dx, ax" \
+"and ax, 0fh" \
+"shr dx, cl" \
+"add dx, [si + 2]" \
+"cmp dx, word ptr [si - 2]"  /* malloc_end_para. */ \
+"ja @$out_of_memory" \
+"jb @$fits" \
+"test ax, ax" \
+"jz @$fits" \
+"@$out_of_memory:" \
+"xor ax, ax" \
+"xor dx, dx"  /* Set result pointer to NULL. */ \
+"jmp short @$done" \
+"@$fits:" \
+"xchg ax, [si]" \
+"xchg dx, [si + 2]" \
 "@$done:" \
-value [es ax] \
+value [dx ax] \
 parm [ax] \
-modify [bx]
+modify [si cl]
 #define MY_FAR far
 /* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
 #else
