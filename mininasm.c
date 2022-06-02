@@ -68,7 +68,7 @@ int close(int fd);
 #else /* Standard C. */
 #include <ctype.h>
 #include <fcntl.h>
-#include <stdio.h>
+#include <stdio.h>  /* remove(...) */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -78,6 +78,14 @@ int close(int fd);
 
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
+#endif
+
+#if !defined(CONFIG_CPU_UNALIGN)
+#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__)
+#define CONFIG_CPU_UNALIGN 1  /* CPU supports unaligned memory access. i386 and amd64 do, arm and arm64 don't.  */
+#else
+#define CONFIG_CPU_UNALIGN 0
+#endif
 #endif
 
 #ifdef __DOSMC__
@@ -1429,11 +1437,16 @@ void incbin(fname)
 
 char line_buf[512];
 
+#if !CONFIG_CPU_UNALIGN
+struct guess_align_assembly_info_helper { off_t o; char c; };
+typedef char guess_align_assembly_info[sizeof(struct guess_align_assembly_info_helper) - sizeof(off_t)];
+#endif
+
 struct assembly_info {
+    off_t file_offset;  /* Largest alignment first, to save size. */
     int level;
     int avoid_level;
     int line_number;
-    off_t file_offset;
     char zero;  /* '\0'. Used by assembly_pop(...). */
     char input_filename[1];  /* Longer, ASCIIZ (NUL-terminated). */
 };
@@ -1443,22 +1456,31 @@ struct assembly_info {
  *
  * Supports %INCLUDE depth of more than 21 on DOS with 8.3 filenames (no pathname).
  */
+#if CONFIG_CPU_UNALIGN
 char assembly_stack[512];
+#else
+struct assembly_info assembly_stack[(512 + sizeof(struct assembly_info) - 1) / sizeof(struct assembly_info)];
+#endif
 struct assembly_info *assembly_p;  /* = (struct assembly_info*)assembly_stack; */
 
-/* !! This requires a host system with unaligned memory access. Add more padding NULs after input filename, and add #ifdefs. */
 static struct assembly_info *assembly_push(const char *input_filename) {
     const int input_filename_len = strlen(input_filename);
+#if !CONFIG_CPU_UNALIGN
+    int extra_nul_count = (sizeof(guess_align_assembly_info) - ((unsigned)(size_t)&((struct assembly_info*)0)->input_filename + input_filename_len + 1) % sizeof(guess_align_assembly_info)) % sizeof(guess_align_assembly_info);
+#endif
     struct assembly_info *aip;
-    if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
+    if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
     assembly_p->level = 0;
     assembly_p->avoid_level = -1;
     assembly_p->line_number = 0;
     assembly_p->file_offset = 0;
+    aip = assembly_p;
     assembly_p->zero = 0;
     strcpy(assembly_p->input_filename, input_filename);
-    aip = assembly_p;
     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
+#if !CONFIG_CPU_UNALIGN
+    for (; extra_nul_count > 0; --extra_nul_count, *(char*)assembly_p = '\0', assembly_p = (struct assembly_info*)((char*)(assembly_p) + 1)) {}
+#endif
     return aip;
 }
 
@@ -1470,7 +1492,12 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
     if (*--p != '\0') {
         /* TODO(pts): If DEBUG, assert it. */
     } else {
-        for (--p; *p != '\0'; --p) {}  /* Find ->zero with value '\0', preceding ->input_filename. */
+#if CONFIG_CPU_UNALIGN
+        --p;
+#else
+        for (; *p == '\0'; --p) {}
+#endif
+        for (; *p != '\0'; --p) {}  /* Find ->zero with value '\0', preceding ->input_filename. */
         aip = (struct assembly_info*)(p - (char*)&((struct assembly_info*)0)->zero);
     }
     return aip;
