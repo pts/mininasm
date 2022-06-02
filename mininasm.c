@@ -1740,7 +1740,7 @@ void do_assembly(fname)
             if (strcmp(part, "%INCLUDE") == 0) {
                 separate();
                 check_end(p);
-                if (part[0] != '"' || part[strlen(part) - 1] != '"') {
+                if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
                     message(1, "Missing quotes on %include");
                     break;
                 }
@@ -1750,7 +1750,7 @@ void do_assembly(fname)
             if (strcmp(part, "INCBIN") == 0) {
                 separate();
                 check_end(p);
-                if (part[0] != '"' || part[strlen(part) - 1] != '"') {
+                if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
                     message(1, "Missing quotes on incbin");
                     break;
                 }
