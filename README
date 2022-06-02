@@ -19,11 +19,11 @@ following improvements:
 * It supports `%define MACRO VALUE'. (It doesn't support macros with
   arguments or multiline macros.)
 * It depends on fewer runtime (libc) functions, so it can be compiled to a
-  DOS .com file smaller than tinyasm.
+  DOS .com file smaller than Tinyasm.
   Savings: about 16.4 KiB .com program instead of 30 KiB .com program
   with `owcc -bcom -Os'.
 
-Below is a copy of the README of tinyasm.
+Below is a copy of the README of Tinyasm.
 
 ,--------.,--.
 '--.  .--'`--',--,--, ,--. ,--.,--,--. ,---. ,--,--,--.
@@ -174,7 +174,7 @@ C compiler Desmet C, version 3.1h available graciously at:
     http://www.desmet-c.com/
 
 The compiler has many bugs and limitations, but it works for
-tinyasm purposes, and it's freely available.
+Tinyasm purposes, and it's freely available.
 
 Supposedly it should support ANSI C, but I couldn't fit a
 standard ANSI C function definition, so I had to code again
