@@ -1737,6 +1737,21 @@ void do_assembly(fname)
                     message(1, "Unsupported processor requested");
                 break;
             }
+            if (strcmp(part, "BITS") == 0) {
+                p = avoid_spaces(p);
+                undefined = 0;
+                p = match_expression(p, &instruction_value);
+                if (p == NULL) {
+                    message(1, "Bad expression");
+                } else if (undefined) {
+                    message(1, "Cannot use undefined labels");
+                } else if (instruction_value != 16) {
+                    message(1, "Unsupported BITS requested");
+                } else {
+                    check_end(p);
+                }
+                break;
+            }
             if (strcmp(part, "%INCLUDE") == 0) {
                 separate();
                 check_end(p);
