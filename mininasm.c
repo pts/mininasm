@@ -83,20 +83,22 @@ int close(int fd);
 #endif
 
 #ifdef __DOSMC__
-#ifdef __DOSMC_COM__
+__LINKER_FLAG(stack_size__0x800)  /* !! Make sure it is enough. */
 /* Below is a simple malloc implementation using an arena which is never
  * freed. Blocks are rounded up to paragraph (16-byte) boundary.
  * !! Don't round up blocks.
  */
+#ifndef __MOV_AX_PSP_MCB__
+#error Missing __MOV_AX_PSP_MCB__, please compile .c file with dosmc directly.
+#endif
 unsigned malloc_p_para;  /* Paragraph (segment) of the first free byte on heap. */
 unsigned malloc_end_para;  /* Paragraph (segment) of end-of-heap. */
 static void malloc_init(void);
 #pragma aux malloc_init = \
 "mov ax, ds" \
-"add ax, 1000h"  /* This works only for DOS .com programs. !! Resize the stack to make the constant memory usage smaller. */ \
+"add ax, offset __sd_top__"\
 "mov malloc_p_para, ax" \
-"mov ax, ds" \
-"dec ax" \
+__MOV_AX_PSP_MCB__ \
 "mov es, ax"  /* Memory Control Block (MCB). */ \
 "mov ax, ds" \
 "add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */ \
@@ -123,9 +125,6 @@ static void far *malloc_far(int size);
 value [es ax] \
 parm [ax] \
 modify [bx]
-#else
-#error Target must be DOS .comprogram with dosmc.
-#endif
 #define MY_FAR far
 /* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
 #else
