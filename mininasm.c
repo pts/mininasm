@@ -1383,6 +1383,8 @@ void process_instruction()
             p = avoid_spaces(p);
             if (*p == ',') {
                 p++;
+                p = avoid_spaces(p);
+                if (*p == '\0') break;
                 continue;
             }
             check_end(p);
@@ -1402,6 +1404,8 @@ void process_instruction()
             p = avoid_spaces(p2);
             if (*p == ',') {
                 p++;
+                p = avoid_spaces(p);
+                if (*p == '\0') break;
                 continue;
             }
             check_end(p);
