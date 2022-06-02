@@ -331,13 +331,25 @@ struct label MY_FAR *find_label(name)
 void print_labels_sorted_to_listing_fd(node)
     struct label MY_FAR *node;
 {
-    /* !! Limit recursion depth for stack usage by doing iteration of only left or right node. */
-    if (node->left != NULL)
-        print_labels_sorted_to_listing_fd(node->left);
-    strcpy_far(global_label, node->name);
-    bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, node->value);
-    if (node->right != NULL)
-        print_labels_sorted_to_listing_fd(node->right);
+    struct label MY_FAR *pre;
+    /* Morris in-order traversal of binary tree: iterative (non-recursive,
+     * so it uses O(1) stack), modifies the tree pointers temporarily, but
+     * then restores them, runs in O(n) time.
+     */
+    while (node) {
+        if (!node->left) goto do_print;
+        for (pre = node->left; pre->right && pre->right != node; pre = pre->right) {}
+        if (!pre->right) {
+            pre->right = node;
+            node = node->left;
+        } else {
+            pre->right = NULL;
+          do_print:
+            strcpy_far(global_label, node->name);
+            bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, node->value);
+            node = node->right;
+        }
+    }
 }
 
 /*
