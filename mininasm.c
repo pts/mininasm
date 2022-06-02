@@ -27,8 +27,6 @@ typedef unsigned int size_t;  /* TODO(pts): 64-bit tcc. */
 typedef int ssize_t;  /* TODO(pts): 64-bit tcc. */
 typedef int off_t;
 #define NULL ((void*)0)
-typedef struct FILE FILE;
-extern FILE *stderr;
 void *malloc(size_t size);
 size_t strlen(const char *s);
 int remove(const char *pathname);
