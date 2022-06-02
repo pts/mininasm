@@ -1668,7 +1668,7 @@ void do_assembly(fname)
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
-                    message(1, "Undefined labels");
+                    message(1, "Cannot use undefined labels");
                 }
                 if (instruction_value != 0) {
                     ;
@@ -1760,8 +1760,8 @@ void do_assembly(fname)
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
+                p = match_expression(p, &instruction_value);
+                if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
                     message(1, "Cannot use undefined labels");
@@ -1780,15 +1780,15 @@ void do_assembly(fname)
 
                         }
                     }
-                    check_end(p2);
+                    check_end(p);
                 }
                 break;
             }
             if (strcmp(part, "ALIGN") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
+                p = match_expression(p, &instruction_value);
+                if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
                     message(1, "Cannot use undefined labels");
@@ -1798,7 +1798,7 @@ void do_assembly(fname)
                     align = align + instruction_value;
                     while (address < align)
                         emit_byte(0x90);
-                    check_end(p2);
+                    check_end(p);
                 }
                 break;
             }
@@ -1812,17 +1812,16 @@ void do_assembly(fname)
             times = 1;
             if (strcmp(part, "TIMES") == 0) {
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
-                    message(1, "bad expression");
+                p = match_expression(p, &instruction_value);
+                if (p == NULL) {
+                    message(1, "Bad expression");
                     break;
                 }
                 if (undefined) {
-                    message(1, "non-constant expression");
+                    message(1, "Cannot use undefined labels");
                     break;
                 }
                 times = instruction_value;
-                p = p2;
                 separate();
             }
             base = address;
@@ -1957,10 +1956,10 @@ int main(argc, argv)
                     undefined = 0;
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
-                        message(1, "wrong label definition");
+                        message(1, "Bad expression");
                         return 1;
                     } else if (undefined) {
-                        message(1, "non-constant label definition");
+                        message(1, "Cannot use undefined labels");
                         return 1;
                     } else {
                         define_label(argv[c] + 2, instruction_value);
