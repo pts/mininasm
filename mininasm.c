@@ -155,7 +155,6 @@ modify [si cl]
 
 #define DEBUG
 
-char *input_filename;
 int line_number;
 
 char *output_filename;
@@ -1264,7 +1263,7 @@ struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_bu
 void message_start(int error) {
     const char *msg_prefix;
     if (error) {
-        msg_prefix = "Error: ";
+        msg_prefix = "Error: ";  /* !! Also display current input_filename. */
         errors++;
     } else {
         msg_prefix = "Warning: ";
@@ -1430,15 +1429,62 @@ void incbin(fname)
 
 char line_buf[512];
 
+struct assembly_info {
+    int level;
+    int avoid_level;
+    int line_number;
+    off_t file_offset;
+    char zero;  /* '\0'. Used by assembly_pop(...). */
+    char input_filename[1];  /* Longer, ASCIIZ (NUL-terminated). */
+};
+
+/* A stack of files being assembled. The one at the beginning was specified
+ * in the command line, others were %include()d in order.
+ *
+ * Supports %INCLUDE depth of more than 21 on DOS with 8.3 filenames (no pathname).
+ */
+char assembly_stack[512];
+struct assembly_info *assembly_p;  /* = (struct assembly_info*)assembly_stack; */
+
+/* !! This requires a host system with unaligned memory access. Add more padding NULs after input filename, and add #ifdefs. */
+static struct assembly_info *assembly_push(const char *input_filename) {
+    const int input_filename_len = strlen(input_filename);
+    struct assembly_info *aip;
+    if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
+    assembly_p->level = 0;
+    assembly_p->avoid_level = -1;
+    assembly_p->line_number = 0;
+    assembly_p->file_offset = 0;
+    assembly_p->zero = 0;
+    strcpy(assembly_p->input_filename, input_filename);
+    aip = assembly_p;
+    assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
+    return aip;
+}
+
+static struct assembly_info *assembly_pop(struct assembly_info *aip) {
+    char *p;
+    if (aip == (struct assembly_info*)assembly_stack) return NULL;
+    assembly_p = aip;
+    p = (char*)aip;
+    if (*--p != '\0') {
+        /* TODO(pts): If DEBUG, assert it. */
+    } else {
+        for (--p; *p != '\0'; --p) {}  /* Find ->zero with value '\0', preceding ->input_filename. */
+        aip = (struct assembly_info*)(p - (char*)&((struct assembly_info*)0)->zero);
+    }
+    return aip;
+}
+
 /*
  ** Do an assembler step
  */
-void do_assembly(fname)
-    char *fname;
+void do_assembly(input_filename)
+    char *input_filename;
 {
+    struct assembly_info *aip;
     char *p2;
     char *p3;
-    char *pfname;
     char *line;
     char *linep;
     char *liner;
@@ -1447,26 +1493,39 @@ void do_assembly(fname)
     int avoid_level;
     int times;
     int base;
-    int pline;
     int include;
     int align;
     int got;
     int input_fd;
 
-    if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
-        message_start(1);
-        bbprintf(&message_bbb, "cannot open '%s' for input", fname);
-        message_end();
+    assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
+
+  do_assembly_push:
+    line_number = 0;  /* Global variable. */
+    if (!(aip = assembly_push(input_filename))) {
+        message(1, "assembly stack overflow, too many pending %INCLUDE files");
         return;
     }
 
-    pfname = input_filename;
-    pline = line_number;
-    input_filename = fname;
-    level = 0;
-    avoid_level = -1;
+  do_open_again:
+    line_number = 0;  /* Global variable. */
+    if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
+        message_start(1);
+        bbprintf(&message_bbb, "cannot open '%s' for input", aip->input_filename);
+        message_end();
+        return;
+    }
+    if (aip->file_offset != 0 && lseek(input_fd, aip->file_offset, SEEK_SET) != aip->file_offset) {
+        message_start(1);
+        bbprintf(&message_bbb, "cannot seek in '%s'", input_filename);
+        message_end();
+        return;
+    }
+    level = aip->level;
+    avoid_level = aip->avoid_level;
+    line_number = aip->line_number;
+
     global_label[0] = '\0';
-    line_number = 0;
     base = 0;
     linep = line_rend = line_buf;
     while (linep) {  /* Read and process next line from input. */
@@ -1816,23 +1875,25 @@ void do_assembly(fname)
             bbprintf(&message_bbb /* listing_fd */, "  %05d %s\r\n", line_number, line);
         }
         if (include == 1) {
-            if (linep != NULL && lseek(input_fd, linep - line_rend, SEEK_CUR) < 0) {
+            if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
                 message(1, "Cannot seek in source file");
-            } else {
-                part[strlen(part) - 1] = '\0';
-                /* !! impose a limit on recursion depth for an upper limit of stack use */
-                do_assembly(part + 1);
-                /* Clear line read buffer, it has been clobbered by the inner do_assembly(...) call. */
-                if (linep) linep = line_rend = line_buf;
+                close(input_fd);
+                return;
             }
+            close(input_fd);
+            aip->level = level;
+            aip->avoid_level = avoid_level;
+            aip->line_number = line_number;
+            part[strlen(part) - 1] = '\0';
+            input_filename = part + 1;
+            goto do_assembly_push;
         } else if (include == 2) {
             part[strlen(part) - 1] = '\0';
             incbin(part + 1);
         }
     }
     close(input_fd);
-    line_number = pline;
-    input_filename = pfname;
+    if ((aip = assembly_pop(aip)) != NULL) goto do_open_again;  /* Continue processing the input file which %INCLUDE()d the current input file. */
 }
 
 /*
