@@ -166,10 +166,12 @@ int output_fd;
 char *listing_filename;
 int listing_fd = -1;
 
-int assembler_step;
-int default_start_address;
-int start_address;
-int address;
+typedef int value_t;
+
+int assembler_step;  /* !! Change many variables from int to char. */
+value_t default_start_address;
+value_t start_address;
+value_t address;
 int first_time;
 
 int instruction_addressing;
@@ -178,8 +180,8 @@ int instruction_offset_width;
 
 int instruction_register;
 
-int instruction_value;
-int instruction_value2;
+value_t instruction_value;
+value_t instruction_value2;
 
 #define MAX_SIZE        256
 
@@ -202,7 +204,7 @@ int change_number;
 struct label {
     struct label MY_FAR *left;
     struct label MY_FAR *right;
-    int value;
+    value_t value;
     char name[1];
 };
 
@@ -518,65 +520,6 @@ char *match_register(p, width, value)
 }
 
 /*
- ** Read character for string or character literal
- */
-char *read_character(p, c)
-    char *p;
-    int *c;
-{
-    if (*p == '\\') {
-        p++;
-        if (*p == '\'') {
-            *c = '\'';
-            p++;
-        } else if (*p == '\"') {
-            *c = '"';
-            p++;
-        } else if (*p == '\\') {
-            *c = '\\';
-            p++;
-        } else if (*p == 'a') {
-            *c = 0x07;
-            p++;
-        } else if (*p == 'b') {
-            *c = 0x08;
-            p++;
-        } else if (*p == 't') {
-            *c = 0x09;
-            p++;
-        } else if (*p == 'n') {
-            *c = 0x0a;
-            p++;
-        } else if (*p == 'v') {
-            *c = 0x0b;
-            p++;
-        } else if (*p == 'f') {
-            *c = 0x0c;
-            p++;
-        } else if (*p == 'r') {
-            *c = 0x0d;
-            p++;
-        } else if (*p == 'e') {
-            *c = 0x1b;
-            p++;
-        } else if (*p >= '0' && *p <= '7') {
-            *c = 0;
-            while (*p >= '0' && *p <= '7') {
-                *c = *c * 8 + (*p - '0');
-                p++;
-            }
-        } else {
-            p--;
-            message(1, "bad escape inside string");
-        }
-    } else {
-        *c = *p;
-        p++;
-    }
-    return p;
-}
-
-/*
  ** Match expression (top tier)
  */
 char *match_expression(p, value)
@@ -783,8 +726,9 @@ char *match_expression_level6(p, value)
     char *p;
     int *value;
 {
-    int number;
+    value_t number;
     int c;
+    unsigned shift;
     char *p2;
     struct label MY_FAR *label;
 
@@ -859,13 +803,19 @@ char *match_expression_level6(p, value)
         *value = number;
         return p;
     }
-    if (p[0] == '\'') { /* Character constant */
-        p++;
-        p = read_character(p, value);
-        if (p[0] != '\'') {
-            message(1, "Missing apostrophe");
+    if (p[0] == '\'' || p[0] == '"') {  /* Character constant */
+        number = 0; shift = 0;
+        for (c = *p++; *p != '\0' && *p != (char)c; ++p) {
+            if (shift < sizeof(number) * 8) {
+                number |= (unsigned char)*p << shift;
+                shift += 8;
+            }
+        }
+        *value = number;
+        if (*p == '\0') {
+            message(1, "Missing close quote");
         } else {
-            p++;
+            ++p;
         }
         return p;
     }
@@ -1360,35 +1310,35 @@ void process_instruction()
     if (strcmp(part, "DB") == 0) {  /* Define byte */
         while (1) {
             p = avoid_spaces(p);
-            if (*p == '"') {    /* ASCII text */
-                p++;
-                while (*p && *p != '"') {
-                    p = read_character(p, &c);
-                    emit_byte(c);
-                }
-                if (*p) {
-                    p++;
+            if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
+                c = *p++;
+                for (p2 = p; *p2 != '\0' && *p2 != (char)c; ++p2) {}
+                p3 = p2;
+                if (*p3 == '\0') {
+                    message(1, "Missing close quote");
                 } else {
-                    message(1, "unterminated string");
+                    p3 = avoid_spaces(p3 + 1);
+                    if (*p3 != ',' && *p3 != '\0') { --p; goto db_expr; }
+                    emit_bytes(p, p2 - p);
                 }
-            } else {
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
-                    message(1, "bad expression");
+                p = p3;
+            } else { db_expr:
+                p = match_expression(p, &instruction_value);
+                if (p == NULL) {
+                    message(1, "Bad expression");
                     break;
                 }
+                p = avoid_spaces(p);
                 emit_byte(instruction_value);
-                p = p2;
             }
-            p = avoid_spaces(p);
             if (*p == ',') {
                 p++;
                 p = avoid_spaces(p);
                 if (*p == '\0') break;
-                continue;
+            } else {
+                check_end(p);
+                break;
             }
-            check_end(p);
-            break;
         }
         return;
     }
@@ -1396,7 +1346,7 @@ void process_instruction()
         while (1) {
             p2 = match_expression(p, &instruction_value);
             if (p2 == NULL) {
-                message(1, "bad expression");
+                message(1, "Bad expression");
                 break;
             }
             emit_byte(instruction_value);
