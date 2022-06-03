@@ -89,7 +89,7 @@ int close(int fd);
 #endif
 
 #ifdef __DOSMC__
-__LINKER_FLAG(stack_size__0x800)  /* !! Make sure it is enough. */
+__LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
  * freed. Blocks are rounded up to paragraph (16-byte) boundary.
  * !! Don't round up blocks.
