@@ -88,7 +88,14 @@ int close(int fd);
 #endif
 #endif
 
+#ifndef CONFIG_BALANCED
+#define CONFIG_BALANCED 1
+#endif
+
 #ifdef __DOSMC__
+#if CONFIG_BALANCED
+__LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert. */
+#endif
 __LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
  * freed. Blocks are rounded up to paragraph (16-byte) boundary.
@@ -210,6 +217,9 @@ struct label {
     struct label MY_FAR *left;
     struct label MY_FAR *right;
     value_t value;
+#if CONFIG_BALANCED
+    char red;  /* Is it a red node of the red-black tree? */
+#endif
     char name[1];
 };
 
@@ -252,6 +262,38 @@ char *match_register(), *match_expression(),
 #define exit(status) _exit(status)
 #endif
 
+#if CONFIG_BALANCED
+/*
+ * Each node in the RB tree consumes at least 1 byte of space (for the
+ * linkage if nothing else, so there are a maximum of 1 << (sizeof(void *)
+ * << 3 rb) tree nodes in any process, and thus, at most that many in any
+ * tree.
+ *
+ * Maximum number of bytes in a process: 1 << (sizeof(void*) << 3).
+ * Log2 of maximum number of bytes in a process: sizeof(void*) << 3.
+ * Maximum number of tree nodes in a process: 1 << (sizeof(void*) << 3) / sizeof(tree_node).
+ * Maximum number of tree nodes in a process is at most: 1 << (sizeof(void*) << 3) / sizeof(rb_node(a_type)).
+ * Log2 of maximum number of tree nodes in a process is at most: (sizeof(void*) << 3) - log2(sizeof(rb_node(a_type)).
+ * Log2 of maximum number of tree nodes in a process is at most without RB_COMPACT: (sizeof(void*) << 3) - (sizeof(void*) >= 8 ? 4 : sizeof(void*) >= 4 ? 3 : 2).
+ */
+#ifndef RB_LOG2_MAX_MEM_BYTES
+#ifdef __DOSMC__
+#define RB_LOG2_MAX_MEM_BYTES 20  /* 1 MiB. */
+#else
+#define RB_LOG2_MAX_MEM_BYTES (sizeof(void*) << 3)
+#endif
+#endif
+/**/
+#ifndef RB_LOG2_MAX_NODES
+#define RB_LOG2_MAX_NODES (RB_LOG2_MAX_MEM_BYTES - (sizeof(void*) >= 8 ? 4 : sizeof(void*) >= 4 ? 3 : 2) - 1)
+#endif
+/**/
+struct tree_path_entry {
+    struct label MY_FAR *label;
+    char less;
+};
+#endif  /* CONFIG_BALANCED */
+
 /*
  ** Define a new label
  */
@@ -260,8 +302,6 @@ struct label MY_FAR *define_label(name, value)
     int value;
 {
     struct label MY_FAR *label;
-    struct label MY_FAR *explore;
-    int c;
 
     /* Allocate label */
     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
@@ -277,13 +317,83 @@ struct label MY_FAR *define_label(name, value)
     label->value = value;
     strcpy_far(label->name, name);
 
-    /* Populate binary tree */
+    /* Insert label to binary tree. */
+#if CONFIG_BALANCED
+    /* Red-black tree node insertion implementation based on: commit on 2021-03-17
+     * https://github.com/jemalloc/jemalloc/blob/70e3735f3a71d3e05faa05c58ff3ca82ebaad908/include/jemalloc/internal/rb.h
+     *
+     * Tree with duplicate keys is untested.
+     *
+     * With __DOSMC__, this insertion is 319 bytes longer than the unbalanced alternative below.
+     */
+    {
+        /*
+         * The choice of algorithm bounds the depth of a tree to twice the binary
+         * log of the number of elements in the tree; the following bound follows.
+         */
+        static struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
+        struct tree_path_entry *pathp;
+        label->red = 1;
+        path->label = label_list;
+        for (pathp = path; pathp->label != NULL; pathp++) {
+            const char less = pathp->less = strcmp_far(label->name, pathp->label->name) < 0;
+            pathp[1].label = less ? pathp->label->left : pathp->label->right;
+        }
+        pathp->label = label;
+        while (pathp-- != path) {
+            struct label MY_FAR *clabel = pathp->label;
+            if (pathp->less) {
+                struct label MY_FAR *left = pathp[1].label;
+                clabel->left = left;
+                if (left->red) {
+                    struct label MY_FAR *leftleft = left->left;
+                    if (leftleft != NULL && leftleft->red) {
+                        struct label MY_FAR *tlabel;
+                        leftleft->red = 0;
+                        tlabel = clabel->left;
+                        clabel->left = tlabel->right;
+                        tlabel->right = clabel;
+                        clabel = tlabel;
+                    }
+                } else {
+                    goto done;
+                }
+            } else {
+                struct label MY_FAR *right = pathp[1].label;
+                clabel->right = right;
+                if (right->red) {
+                    struct label MY_FAR *left = clabel->left;
+                    if (left != NULL && left->red) {
+                         left->red = 0;
+                         right->red = 0;
+                         clabel->red = 1;
+                     } else {
+                         struct label MY_FAR *tlabel;
+                         char tred = clabel->red;
+                         tlabel = clabel->right;
+                         clabel->right = tlabel->left;
+                         tlabel->left = clabel;
+                         tlabel->red = tred;
+                         clabel->red = 1;
+                         clabel = tlabel;
+                     }
+                } else {
+                    goto done;
+                }
+            }
+            pathp->label = clabel;
+        }
+        label_list = path->label;
+        label_list->red = 0;
+    }
+  done:
+#else  /* Unbalanced binary search tree node insertion. */
     if (label_list == NULL) {
         label_list = label;
     } else {
-        explore = label_list;
+        struct label MY_FAR *explore = label_list;
         while (1) {
-            c = strcmp_far(label->name, explore->name);
+            const int c = strcmp_far(label->name, explore->name);
             if (c < 0) {
                 if (explore->left == NULL) {
                     explore->left = label;
@@ -299,6 +409,7 @@ struct label MY_FAR *define_label(name, value)
             }
         }
     }
+#endif
     return label;
 }
 
