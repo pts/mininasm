@@ -92,6 +92,14 @@ int close(int fd);
 #define CONFIG_BALANCED 1
 #endif
 
+#ifndef CONFIG_DOSMC_PACKED
+#ifdef __DOSMC__
+#define CONFIG_DOSMC_PACKED 1
+#else
+#define CONFIG_DOSMC_PACKED 0
+#endif
+#endif
+
 #ifdef __DOSMC__
 #if CONFIG_BALANCED
 __LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert. */
@@ -151,13 +159,16 @@ parm [ax] \
 modify [si cl]
 #define MY_FAR far
 /* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
-#else
+#else  /* CONFIG_DOSMC. */
 #define MY_FAR
 #define strcpy_far(dest, src) strcpy(dest, src)
 #define strcmp_far(s1, s2) strcmp(s1, s2)
 #define malloc_far(size) malloc(size)
 #define malloc_init() do {} while (0)
+#if CONFIG_DOSMC_PACKED
+#error CONFIG_DOSMC_PACKED needs __DOSMC__.
 #endif
+#endif  /* Else CONFIG_DOSMC. */
 
 #include "bbprintf.h"
 
@@ -213,10 +224,20 @@ int bytes;
 int change;
 int change_number;
 
+#if CONFIG_DOSMC_PACKED
+_Packed  /* Disable extra aligment byte at the end of `struct label'. */
+#endif
 struct label {
+#if CONFIG_DOSMC_PACKED
+    unsigned left_seg, right_seg;
+#else
     struct label MY_FAR *tree_left;
     struct label MY_FAR *tree_right;
+#endif
     value_t value;
+#if CONFIG_DOSMC_PACKED
+    unsigned char left_right_ofs;
+#endif
 #if CONFIG_BALANCED
     char tree_red;  /* Is it a red node of the red-black tree? */
 #endif
@@ -295,9 +316,33 @@ struct tree_path_entry {
 /**/
 #endif  /* CONFIG_BALANCED */
 
+#if CONFIG_DOSMC_PACKED
+typedef char assert_label_size[sizeof(struct label) == 5 /* left and right pointers */ + sizeof(value_t) + (CONFIG_BALANCED ? 1 : 0) /* tree_red */ + 1 /* trailing NUL in ->name */];
+#define RBL_IS_NULL(label) (FP_SEG(label) == 0)
+#define RBL_IS_LEFT_NULL(label) ((label)->left_seg == 0)
+#define RBL_IS_RIGHT_NULL(label) ((label)->right_seg == 0)
+#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg = (label)->right_seg = 0)
+#define RBL_GET_LEFT(label) (MK_FP((label)->left_seg, (label)->left_right_ofs >> 4))
+#define RBL_GET_RIGHT(label) (MK_FP((label)->right_seg, (label)->left_right_ofs & 15))
+static void RBL_SET_LEFT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
+    label->left_seg = FP_SEG(ptr);
+    label->left_right_ofs = (label->left_right_ofs & 0x0f) | FP_OFF(ptr) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
+}
+static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
+    label->right_seg = FP_SEG(ptr);
+    label->left_right_ofs = (label->left_right_ofs & 0xf0) | FP_OFF(ptr);  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
+}
+#if CONFIG_BALANCED
+#define RBL_IS_RED(label) ((label)->tree_red)  /* Nonzero means true. */
+#define RBL_COPY_RED(label, source_label) ((label)->tree_red = (source_label)->tree_red)
+#define RBL_SET_RED_0(label) ((label->tree_red) = 0)
+#define RBL_SET_RED_1(label) ((label->tree_red) = 1)
+#endif  /* CONFIG_BALANCED. */
+#else
 #define RBL_IS_NULL(label) ((label) == NULL)
 #define RBL_IS_LEFT_NULL(label) ((label)->tree_left == NULL)
 #define RBL_IS_RIGHT_NULL(label) ((label)->tree_right == NULL)
+#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->tree_left = (label)->tree_right = NULL)
 #define RBL_GET_LEFT(label) ((label)->tree_left)
 #define RBL_GET_RIGHT(label) ((label)->tree_right)
 #define RBL_SET_LEFT(label, ptr) ((label)->tree_left = (ptr))
@@ -308,6 +353,7 @@ struct tree_path_entry {
 #define RBL_SET_RED_0(label) ((label->tree_red) = 0)
 #define RBL_SET_RED_1(label) ((label->tree_red) = 1)
 #endif  /* CONFIG_BALANCED. */
+#endif  /* CONFIG_DOSMC_PACKED. */
 
 /*
  ** Define a new label
@@ -327,8 +373,7 @@ struct label MY_FAR *define_label(name, value)
     }
 
     /* Fill label */
-    RBL_SET_LEFT(label, NULL);
-    RBL_SET_RIGHT(label, NULL);
+    RBL_SET_LEFT_RIGHT_NULL(label);
     label->value = value;
     strcpy_far(label->name, name);
 
