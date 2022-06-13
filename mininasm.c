@@ -12,6 +12,8 @@
  **
  **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
  **
+ **   $ owcc -bdos -o mininasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra mininasm.c ins.c bbprintf.c && ls -ld mininasm.exe
+ **
  */
 
 #ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
