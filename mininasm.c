@@ -337,8 +337,14 @@ typedef char assert_label_size[sizeof(struct label) == 5 /* left and right point
 #define RBL_IS_LEFT_NULL(label) ((label)->left_seg == 0)
 #define RBL_IS_RIGHT_NULL(label) ((label)->right_seg == 0)
 #define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg = (label)->right_seg = 0)
-#define RBL_GET_LEFT(label) (MK_FP((label)->left_seg, (label)->left_right_ofs >> 4))
-#define RBL_GET_RIGHT(label) (MK_FP((label)->right_seg, (label)->left_right_ofs & 15))
+static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
+    char MY_FAR *p = MK_FP((label)->left_seg, (label)->left_right_ofs >> 4);
+    return (struct label MY_FAR*)p;
+}
+static struct label MY_FAR *RBL_GET_RIGHT(struct label MY_FAR *label) {
+    char MY_FAR *p = MK_FP((label)->right_seg, (label)->left_right_ofs & 0xf);
+    return (struct label MY_FAR*)p;
+}
 static void RBL_SET_LEFT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
     label->left_seg = FP_SEG(ptr);
     label->left_right_ofs = (label->left_right_ofs & 0x0f) | FP_OFF(ptr) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
