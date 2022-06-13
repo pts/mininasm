@@ -239,16 +239,40 @@ _Packed  /* Disable extra aligment byte at the end of `struct label'. */
 #endif
 struct label {
 #if CONFIG_DOSMC_PACKED
+    /* The fields .left_right_ofs, .left_seg and .right_seg together contain
+     * 2 far pointers (tree_left and tree_right) and (if CONFIG_BALANCED is
+     * true) the tree_red bit. .left_seg contains the 16-bit segment part of
+     * tree_left, and .right_seg contains the 16-bit segment part of
+     * tree_right. .left_right_ofs contains the offset of the far pointers
+     * and the tree_red bit. It is assumed that far pointer offsets are 4
+     * bits wide (0 <= offset <= 15), because malloc_far guarantees it
+     * (with its and `and ax, 0fh' instruction).
+     *
+     * If CONFIG_BALANCED is false, bits of .left_right_ofs look like
+     * LLLLRRRR, where LLLL is the 4-bit offset of tree_left, and RRRR is the
+     * 4-bit offset of tree_right.
+     *
+     * If CONFIG_BALANCED is true, bits of .left_right_ofs look like
+     * LLL1RRRE, where LLLM is the 4-bit offset of tree_left, RRRS is the
+     * 4-bit offset of tree_right, 1 is 1, E is the tree_red bit value.
+     * The lower M and S bits of the offsets are not stored, but they will
+     * be inferred like below. The pointer with the offset LLL0 is either
+     * correct or 1 less than the correct LLL1. If it's correct, then it points
+     * to a nonzero .left_right_ofs (it has a 1 bit). If it's 1 less, then it
+     * points to the all-zero NUL byte (the NUL terminator of the name in the
+     * previous label). Thus by comparing the byte at offset LLL0 to zero,
+     * we can infer whether M is 0 or 1. For this to work we
+     * need that the very first struct label starts at an even offset; this
+     * is guaranteed by malloc_far.
+     */
+    unsigned char left_right_ofs;
     unsigned left_seg, right_seg;
 #else
     struct label MY_FAR *tree_left;
     struct label MY_FAR *tree_right;
 #endif
     value_t value;
-#if CONFIG_DOSMC_PACKED
-    unsigned char left_right_ofs;
-#endif
-#if CONFIG_BALANCED
+#if CONFIG_BALANCED && !CONFIG_DOSMC_PACKED
     char tree_red;  /* Is it a red node of the red-black tree? */
 #endif
     char name[1];
@@ -332,10 +356,35 @@ struct tree_path_entry {
 #endif  /* CONFIG_BALANCED */
 
 #if CONFIG_DOSMC_PACKED
-typedef char assert_label_size[sizeof(struct label) == 5 /* left and right pointers */ + sizeof(value_t) + (CONFIG_BALANCED ? 1 : 0) /* tree_red */ + 1 /* trailing NUL in ->name */];
+typedef char assert_label_size[sizeof(struct label) == 5 /* left and right pointers, tree_red */ + sizeof(value_t) + 1 /* trailing NUL in ->name */];
 #define RBL_IS_NULL(label) (FP_SEG(label) == 0)
 #define RBL_IS_LEFT_NULL(label) ((label)->left_seg == 0)
 #define RBL_IS_RIGHT_NULL(label) ((label)->right_seg == 0)
+#if CONFIG_BALANCED
+#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = 0x10, (label)->left_seg = (label)->right_seg = 0)
+static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
+    char MY_FAR *p = MK_FP((label)->left_seg, ((label)->left_right_ofs >> 4) & 0xe);
+    if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
+    return (struct label MY_FAR*)p;
+}
+static struct label MY_FAR *RBL_GET_RIGHT(struct label MY_FAR *label) {
+    char MY_FAR *p = MK_FP((label)->right_seg, (label)->left_right_ofs & 0xe);
+    if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
+    return (struct label MY_FAR*)p;
+}
+static void RBL_SET_LEFT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
+    label->left_seg = FP_SEG(ptr);
+    label->left_right_ofs = (label->left_right_ofs & 0x1f) | (FP_OFF(ptr) & 0xe) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
+}
+static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
+    label->right_seg = FP_SEG(ptr);
+    label->left_right_ofs = (label->left_right_ofs & 0xf1) | (FP_OFF(ptr) & 0xe);  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
+}
+#define RBL_IS_RED(label) ((label)->left_right_ofs & 1)  /* Nonzero means true. */
+#define RBL_COPY_RED(label, source_label) ((label)->left_right_ofs = ((label)->left_right_ofs & 0xfe) | ((source_label)->left_right_ofs & 1))
+#define RBL_SET_RED_0(label) ((label)->left_right_ofs &= 0xfe)
+#define RBL_SET_RED_1(label) ((label)->left_right_ofs |= 1)
+#else  /* Else CONFIG_BALANCED. */
 #define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg = (label)->right_seg = 0)
 static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
     char MY_FAR *p = MK_FP((label)->left_seg, (label)->left_right_ofs >> 4);
@@ -353,11 +402,6 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
     label->right_seg = FP_SEG(ptr);
     label->left_right_ofs = (label->left_right_ofs & 0xf0) | FP_OFF(ptr);  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
 }
-#if CONFIG_BALANCED
-#define RBL_IS_RED(label) ((label)->tree_red)  /* Nonzero means true. */
-#define RBL_COPY_RED(label, source_label) ((label)->tree_red = (source_label)->tree_red)
-#define RBL_SET_RED_0(label) ((label->tree_red) = 0)
-#define RBL_SET_RED_1(label) ((label->tree_red) = 1)
 #endif  /* CONFIG_BALANCED. */
 #else
 #define RBL_IS_NULL(label) ((label) == NULL)
@@ -371,8 +415,8 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #if CONFIG_BALANCED
 #define RBL_IS_RED(label) ((label)->tree_red)  /* Nonzero means true. */
 #define RBL_COPY_RED(label, source_label) ((label)->tree_red = (source_label)->tree_red)
-#define RBL_SET_RED_0(label) ((label->tree_red) = 0)
-#define RBL_SET_RED_1(label) ((label->tree_red) = 1)
+#define RBL_SET_RED_0(label) ((label)->tree_red = 0)
+#define RBL_SET_RED_1(label) ((label)->tree_red = 1)
 #endif  /* CONFIG_BALANCED. */
 #endif  /* CONFIG_DOSMC_PACKED. */
 
