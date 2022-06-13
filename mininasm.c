@@ -8,6 +8,8 @@
  **
  **   $ gcc -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
  **
+ **   $ g++ -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
+ **
  **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c && ls -ld mininasm.tcc
  **
  **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
@@ -180,7 +182,11 @@ modify [si cl]
  * static const STRING_WITHOUT_NUL(msg, "Hello, World!\r\n$");
  * ... printmsgx(msg);
  */
+#ifdef __cplusplus  /* We must reserve space for the NUL. */
+#define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value)] = value
+#else
 #define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value) - 1] = value
+#endif
 
 
 #define DEBUG
@@ -216,8 +222,8 @@ char part[MAX_SIZE];
 char name[MAX_SIZE];
 char expr_name[MAX_SIZE];
 char global_label[MAX_SIZE];
-char *prev_p;
-char *p;
+const char *prev_p;
+const char *p;
 
 char *g;
 char generated[8];
@@ -252,9 +258,9 @@ struct label MY_FAR *label_list;
 struct label MY_FAR *last_label;
 int undefined;
 
-extern char *instruction_set[];
+extern const char *instruction_set[];
 
-char *reg1[16] = {
+const char *reg1[16] = {
     "AL",
     "CL",
     "DL",
@@ -273,14 +279,19 @@ char *reg1[16] = {
     "DI"
 };
 
-struct bbprintf_buf message_bbb;
+extern struct bbprintf_buf message_bbb;
+
 void message(int error, const char *message);
 void message_start(int error);
 void message_end(void);
-char *match_register(), *match_expression(),
-     *match_expression_level1(), *match_expression_level2(),
-     *match_expression_level3(), *match_expression_level4(),
-     *match_expression_level5(), *match_expression_level6();
+const char *match_register(const char *p, int width, int *value);
+const char *match_expression(const char *p, int *value);
+const char *match_expression_level1(const char *p, int *value);
+const char *match_expression_level2(const char *p, int *value);
+const char *match_expression_level3(const char *p, int *value);
+const char *match_expression_level4(const char *p, int *value);
+const char *match_expression_level5(const char *p, int *value);
+const char *match_expression_level6(const char *p, int *value);
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
@@ -362,10 +373,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 /*
  ** Define a new label
  */
-struct label MY_FAR *define_label(name, value)
-    char *name;
-    int value;
-{
+struct label MY_FAR *define_label(char *name, int value) {
     struct label MY_FAR *label;
 
     /* Allocate label */
@@ -479,9 +487,7 @@ struct label MY_FAR *define_label(name, value)
 /*
  ** Find a label
  */
-struct label MY_FAR *find_label(name)
-    char *name;
-{
+struct label MY_FAR *find_label(const char *name) {
     struct label MY_FAR *explore;
     int c;
 
@@ -502,9 +508,7 @@ struct label MY_FAR *find_label(name)
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
-void print_labels_sorted_to_listing_fd(node)
-    struct label MY_FAR *node;
-{
+void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
     /* Morris in-order traversal of binary tree: iterative (non-recursive,
@@ -530,9 +534,7 @@ void print_labels_sorted_to_listing_fd(node)
 /*
  ** Avoid spaces in input
  */
-char *avoid_spaces(p)
-    char *p;
-{
+const char *avoid_spaces(const char *p) {
     while (isspace(*p))
         p++;
     return p;
@@ -541,13 +543,10 @@ char *avoid_spaces(p)
 /*
  ** Match addressing
  */
-char *match_addressing(p, width)
-    char *p;
-    int width;
-{
+const char *match_addressing(const char *p, int width) {
     int reg;
     int reg2;
-    char *p2;
+    const char *p2;
     int *bits;
 
     bits = &instruction_addressing;
@@ -668,20 +667,14 @@ char *match_addressing(p, width)
 /*
  ** Check for a label character
  */
-int islabel(c)
-    int c;
-{
+int islabel(int c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '.';
 }
 
 /*
  ** Match register
  */
-char *match_register(p, width, value)
-    char *p;
-    int width;
-    int *value;
-{
+const char *match_register(const char *p, int width, int *value) {
     char reg[3];
     int c;
 
@@ -714,10 +707,7 @@ char *match_register(p, width, value)
 /*
  ** Match expression (top tier)
  */
-char *match_expression(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression(const char *p, int *value) {
     int value1;
 
     p = match_expression_level1(p, value);
@@ -741,10 +731,7 @@ char *match_expression(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level1(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level1(const char *p, int *value) {
     int value1;
 
     p = match_expression_level2(p, value);
@@ -768,10 +755,7 @@ char *match_expression_level1(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level2(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level2(const char *p, int *value) {
     int value1;
 
     p = match_expression_level3(p, value);
@@ -795,10 +779,7 @@ char *match_expression_level2(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level3(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level3(const char *p, int *value) {
     int value1;
 
     p = match_expression_level4(p, value);
@@ -829,10 +810,7 @@ char *match_expression_level3(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level4(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level4(const char *p, int *value) {
     int value1;
 
     p = match_expression_level5(p, value);
@@ -863,10 +841,7 @@ char *match_expression_level4(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level5(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level5(const char *p, int *value) {
     int value1;
 
     p = match_expression_level6(p, value);
@@ -914,10 +889,7 @@ char *match_expression_level5(p, value)
 /*
  ** Match expression (bottom tier)
  */
-char *match_expression_level6(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level6(const char *p, int *value) {
     value_t number;
     int c;
     unsigned shift;
@@ -1089,17 +1061,13 @@ void emit_byte(int byte) {
 /*
  ** Search for a match with instruction
  */
-char *match(p, pattern, decode)
-    char *p;
-    char *pattern;
-    char *decode;
-{
-    char *p2;
+const char *match(const char *p, const char *pattern, const char *decode) {
+    const char *p2;
     int c;
     int d;
     int bit;
     int qualifier;
-    char *base;
+    const char *base;
 
     undefined = 0;
     while (*pattern) {
@@ -1392,9 +1360,7 @@ char *match(p, pattern, decode)
 /*
  ** Make a string lowercase
  */
-void to_lowercase(p)
-    char *p;
-{
+void to_lowercase(char *p) {
     while (*p) {
         *p = tolower(*p);
         p++;
@@ -1404,8 +1370,7 @@ void to_lowercase(p)
 /*
  ** Separate a portion of entry up to the first space
  */
-void separate(void)
-{
+void separate(void) {
     char *p2;
 
     while (*p && isspace(*p))
@@ -1422,9 +1387,7 @@ void separate(void)
 /*
  ** Check for end of line
  */
-void check_end(p)
-    char *p;
-{
+void check_end(const char *p) {
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         message(1, "extra characters at end of line");
@@ -1495,8 +1458,8 @@ void message(int error, const char *message) {
  */
 void process_instruction()
 {
-    char *p2 = NULL;
-    char *p3;
+    const char *p2 = NULL;
+    const char *p3;
     int c;
 
     if (strcmp(part, "DB") == 0) {  /* Define byte */
@@ -1596,9 +1559,7 @@ void reset_address()
 /*
  ** Include a binary file
  */
-void incbin(fname)
-    char *fname;
-{
+void incbin(const char *fname) {
     int input_fd;
     int size;
 
@@ -1693,12 +1654,10 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
 /*
  ** Do an assembler step
  */
-void do_assembly(input_filename)
-    char *input_filename;
-{
+void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
-    char *p2;
-    char *p3;
+    const char *p2;
+    const char *p3;
     char *line;
     char *linep;
     char *liner;
@@ -1748,7 +1707,7 @@ void do_assembly(input_filename)
             if (line != line_buf) {
                 if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;  /* Too much copy per line (thus too slow). This won't be triggered, because the `>= MAX_SIZE' check triggers first. */
                 for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
-                line_rend = p = liner;
+                p = line_rend = liner;
                 line = linep = line_buf;
             }
             if ((got = read(input_fd, line_rend, line_buf + sizeof(line_buf) - line_rend)) < 0) {
@@ -1765,8 +1724,8 @@ void do_assembly(input_filename)
             for (; p != line_rend && *p != '\n'; ++p) {}
             if (p == line_rend) goto line_too_long;
         }
-        *p = '\0';  /* Change trailing '\n' to '\0'. */
-        linep = p + 1;
+        *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
+        linep = (char*)p + 1;
        after_line_read:
 
         line_number++;
@@ -1785,11 +1744,11 @@ void do_assembly(input_filename)
                     p++;
                 break;
             }
-            *p = toupper(*p);
+            *(char*)p = toupper(*p);
             p++;
         }
         if (p != line && *(p - 1) == '\r')
-            *--p = '\0';
+            *(char*)--p = '\0';
         if (p - line >= MAX_SIZE) { line_too_long:
             message(1, "assembly line too long");
             break;
@@ -2113,13 +2072,10 @@ void do_assembly(input_filename)
 /*
  ** Main program
  */
-int main(argc, argv)
-    int argc;
-    char *argv[];
-{
+int main(int argc, char **argv) {
     int c;
     int d;
-    char *p;
+    const char *p;
     char *ifname;
 
     /*
@@ -2188,11 +2144,11 @@ int main(argc, argv)
             } else if (d == 'd') {  /* Define label */
                 p = argv[c] + 2;
                 while (*p && *p != '=') {
-                    *p = toupper(*p);
+                    *(char*)p = toupper(*p);
                     p++;
                 }
                 if (*p == '=') {
-                    *p++ = 0;
+                    *(char*)p++ = 0;
                     undefined = 0;
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {

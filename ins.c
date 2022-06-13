@@ -13,7 +13,7 @@
 /*
  ** Notice some instructions are sorted by less byte usage first.
  */
-char *instruction_set[] = {
+const char *instruction_set[] = {
     "ADD\0%d8,%r8\0x00 %d8%r8%d8",
     "ADD\0%d16,%r16\0x01 %d16%r16%d16",
     "ADD\0%r8,%d8\0x02 %d8%r8%d8",
