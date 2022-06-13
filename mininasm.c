@@ -214,11 +214,11 @@ int change;
 int change_number;
 
 struct label {
-    struct label MY_FAR *left;
-    struct label MY_FAR *right;
+    struct label MY_FAR *tree_left;
+    struct label MY_FAR *tree_right;
     value_t value;
 #if CONFIG_BALANCED
-    char red;  /* Is it a red node of the red-black tree? */
+    char tree_red;  /* Is it a red node of the red-black tree? */
 #endif
     char name[1];
 };
@@ -292,7 +292,22 @@ struct tree_path_entry {
     struct label MY_FAR *label;
     char less;
 };
+/**/
 #endif  /* CONFIG_BALANCED */
+
+#define RBL_IS_NULL(label) ((label) == NULL)
+#define RBL_IS_LEFT_NULL(label) ((label)->tree_left == NULL)
+#define RBL_IS_RIGHT_NULL(label) ((label)->tree_right == NULL)
+#define RBL_GET_LEFT(label) ((label)->tree_left)
+#define RBL_GET_RIGHT(label) ((label)->tree_right)
+#define RBL_SET_LEFT(label, ptr) ((label)->tree_left = (ptr))
+#define RBL_SET_RIGHT(label, ptr) ((label)->tree_right = (ptr))
+#if CONFIG_BALANCED
+#define RBL_IS_RED(label) ((label)->tree_red)  /* Nonzero means true. */
+#define RBL_COPY_RED(label, source_label) ((label)->tree_red = (source_label)->tree_red)
+#define RBL_SET_RED_0(label) ((label->tree_red) = 0)
+#define RBL_SET_RED_1(label) ((label->tree_red) = 1)
+#endif  /* CONFIG_BALANCED. */
 
 /*
  ** Define a new label
@@ -305,15 +320,15 @@ struct label MY_FAR *define_label(name, value)
 
     /* Allocate label */
     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
-    if (label == NULL) {
+    if (RBL_IS_NULL(label)) {
         message(1, "Out of memory for label");
         exit(1);
         return NULL;
     }
 
     /* Fill label */
-    label->left = NULL;
-    label->right = NULL;
+    RBL_SET_LEFT(label, NULL);
+    RBL_SET_RIGHT(label, NULL);
     label->value = value;
     strcpy_far(label->name, name);
 
@@ -333,26 +348,26 @@ struct label MY_FAR *define_label(name, value)
          */
         static struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
         struct tree_path_entry *pathp;
-        label->red = 1;
+        RBL_SET_RED_1(label);
         path->label = label_list;
-        for (pathp = path; pathp->label != NULL; pathp++) {
+        for (pathp = path; !RBL_IS_NULL(pathp->label); pathp++) {
             const char less = pathp->less = strcmp_far(label->name, pathp->label->name) < 0;
-            pathp[1].label = less ? pathp->label->left : pathp->label->right;
+            pathp[1].label = less ? RBL_GET_LEFT(pathp->label) : RBL_GET_RIGHT(pathp->label);
         }
         pathp->label = label;
         while (pathp-- != path) {
             struct label MY_FAR *clabel = pathp->label;
             if (pathp->less) {
                 struct label MY_FAR *left = pathp[1].label;
-                clabel->left = left;
-                if (left->red) {
-                    struct label MY_FAR *leftleft = left->left;
-                    if (leftleft != NULL && leftleft->red) {
+                RBL_SET_LEFT(clabel, left);
+                if (RBL_IS_RED(left)) {
+                    struct label MY_FAR *leftleft = RBL_GET_LEFT(left);
+                    if (!RBL_IS_NULL(leftleft) && RBL_IS_RED(leftleft)) {
                         struct label MY_FAR *tlabel;
-                        leftleft->red = 0;
-                        tlabel = clabel->left;
-                        clabel->left = tlabel->right;
-                        tlabel->right = clabel;
+                        RBL_SET_RED_0(leftleft);
+                        tlabel = RBL_GET_LEFT(clabel);
+                        RBL_SET_LEFT(clabel, RBL_GET_RIGHT(tlabel));
+                        RBL_SET_RIGHT(tlabel, clabel);
                         clabel = tlabel;
                     }
                 } else {
@@ -360,21 +375,20 @@ struct label MY_FAR *define_label(name, value)
                 }
             } else {
                 struct label MY_FAR *right = pathp[1].label;
-                clabel->right = right;
-                if (right->red) {
-                    struct label MY_FAR *left = clabel->left;
-                    if (left != NULL && left->red) {
-                         left->red = 0;
-                         right->red = 0;
-                         clabel->red = 1;
+                RBL_SET_RIGHT(clabel, right);
+                if (RBL_IS_RED(right)) {
+                    struct label MY_FAR *left = RBL_GET_LEFT(clabel);
+                    if (!RBL_IS_NULL(left) && RBL_IS_RED(left)) {
+                         RBL_SET_RED_0(left);
+                         RBL_SET_RED_0(right);
+                         RBL_SET_RED_1(clabel);
                      } else {
                          struct label MY_FAR *tlabel;
-                         char tred = clabel->red;
-                         tlabel = clabel->right;
-                         clabel->right = tlabel->left;
-                         tlabel->left = clabel;
-                         tlabel->red = tred;
-                         clabel->red = 1;
+                         tlabel = RBL_GET_RIGHT(clabel);
+                         RBL_SET_RIGHT(clabel, RBL_GET_LEFT(tlabel));
+                         RBL_SET_LEFT(tlabel, clabel);
+                         RBL_COPY_RED(tlabel, clabel);
+                         RBL_SET_RED_1(clabel);
                          clabel = tlabel;
                      }
                 } else {
@@ -384,28 +398,28 @@ struct label MY_FAR *define_label(name, value)
             pathp->label = clabel;
         }
         label_list = path->label;
-        label_list->red = 0;
+        RBL_SET_RED_0(label_list);
     }
   done:
 #else  /* Unbalanced binary search tree node insertion. */
-    if (label_list == NULL) {
+    if (RBL_IS_NULL(label_list)) {
         label_list = label;
     } else {
         struct label MY_FAR *explore = label_list;
         while (1) {
             const int c = strcmp_far(label->name, explore->name);
             if (c < 0) {
-                if (explore->left == NULL) {
-                    explore->left = label;
+                if (RBL_IS_LEFT_NULL(explore)) {
+                    RBL_SET_LEFT(explore, label);
                     break;
                 }
-                explore = explore->left;
+                explore = RBL_GET_LEFT(explore);
             } else if (c > 0) {
-                if (explore->right == NULL) {
-                    explore->right = label;
+                if (RBL_IS_RIGHT_NULL(explore)) {
+                    RBL_SET_RIGHT(explore, label);
                     break;
                 }
-                explore = explore->right;
+                explore = RBL_GET_RIGHT(explore);
             }
         }
     }
@@ -424,14 +438,14 @@ struct label MY_FAR *find_label(name)
 
     /* Follows a binary tree */
     explore = label_list;
-    while (explore != NULL) {
+    while (!RBL_IS_NULL(explore)) {
         c = strcmp_far(name, explore->name);
         if (c == 0)
             return explore;
         if (c < 0)
-            explore = explore->left;
+            explore = RBL_GET_LEFT(explore);
         else
-            explore = explore->right;
+            explore = RBL_GET_RIGHT(explore);
     }
     return NULL;
 }
@@ -443,22 +457,23 @@ void print_labels_sorted_to_listing_fd(node)
     struct label MY_FAR *node;
 {
     struct label MY_FAR *pre;
+    struct label MY_FAR *pre_right;
     /* Morris in-order traversal of binary tree: iterative (non-recursive,
      * so it uses O(1) stack), modifies the tree pointers temporarily, but
      * then restores them, runs in O(n) time.
      */
-    while (node) {
-        if (!node->left) goto do_print;
-        for (pre = node->left; pre->right && pre->right != node; pre = pre->right) {}
-        if (!pre->right) {
-            pre->right = node;
-            node = node->left;
+    while (!RBL_IS_NULL(node)) {
+        if (RBL_IS_LEFT_NULL(node)) goto do_print;
+        for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
+        if (RBL_IS_NULL(pre_right)) {
+            RBL_SET_RIGHT(pre, node);
+            node = RBL_GET_LEFT(node);
         } else {
-            pre->right = NULL;
+            RBL_SET_RIGHT(pre, NULL);
           do_print:
             strcpy_far(global_label, node->name);
             bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, node->value);
-            node = node->right;
+            node = RBL_GET_RIGHT(node);
         }
     }
 }
