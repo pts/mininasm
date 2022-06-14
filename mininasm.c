@@ -129,7 +129,7 @@ static void malloc_init(void);
 "mov word ptr [offset __malloc_struct__+4], ax"  /* Set segment of malloc_p, keep offset (as 0). */ \
 __MOV_AX_PSP_MCB__ \
 "mov es, ax"  /* Memory Control Block (MCB). */ \
-"mov ax, ds" \
+"inc ax"  /* Program Segment Prefix (PSP). */ \
 "add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */ \
 "mov word ptr [offset __malloc_struct__], ax"  /* Set malloc_end_para. */ \
 ;
