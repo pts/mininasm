@@ -13,3 +13,7 @@ dw -1 / -257
 dw -1 % -257
 db 1 / -257
 db 1 % -257
+dw 13 << 8
+db 13 << 16  ; 0 in 16-bin mininasm, 13 in 32-bit nasm and 64-bit nasm.
+db 13 << 32  ; 13 in 16-bit mininasm, 13 in 32-bit nasm, 0 in 64-bit nasm.
+db 13 << 64  ; 13 in 16-bit mininasm, 32-bit nasm and 64-bit nasm.
