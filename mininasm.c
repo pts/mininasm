@@ -113,7 +113,6 @@ __LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert
 __LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
  * freed. Blocks are rounded up to paragraph (16-byte) boundary.
- * !! Don't round up blocks.
  */
 #ifndef __MOV_AX_PSP_MCB__
 #error Missing __MOV_AX_PSP_MCB__, please compile .c file with dosmc directly.
@@ -2127,6 +2126,13 @@ int main(int argc, char **argv) {
     int d;
     const char *p;
     char *ifname;
+
+#if 0
+    malloc_init();
+    message_start(1);
+    bbprintf(&message_bbb, "malloc_p_para=0x%04x malloc_end_para=%04x", ((const unsigned*)&__malloc_struct__.malloc_p)[1], __malloc_struct__.malloc_end_para);
+    message_end();
+#endif
 
     /*
      ** If ran without arguments then show usage
