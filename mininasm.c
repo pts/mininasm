@@ -892,45 +892,36 @@ const char *match_expression_level4(const char *p, int *value) {
  */
 const char *match_expression_level5(const char *p, int *value) {
     int value1;
+    char c;
 
     p = match_expression_level6(p, value);
     if (p == NULL)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '*') {    /* Multiply operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
+        c = *p;
+        if (c != '*' && c != '/' && c != '%') return p;
+        p++;
+        value1 = *value;
+        p = match_expression_level6(p, value);
+        if (p == NULL)
+            return NULL;
+        if (c == '*') {  /* Multiply operator */  
             *value = value1 * *value;
-        } else if (*p == '/') { /* Division operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
+        } else if (c == '/') {  /* Division operator */
             if (*value == 0) {
                 if (assembler_step == 2)
                     message(1, "division by zero");
                 *value = 1;
             }
             *value = (unsigned) value1 / *value;
-        } else if (*p == '%') { /* Modulo operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
+        } else /*if (*p == '%')*/ {  /* Module operator. */
             if (*value == 0) {
                 if (assembler_step == 2)
                     message(1, "modulo by zero");
                 *value = 1;
             }
             *value = value1 % *value;
-        } else {
-            return p;
         }
     }
 }
