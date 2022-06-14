@@ -198,8 +198,20 @@ int output_fd;
 char *listing_filename;
 int listing_fd = -1;
 
-typedef int value_t;
-typedef unsigned uvalue_t;
+#define VALUE_BITS 16
+typedef short value_t;  /* At least VALUE_BITS bits, preferably exactly. */
+typedef unsigned short uvalue_t;  /* At least VALUE_BITS bits, preferably exactly. */
+#if VALUE_BITS == 16
+#define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
+#define GET_UVALUE(value) (uvalue_t)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
+#else
+#if VALUE_BITS == 32
+#define GET_VALUE(value) (value_t)(sizeof(value_t) == 4 ? (value_t)(value) : sizeof(int) == 4 ? (value_t)(int)(value) : sizeof(long) == 4 ? (value_t)(long)(value) : (value_t)(((long)(value) & 0x7fffffffL) | -((long)(value) & 0x80000000UL)))
+#define GET_UVALUE(value) (uvalue_t)(sizeof(uvalue_t) == 4 ? (uvalue_t)(value) : sizeof(unsigned) == 4 ? (uvalue_t)(unsigned)(value) : sizeof(unsigned long) == 4 ? (uvalue_t)(unsigned long)(value) : (uvalue_t)(value) & 0xffffffffUL)
+#else
+#error VALUE_BITS must be 16 or 32.
+#endif
+#endif
 
 int assembler_step;  /* !! Change many variables from int to char. */
 value_t default_start_address;
@@ -208,7 +220,7 @@ value_t address;
 int first_time;
 
 int instruction_addressing;
-int instruction_offset;
+value_t instruction_offset;
 int instruction_offset_width;
 
 int instruction_register;
@@ -308,14 +320,14 @@ extern struct bbprintf_buf message_bbb;
 void message(int error, const char *message);
 void message_start(int error);
 void message_end(void);
-const char *match_register(const char *p, int width, int *value);
-const char *match_expression(const char *p, int *value);
-const char *match_expression_level1(const char *p, int *value);
-const char *match_expression_level2(const char *p, int *value);
-const char *match_expression_level3(const char *p, int *value);
-const char *match_expression_level4(const char *p, int *value);
-const char *match_expression_level5(const char *p, int *value);
-const char *match_expression_level6(const char *p, int *value);
+const char *match_register(const char *p, int width, int *reg);
+const char *match_expression(const char *p, value_t *value);
+const char *match_expression_level1(const char *p, value_t *value);
+const char *match_expression_level2(const char *p, value_t *value);
+const char *match_expression_level3(const char *p, value_t *value);
+const char *match_expression_level4(const char *p, value_t *value);
+const char *match_expression_level5(const char *p, value_t *value);
+const char *match_expression_level6(const char *p, value_t *value);
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
@@ -423,7 +435,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 /*
  ** Define a new label
  */
-struct label MY_FAR *define_label(char *name, int value) {
+struct label MY_FAR *define_label(char *name, value_t value) {
     struct label MY_FAR *label;
 
     /* Allocate label */
@@ -724,30 +736,30 @@ int islabel(int c) {
 /*
  ** Match register
  */
-const char *match_register(const char *p, int width, int *value) {
-    char reg[3];
+const char *match_register(const char *p, int width, int *reg) {
+    char regc[3];
     int c;
 
     p = avoid_spaces(p);
     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
         return NULL;
-    reg[0] = p[0];
-    reg[1] = p[1];
-    reg[2] = '\0';
+    regc[0] = p[0];
+    regc[1] = p[1];
+    regc[2] = '\0';
     if (width == 8) {   /* 8-bit */
         for (c = 0; c < 8; c++)
-            if (strcmp(reg, reg1[c]) == 0)
+            if (strcmp(regc, reg1[c]) == 0)
                 break;
         if (c < 8) {
-            *value = c;
+            *reg = c;
             return p + 2;
         }
     } else {    /* 16-bit */
         for (c = 0; c < 8; c++)
-            if (strcmp(reg, reg1[c + 8]) == 0)
+            if (strcmp(regc, reg1[c + 8]) == 0)
                 break;
         if (c < 8) {
-            *value = c;
+            *reg = c;
             return p + 2;
         }
     }
@@ -757,8 +769,8 @@ const char *match_register(const char *p, int width, int *value) {
 /*
  ** Match expression (top tier)
  */
-const char *match_expression(const char *p, int *value) {
-    int value1;
+const char *match_expression(const char *p, value_t *value) {
+    value_t value1;
 
     p = match_expression_level1(p, value);
     if (p == NULL)
@@ -781,8 +793,8 @@ const char *match_expression(const char *p, int *value) {
 /*
  ** Match expression
  */
-const char *match_expression_level1(const char *p, int *value) {
-    int value1;
+const char *match_expression_level1(const char *p, value_t *value) {
+    value_t value1;
 
     p = match_expression_level2(p, value);
     if (p == NULL)
@@ -805,8 +817,8 @@ const char *match_expression_level1(const char *p, int *value) {
 /*
  ** Match expression
  */
-const char *match_expression_level2(const char *p, int *value) {
-    int value1;
+const char *match_expression_level2(const char *p, value_t *value) {
+    value_t value1;
 
     p = match_expression_level3(p, value);
     if (p == NULL)
@@ -829,8 +841,8 @@ const char *match_expression_level2(const char *p, int *value) {
 /*
  ** Match expression
  */
-const char *match_expression_level3(const char *p, int *value) {
-    int value1;
+const char *match_expression_level3(const char *p, value_t *value) {
+    value_t value1;
 
     p = match_expression_level4(p, value);
     if (p == NULL)
@@ -843,14 +855,14 @@ const char *match_expression_level3(const char *p, int *value) {
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
-            *value = value1 << *value;
+            *value = value1 << (GET_UVALUE(*value) & (VALUE_BITS - 1U));  /* VALUE_BITS is for compability with mininasm and nasm on hosts i386 and amd64, e.g. (x << 16) should be the same as x. */
         } else if (*p == '>' && p[1] == '>') {  /* Shift to right */
             p += 2;
             value1 = *value;
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
-            *value = value1 >> *value;
+            *value = GET_VALUE(value1) >> GET_UVALUE(*value);  /* Sign-extend value1 to VALUE_BITS. */
         } else {
             return p;
         }
@@ -860,8 +872,8 @@ const char *match_expression_level3(const char *p, int *value) {
 /*
  ** Match expression
  */
-const char *match_expression_level4(const char *p, int *value) {
-    int value1;
+const char *match_expression_level4(const char *p, value_t *value) {
+    value_t value1;
 
     p = match_expression_level5(p, value);
     if (p == NULL)
@@ -891,8 +903,8 @@ const char *match_expression_level4(const char *p, int *value) {
 /*
  ** Match expression
  */
-const char *match_expression_level5(const char *p, int *value) {
-    int value1;
+const char *match_expression_level5(const char *p, value_t *value) {
+    value_t value1;
     char c;
 
     p = match_expression_level6(p, value);
@@ -915,14 +927,14 @@ const char *match_expression_level5(const char *p, int *value) {
                     message(1, "division by zero");
                 *value = 1;
             }
-            *value = (uvalue_t)value1 / *value;
+            *value = GET_UVALUE(value1) / GET_UVALUE(*value);
         } else /*if (*p == '%')*/ {  /* Module operator. */
             if (*value == 0) {
                 if (assembler_step == 2)
                     message(1, "modulo by zero");
                 *value = 1;
             }
-            *value = (uvalue_t)value1 % *value;
+            *value = GET_UVALUE(value1) % GET_UVALUE(*value);
         }
     }
 }
@@ -930,7 +942,7 @@ const char *match_expression_level5(const char *p, int *value) {
 /*
  ** Match expression (bottom tier)
  */
-const char *match_expression_level6(const char *p, int *value) {
+const char *match_expression_level6(const char *p, value_t *value) {
     value_t number;
     int c;
     unsigned shift;
@@ -1893,7 +1905,7 @@ void do_assembly(const char *input_filename) {
                 } else if (undefined) {
                     message(1, "Cannot use undefined labels");
                 }
-                if (instruction_value != 0) {
+                if (GET_UVALUE(instruction_value) != 0) {
                     ;
                 } else {
                     avoid_level = level;
