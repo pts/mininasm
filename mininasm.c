@@ -1488,7 +1488,7 @@ void message_end(void) {
       /* We must use \r\n, because this will end up on stderr, and on DOS
        * with O_BINARY, just a \n doesn't break the line properly.
        */
-      bbprintf(&message_bbb, " at line %d\r\n", line_number);
+      bbprintf(&message_bbb, " at line %u\r\n", line_number);
     } else {
       bbprintf(&message_bbb, "\r\n");
     }
