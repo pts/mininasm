@@ -906,9 +906,9 @@ const char *match_expression_level5(const char *p, int *value) {
         p = match_expression_level6(p, value);
         if (p == NULL)
             return NULL;
-        if (c == '*') {  /* Multiply operator */  
+        if (c == '*') {  /* Multiply operator. */  
             *value = value1 * *value;
-        } else if (c == '/') {  /* Division operator */
+        } else if (c == '/') {  /* Division operator. */
             if (*value == 0) {
                 if (assembler_step == 2)
                     message(1, "division by zero");
@@ -921,7 +921,7 @@ const char *match_expression_level5(const char *p, int *value) {
                     message(1, "modulo by zero");
                 *value = 1;
             }
-            *value = value1 % *value;
+            *value = (unsigned) value1 % *value;
         }
     }
 }
