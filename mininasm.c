@@ -199,6 +199,7 @@ char *listing_filename;
 int listing_fd = -1;
 
 typedef int value_t;
+typedef unsigned uvalue_t;
 
 int assembler_step;  /* !! Change many variables from int to char. */
 value_t default_start_address;
@@ -914,14 +915,14 @@ const char *match_expression_level5(const char *p, int *value) {
                     message(1, "division by zero");
                 *value = 1;
             }
-            *value = (unsigned) value1 / *value;
+            *value = (uvalue_t)value1 / *value;
         } else /*if (*p == '%')*/ {  /* Module operator. */
             if (*value == 0) {
                 if (assembler_step == 2)
                     message(1, "modulo by zero");
                 *value = 1;
             }
-            *value = (unsigned) value1 % *value;
+            *value = (uvalue_t)value1 % *value;
         }
     }
 }
