@@ -18,9 +18,14 @@ following improvements:
   This hasn't been implemented yet.
 * It supports `%define MACRO VALUE'. (It doesn't support macros with
   arguments or multiline macros.)
+* When compiled for DOS, it uses memory with efficiently, and thus it is able
+  to compile an assembly inpout file with >55000 labels (see the file
+  most.asm). Most other 16-bit DOS assemblers support less than 8000 labels
+  (e.g. A86 4.05 supports ~7200 labels, TASM 4.1 supports ~7400 labels,
+  MASM 5.10a supports ~11800 labels, NASM 0.98.39 lite supports ~8000 labels).
 * It depends on fewer runtime (libc) functions, so it can be compiled to a
   DOS .com file smaller than Tinyasm.
-  Savings: about 16.4 KiB .com program instead of 30 KiB .com program
+  Savings: about 17.1 KiB .com program instead of 30 KiB .com program
   with `owcc -bcom -Os'.
 
 Below is a copy of the README of Tinyasm.
