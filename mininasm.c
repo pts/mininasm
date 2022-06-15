@@ -1092,7 +1092,7 @@ const char *match_expression_level6(const char *p, value_t *value) {
 void emit_bytes(const char *s, int size)  {
     address += size;
     if (assembler_step == 2) {
-        if (write(output_fd, s, size) != size) {
+        if (write(output_fd, s, size) != size) {  /* !! TODO(pts): Add output buffering to speed it up. */
             message(1, "error writing to output file");
             exit(3);
         }
