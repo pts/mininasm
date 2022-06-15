@@ -952,7 +952,7 @@ const char *match_expression_level6(const char *p, value_t *value) {
     p = avoid_spaces(p);
     if (*p == '(') {    /* Handle parenthesized expressions */
         p++;
-        p = match_expression(p, value);
+        p = match_expression(p, value);  /* !! TODO(pts): Add recursion limit for bounded stack use. */
         if (p == NULL)
             return NULL;
         p = avoid_spaces(p);
