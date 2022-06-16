@@ -922,14 +922,14 @@ const char *match_expression_level5(const char *p, value_t *value) {
         if (c == '*') {  /* Multiply operator. */  
             *value = value1 * *value;
         } else if (c == '/') {  /* Division operator. */
-            if (*value == 0) {
+            if (GET_UVALUE(*value) == 0) {
                 if (assembler_step == 2)
                     message(1, "division by zero");
                 *value = 1;
             }
             *value = GET_UVALUE(value1) / GET_UVALUE(*value);
         } else /*if (*p == '%')*/ {  /* Module operator. */
-            if (*value == 0) {
+            if (GET_UVALUE(*value) == 0) {
                 if (assembler_step == 2)
                     message(1, "modulo by zero");
                 *value = 1;
