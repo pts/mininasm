@@ -6,11 +6,11 @@
  **
  ** Compilation instructions (pick any one):
  **
- **   $ gcc -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
+ **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
  **
  **   $ g++ -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
  **
- **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c && ls -ld mininasm.tcc
+ **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c bbprintf.c && ls -ld mininasm.tcc
  **
  **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
  **
@@ -294,7 +294,7 @@ struct label MY_FAR *label_list;
 struct label MY_FAR *last_label;
 int undefined;
 
-extern const char *instruction_set[];
+extern const char instruction_set[];
 
 const char *reg1[16] = {
     "AL",
@@ -1513,6 +1513,7 @@ void process_instruction()
 {
     const char *p2 = NULL;
     const char *p3;
+    const char *pi;
     int c;
 
     if (strcmp(part, "DB") == 0) {  /* Define byte */
@@ -1572,23 +1573,20 @@ void process_instruction()
         return;
     }
     while (part[0]) {   /* Match against instruction set */
-        c = 0;
-        while (instruction_set[c] != NULL) {
-            if (strcmp(part, instruction_set[c]) == 0) {
-                p2 = instruction_set[c];
-                while (*p2++) ;
-                p3 = p2;
-                while (*p3++) ;
-
+        pi = instruction_set;
+        while (*pi != '\0') {
+            for (p2 = pi; *p2++ != '\0';) {}
+            for (p3 = p2; *p3++ != '\0';) {}
+            if (strcmp(part, pi) == 0) {
                 p2 = match(p, p2, p3);
                 if (p2 != NULL) {
                     p = p2;
                     break;
                 }
             }
-            c++;
+            for (pi = p3; *pi++ != '\0';) {}
         }
-        if (instruction_set[c] == NULL) {
+        if (*pi == '\0') {
             message_start(1);
             bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
             message_end();
