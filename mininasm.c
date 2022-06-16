@@ -2252,8 +2252,11 @@ int main(int argc, char **argv) {
     malloc_init();
     do_assembly(ifname);
     message_flush(NULL);
-    if (!errors) {
-
+    if (errors) { do_remove:
+        remove(output_filename);
+        if (listing_filename != NULL)
+            remove(listing_filename);
+    } else {
         /*
          ** Do second step of assembly and generate final output
          */
@@ -2303,14 +2306,8 @@ int main(int argc, char **argv) {
                     message(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
-            if (errors) {
-                remove(output_filename);
-                if (listing_filename != NULL)
-                    remove(listing_filename);
-                return 1;
-            }
+            if (errors) goto do_remove;
         } while (change) ;
-
         return 0;
     }
 
