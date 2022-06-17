@@ -607,13 +607,15 @@ const char *avoid_spaces(const char *p) {
     return p;
 }
 
+const char *match_p;
+
 /*
- ** Match expression.
+ ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
  */
-const char *match_expression(const char *match_p, value_t *value, char level) {
+value_t match_expression(char level) {
     value_t value1;
-    value_t number;
+    value_t value2;
     /*union {*/  /* Using union to save stack memory would make __DOSMC__ program larger. */
         unsigned shift;
         char *p2;
@@ -621,80 +623,78 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
     /*} u;*/
     char c;
 
+    value1 = 0;
     match_p = avoid_spaces(match_p);
     if ((c = match_p[0]) == '(') {    /* Handle parenthesized expressions */
         match_p++;
-        match_p = match_expression(match_p, value, 0);  /* !! TODO(pts): Add recursion limit for bounded stack use. */
-        if (match_p == NULL)
-            return NULL;
+        value1 = match_expression(0);  /* !! TODO(pts): Add recursion limit for bounded stack use. */
+        if (match_p == NULL) goto done;
         match_p = avoid_spaces(match_p);
-        if (match_p[0] != ')')
-            return NULL;
+        if (match_p[0] != ')') {
+            message(1, "Missing close paren");
+          match_error:
+            match_p = NULL;
+            goto done;
+        }
         match_p++;
     } else if (c == '-') {    /* Simple negation */  /* !! TODO(pts): Compress a run of + and - */
         match_p++;
-        match_p = match_expression(match_p, value, 6);
-        if (match_p == NULL)
-            return NULL;
-        *value = -*value;
+        value1 = -match_expression(6);
+        if (match_p == NULL) goto done;
     } else if (c == '+') {    /* Unary + */  /* !!! TODO(pts): Unary ~ */
         match_p++;
-        match_p = match_expression(match_p, value, 6);
-        if (match_p == NULL)
-            return NULL;
+        value1 = match_expression(6);
+        if (match_p == NULL) goto done;
     } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */  /* !! TODO(pts): Add octal: 0... and 0o... */
         match_p += 2;
-        number = 0;
+        value1 = 0;
         while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
             if (match_p[0] != '_') {
-                number <<= 1;
+                value1 <<= 1;
                 if (match_p[0] == '1')
-                    number |= 1;
+                    value1 |= 1;
             }
             match_p++;
         }
-        *value = number;
     } else if (c == '0' && tolower(match_p[1]) == 'x' && isxdigit(match_p[2])) {  /* Hexadecimal */
         match_p += 2;
       parse_hex:
-        number = 0;
-        for (number = 0; c = match_p[0], isxdigit(c); ++match_p) {
+        value1 = 0;
+        for (value1 = 0; c = match_p[0], isxdigit(c); ++match_p) {
             c -= '0';
             if ((unsigned char)c > 9) c = (c & ~32) - 7;
-            number = (number << 4) | c;
+            value1 = (value1 << 4) | c;
         }
-        *value = number;
     } else if (c == '$' && isdigit(match_p[1])) {  /* Hexadecimal */
         /* This is nasm syntax, notice no letter is allowed after $ */
         /* So it's preferrable to use prefix 0x for hexadecimal */
         match_p += 1;
         goto parse_hex;
     } else if (c == '\'' || c == '"') {  /* Character constant */
-        number = 0; shift = 0;
+        value1 = 0; shift = 0;
         for (++match_p; match_p[0] != '\0' && match_p[0] != c; ++match_p) {
-            if (shift < sizeof(number) * 8) {
-                number |= (unsigned char)match_p[0] << shift;
+            if (shift < sizeof(value_t) * 8) {
+                value1 |= (unsigned char)match_p[0] << shift;
                 shift += 8;
             }
         }
-        *value = number;
         if (match_p[0] == '\0') {
             message(1, "Missing close quote");
+            goto match_error;
         } else {
             ++match_p;
         }
     } else if (isdigit(c)) {   /* Decimal */
-        number = 0;
-        for (number = 0; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
-            number = number * 10 + c;
+        value1 = 0;
+        for (value1 = 0; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
+            value1 = value1 * 10 + c;
         }
-        *value = number;
     } else if (c == '$' && match_p[1] == '$') { /* Start address */
         match_p += 2;
-        *value = start_address;
+        value1 = start_address;
     } else if (c == '$') { /* Current address */
         match_p++;
-        *value = address;
+        value1 = address;
     } else if (isalpha(c) || c == '_' || c == '.') {  /* Start of label. */
         p2 = expr_name;
         if (c == '.') {
@@ -705,12 +705,15 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
         while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
             *p2++ = *match_p++;
         *p2 = '\0';
-        for (c = 0; c < 16; c++)
-            if (strcmp(expr_name, reg1[(unsigned char)c]) == 0)
-                return NULL;
+        for (c = 0; c < 16; c++) {
+            if (strcmp(expr_name, reg1[(unsigned char)c]) == 0) {
+                match_p = NULL;
+                goto done;  /* Using a register name as a label is an error. */
+            }
+        }
         label = find_label(expr_name);
         if (label == NULL) {
-            *value = 0;
+            value1 = 0;
             undefined++;
             if (assembler_step == 2) {
                 message_start(1);
@@ -719,58 +722,49 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
                 message_end();
             }
         } else {
-            *value = label->value;
+            value1 = label->value;
         }
     } else {
-        return NULL;
+        /* TODO(pts): Make this syntax error nonsilent? What about when trying instructions? */
+        match_p = NULL;
+        goto done;
     }
-    /* Now *value contains the value of the expression parsed so far. */
+    /* Now value1 contains the value of the expression parsed so far. */
     if (level <= 5) {
         while (1) {
             match_p = avoid_spaces(match_p);
             c = match_p[0];
             if (c != '*' && c != '/' && c != '%') break;
             match_p++;
-            value1 = *value;
-            match_p = match_expression(match_p, value, 6);
-            if (match_p == NULL)
-                return NULL;
+            value2 = match_expression(6);
+            if (match_p == NULL) goto done;
             if (c == '*') {  /* Multiply operator. */  
-                *value = value1 * *value;
+                value1 *= value2;
             } else if (c == '/') {  /* Division operator. */
-                if (GET_UVALUE(*value) == 0) {
+                if (GET_UVALUE(value2) == 0) {
                     if (assembler_step == 2)
                         message(1, "division by zero");
-                    *value = 1;
+                    value2 = 1;
                 }
-                *value = GET_UVALUE(value1) / GET_UVALUE(*value);
+                value1 = GET_UVALUE(value1) / GET_UVALUE(value2);
             } else /*if (match_p[0] == '%')*/ {  /* Module operator. */
-                if (GET_UVALUE(*value) == 0) {
+                if (GET_UVALUE(value2) == 0) {
                     if (assembler_step == 2)
                         message(1, "modulo by zero");
-                    *value = 1;
+                    value2 = 1;
                 }
-                *value = GET_UVALUE(value1) % GET_UVALUE(*value);
+                value1 = GET_UVALUE(value1) % GET_UVALUE(value2);
             }
         }
     }
     if (level <= 4) {
         while (1) {
             match_p = avoid_spaces(match_p);
-            if ((c = match_p[0]) == '+') {    /* Add operator */
+            if ((c = match_p[0]) == '+'|| c == '-') {    /* Add and subtract operator */
                 match_p++;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 5);
-                if (match_p == NULL)
-                    return NULL;
-                *value = value1 + *value;
-            } else if (c == '-') { /* Subtract operator */
-                match_p++;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 5);
-                if (match_p == NULL)
-                    return NULL;
-                *value = value1 - *value;
+                value2 = match_expression(5);
+                value1 += (c == '+') ? value2 : -value2;
+                if (match_p == NULL) goto done;
             } else {
                 break;
             }
@@ -781,11 +775,9 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
             match_p = avoid_spaces(match_p);
             if (((c = match_p[0]) == '<' && match_p[1] == '<') || (c == '>' && match_p[1] == '>')) { /* Shift to left */
                 match_p += 2;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 4);
-                if (match_p == NULL)
-                    return NULL;
-                if (GET_UVALUE(*value) > 31) {
+                value2 = match_expression(4);
+                if (match_p == NULL) goto done;
+                if (GET_UVALUE(value2) > 31) {
                     /* 8086 processor (in 16-bit mode) uses all 8 bits of the shift amount.
                      * i386 and amd64 processors in both 16-bit and 32-bit mode uses the last 5 bits of the shift amount.
                      * amd64 processor in 64-bit mode uses the last 6 bits of the shift amount.
@@ -793,27 +785,27 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
                      * NASM has nondeterministic output, depending on the host architecture (32-bit mode or 64-bit mode).
                      */
                     message(1, "shift by larger than 31");
-                    *value = 0;
+                    value2 = 0;
 #if !CONFIG_SHIFT_OK_31
-                } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(*value) > 15) {
+                } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(value2) > 15) {
                     /* We want `db 1 << 16' to emit 0, but if the host
                      * architecture uses only the last 4 bits of the shift
                      * amount, it would emit 1. Thus we forcibly emit 0 here.
                      */
 #if CONFIG_SHIFT_SIGNED
-                    *value = c == '<' ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to VALUE_BITS. */
+                    value1 = c == '<' ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to VALUE_BITS. */
 #else
-                    *value = 0;
+                    value1 = 0;
 #endif
 #endif  /* CONFIG_SHIFT_OK_31 */
                 } else {
-                    *value = c == '<' ? value1 << GET_UVALUE(*value) :
+                    value1 = c == '<' ? value1 << GET_UVALUE(value2) :
 #if CONFIG_SHIFT_SIGNED
                         GET_VALUE(value1)  /* Sign-extend value1 to VALUE_BITS. */
 #else
                         GET_UVALUE(value1)  /* Zero-extend value1 to VALUE_BITS. */
 #endif
-                        >> GET_UVALUE(*value);
+                        >> GET_UVALUE(value2);
                 }
             } else {
                 break;
@@ -825,11 +817,8 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
             match_p = avoid_spaces(match_p);
             if (match_p[0] == '&') {    /* Binary AND */
                 match_p++;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 3);
-                if (match_p == NULL)
-                    return NULL;
-                *value &= value1;
+                value1 &= match_expression(3);
+                if (match_p == NULL) goto done;
             } else {
                 break;
             }
@@ -840,11 +829,8 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
             match_p = avoid_spaces(match_p);
             if (match_p[0] == '^') {    /* Binary XOR */
                 match_p++;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 2);
-                if (match_p == NULL)
-                    return NULL;
-                *value ^= value1;
+                value1 ^= match_expression(2);
+                if (match_p == NULL) goto done;
             } else {
                 break;
             }
@@ -855,17 +841,15 @@ const char *match_expression(const char *match_p, value_t *value, char level) {
             match_p = avoid_spaces(match_p);
             if (match_p[0] == '|') {    /* Binary OR */
                 match_p++;
-                value1 = *value;
-                match_p = match_expression(match_p, value, 1);
-                if (match_p == NULL)
-                    return NULL;
-                *value |= value1;
+                value1 |= match_expression(1);
+                if (match_p == NULL) goto done;
             } else {
                 break;
             }
         }
     }
-    return match_p;
+  done:
+    return value1;
 }
 
 /*
@@ -965,10 +949,11 @@ const char *match_addressing(const char *p, int width) {
                     if (*p == ']') {
                         p++;
                     } else if (*p == '+' || *p == '-') {
-                        p2 = match_expression(p, &instruction_offset, 0);
-                        if (p2 == NULL)
+                        match_p = p;
+                        instruction_offset = match_expression(0);
+                        if (match_p == NULL)
                             return NULL;
-                        p = avoid_spaces(p2);
+                        p = avoid_spaces(match_p);
                         if (*p != ']')
                             return NULL;
                         p++;
@@ -994,10 +979,11 @@ const char *match_addressing(const char *p, int width) {
                     } else {    /* Not valid */
                         return NULL;
                     }
-                    p2 = match_expression(p, &instruction_offset, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_offset = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
-                    p = avoid_spaces(p2);
+                    p = avoid_spaces(match_p);
                     if (*p != ']')
                         return NULL;
                     p++;
@@ -1013,10 +999,11 @@ const char *match_addressing(const char *p, int width) {
                 return NULL;
             }
         } else {    /* No valid register, try expression (absolute addressing) */
-            p2 = match_expression(p, &instruction_offset, 0);
-            if (p2 == NULL)
+            match_p = p;
+            instruction_offset = match_expression(0);
+            if (match_p == NULL)
                 return NULL;
-            p = avoid_spaces(p2);
+            p = avoid_spaces(match_p);
             if (*p != ']')
                 return NULL;
             p++;
@@ -1134,16 +1121,18 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
-                    p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
-                    p = p2;
+                    p = match_p;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
-                    p = p2;
+                    p = match_p;
                 } else {
                     return NULL;
                 }
@@ -1157,25 +1146,28 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 5;
                         qualifier = 1;
                     }
-                    p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
                     if (qualifier == 0) {
                         c = instruction_value - (address + 2);
                         if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)
                             return NULL;
                     }
-                    p = p2;
+                    p = match_p;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
                     p = avoid_spaces(p);
-                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5]))
-                        p2 = NULL;
-                    else
-                        p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                        match_p = NULL;
+                    } else {
+                        match_p = p;
+                        instruction_value = match_expression(0);
+                    }
+                    if (match_p == NULL)
                         return NULL;
-                    p = p2;
+                    p = match_p;
                 } else {
                     return NULL;
                 }
@@ -1189,8 +1181,9 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 4;
                         qualifier = 1;
                     }
-                    p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
                     if (qualifier == 0) {
                         c = instruction_value;
@@ -1199,7 +1192,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         if (undefined == 0 && (c < -128 || c > 127))
                             return NULL;
                     }
-                    p = p2;
+                    p = match_p;
                 } else {
                     return NULL;
                 }
@@ -1209,16 +1202,18 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     return NULL;
                 } else if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value2, 0);
-                    if (p2 == NULL)
+                    match_p = p;
+                    instruction_value2 = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
-                    if (*p2 != ':')
+                    if (*match_p != ':')
                         return NULL;
-                    p = p2 + 1;
-                    p2 = match_expression(p, &instruction_value, 0);
-                    if (p2 == NULL)
+                    p = match_p + 1;
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    if (match_p == NULL)
                         return NULL;
-                    p = p2;
+                    p = match_p;
                 } else {
                     return NULL;
                 }
@@ -1478,12 +1473,13 @@ void process_instruction()
                 }
                 p = p3;
             } else { db_expr:
-                p = match_expression(p, &instruction_value, 0);
-                if (p == NULL) {
+                match_p = p;
+                instruction_value = match_expression(0);
+                if (match_p == NULL) {
                     message(1, "Bad expression");
                     break;
                 }
-                p = avoid_spaces(p);
+                p = avoid_spaces(match_p);
                 emit_byte(instruction_value);
             }
             if (*p == ',') {
@@ -1499,14 +1495,15 @@ void process_instruction()
     }
     if (strcmp(part, "DW") == 0) {  /* Define word */
         while (1) {
-            p2 = match_expression(p, &instruction_value, 0);
-            if (p2 == NULL) {
+            match_p = p;
+            instruction_value = match_expression(0);
+            if (match_p == NULL) {
                 message(1, "Bad expression");
                 break;
             }
             emit_byte(instruction_value);
             emit_byte(instruction_value >> 8);
-            p = avoid_spaces(p2);
+            p = avoid_spaces(match_p);
             if (*p == ',') {
                 p++;
                 p = avoid_spaces(p);
@@ -1653,7 +1650,6 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
  */
 void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
-    const char *p2;
     const char *p3;
     char *line;
     char *linep;
@@ -1772,8 +1768,9 @@ void do_assembly(const char *input_filename) {
                 separate();
                 if (avoid_level == -1 || level < avoid_level) {
                     if (strcmp(part, "EQU") == 0) {
-                        p2 = match_expression(p, &instruction_value, 0);
-                        if (p2 == NULL) {
+                        match_p = p;
+                        instruction_value = match_expression(0);
+                        if (match_p == NULL) {
                             message(1, "bad expression");
                         } else {
                             if (assembler_step == 1) {
@@ -1800,7 +1797,7 @@ void do_assembly(const char *input_filename) {
                                     last_label->value = instruction_value;
                                 }
                             }
-                            check_end(p2);
+                            check_end(match_p);
                         }
                         break;
                     }
@@ -1843,7 +1840,9 @@ void do_assembly(const char *input_filename) {
                 if (avoid_level != -1 && level >= avoid_level)
                     break;
                 undefined = 0;
-                p = match_expression(p, &instruction_value, 0);
+                match_p = p;
+                instruction_value = match_expression(0);
+                p = match_p;
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1919,7 +1918,9 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "BITS") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p = match_expression(p, &instruction_value, 0);
+                match_p = p;
+                instruction_value = match_expression(0);
+                p = match_p;
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1954,7 +1955,9 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p = match_expression(p, &instruction_value, 0);
+                match_p = p;
+                instruction_value = match_expression(0);
+                p = match_p;
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1981,7 +1984,9 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "ALIGN") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p = match_expression(p, &instruction_value, 0);
+                match_p = p;
+                instruction_value = match_expression(0);
+                p = match_p;
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -2006,7 +2011,9 @@ void do_assembly(const char *input_filename) {
             times = 1;
             if (strcmp(part, "TIMES") == 0) {
                 undefined = 0;
-                p = match_expression(p, &instruction_value, 0);
+                match_p = p;
+                instruction_value = match_expression(0);
+                p = match_p;
                 if (p == NULL) {
                     message(1, "Bad expression");
                     break;
@@ -2154,7 +2161,9 @@ int main(int argc, char **argv) {
                 if (*p == '=') {
                     *(char*)p++ = 0;
                     undefined = 0;
-                    p = match_expression(p, &instruction_value, 0);
+                    match_p = p;
+                    instruction_value = match_expression(0);
+                    p = match_p;
                     if (p == NULL) {
                         message(1, "Bad expression");
                         return 1;
