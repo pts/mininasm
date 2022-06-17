@@ -241,7 +241,6 @@ int instruction_offset_width;
 int instruction_register;
 
 value_t instruction_value;
-value_t instruction_value2;
 
 #define MAX_SIZE        256
 
@@ -607,9 +606,6 @@ const char *avoid_spaces(const char *p) {
     return p;
 }
 
-/* Global variable set by match_expression upon return. */
-const char *match_p_ret;
-
 #ifndef CONFIG_MATCH_STACK_DEPTH
 #define CONFIG_MATCH_STACK_DEPTH 100
 #endif
@@ -617,8 +613,9 @@ const char *match_p_ret;
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
+ ** Saves the result to `instruction_value'.
  */
-value_t match_expression(const char *match_p) {
+const char *match_expression(const char *match_p) {
     static struct match_stack_item {
         unsigned char casei;
         unsigned char level;
@@ -662,8 +659,8 @@ value_t match_expression(const char *match_p) {
             if (match_p[0] != ')') {
                 message(1, "Missing close paren");
               match_error:
-                match_p_ret = NULL;
-                return 0;
+                instruction_value = 0;
+                return NULL;
             }
             match_p++;
         } else if (c == '-') {    /* Simple negation */  /* !! TODO(pts): Compress a run of + and - */
@@ -886,8 +883,8 @@ value_t match_expression(const char *match_p) {
         }
     }
     if (msp != match_stack) goto do_pop;
-    match_p_ret = match_p;
-    return value1;
+    instruction_value = value1;
+    return avoid_spaces(match_p);
 }
 
 /*
@@ -987,10 +984,10 @@ const char *match_addressing(const char *p, int width) {
                     if (*p == ']') {
                         p++;
                     } else if (*p == '+' || *p == '-') {
-                        instruction_offset = match_expression(p);
-                        if (match_p_ret == NULL)
+                        p = match_expression(p);
+                        if (p == NULL)
                             return NULL;
-                        p = avoid_spaces(match_p_ret);
+                        instruction_offset = instruction_value;
                         if (*p != ']')
                             return NULL;
                         p++;
@@ -1016,10 +1013,10 @@ const char *match_addressing(const char *p, int width) {
                     } else {    /* Not valid */
                         return NULL;
                     }
-                    instruction_offset = match_expression(p);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p);
+                    if (p == NULL)
                         return NULL;
-                    p = avoid_spaces(match_p_ret);
+                    instruction_offset = instruction_value;
                     if (*p != ']')
                         return NULL;
                     p++;
@@ -1035,10 +1032,10 @@ const char *match_addressing(const char *p, int width) {
                 return NULL;
             }
         } else {    /* No valid register, try expression (absolute addressing) */
-            instruction_offset = match_expression(p);
-            if (match_p_ret == NULL)
+            p = match_expression(p);
+            if (p == NULL)
                 return NULL;
-            p = avoid_spaces(match_p_ret);
+            instruction_offset = instruction_value;
             if (*p != ']')
                 return NULL;
             p++;
@@ -1086,6 +1083,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
     int bit;
     int qualifier;
     const char *base;
+    static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
 
     undefined = 0;
     while (*pattern) {
@@ -1156,16 +1154,14 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
-                    instruction_value = match_expression(p);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p);
+                    if (p == NULL)
                         return NULL;
-                    p = match_p_ret;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
-                    instruction_value = match_expression(p);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p);
+                    if (p == NULL)
                         return NULL;
-                    p = match_p_ret;
                 } else {
                     return NULL;
                 }
@@ -1179,26 +1175,24 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 5;
                         qualifier = 1;
                     }
-                    instruction_value = match_expression(p);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p);
+                    if (p == NULL)
                         return NULL;
                     if (qualifier == 0) {
                         c = instruction_value - (address + 2);
-                        if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)
+                        if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)  /* !! TODO(pts): Optimize all -128 (== 0x80 comparisons. */
                             return NULL;
                     }
-                    p = match_p_ret;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
                     p = avoid_spaces(p);
                     if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
-                        match_p_ret = NULL;
+                        p = NULL;
                     } else {
-                        instruction_value = match_expression(p);
+                        p = match_expression(p);
                     }
-                    if (match_p_ret == NULL)
+                    if (p == NULL)
                         return NULL;
-                    p = match_p_ret;
                 } else {
                     return NULL;
                 }
@@ -1212,9 +1206,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 4;
                         qualifier = 1;
                     }
-                    instruction_value = match_expression(p);
-                    if (match_p_ret == NULL)
-                        return NULL;
+                    p = match_expression(p);
                     if (qualifier == 0) {
                         c = instruction_value;
                         if (undefined != 0)
@@ -1222,7 +1214,6 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         if (undefined == 0 && (c < -128 || c > 127))
                             return NULL;
                     }
-                    p = match_p_ret;
                 } else {
                     return NULL;
                 }
@@ -1232,15 +1223,15 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     return NULL;
                 } else if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
-                    instruction_value2 = match_expression(p);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p);
+                    if (p == NULL)
                         return NULL;
-                    if (*match_p_ret != ':')
+                    segment_value = instruction_value;
+                    if (*p != ':')
                         return NULL;
-                    instruction_value = match_expression(match_p_ret + 1);
-                    if (match_p_ret == NULL)
+                    p = match_expression(p + 1);
+                    if (p == NULL)
                         return NULL;
-                    p = match_p_ret;
                 } else {
                     return NULL;
                 }
@@ -1344,7 +1335,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         decode += 3;
                         emit_byte(instruction_value);
                         c = instruction_value >> 8;
-                        instruction_offset = instruction_value2;
+                        instruction_offset = segment_value;
                         instruction_offset_width = 2;
                         d = 1;
                         break;
@@ -1500,12 +1491,11 @@ void process_instruction()
                 }
                 p = p3;
             } else { db_expr:
-                instruction_value = match_expression(p);
-                if (match_p_ret == NULL) {
+                p = match_expression(p);
+                if (p == NULL) {
                     message(1, "Bad expression");
                     break;
                 }
-                p = avoid_spaces(match_p_ret);
                 emit_byte(instruction_value);
             }
             if (*p == ',') {
@@ -1521,14 +1511,13 @@ void process_instruction()
     }
     if (strcmp(part, "DW") == 0) {  /* Define word */
         while (1) {
-            instruction_value = match_expression(p);
-            if (match_p_ret == NULL) {
+            p = match_expression(p);
+            if (p == NULL) {
                 message(1, "Bad expression");
                 break;
             }
             emit_byte(instruction_value);
             emit_byte(instruction_value >> 8);
-            p = avoid_spaces(match_p_ret);
             if (*p == ',') {
                 p++;
                 p = avoid_spaces(p);
@@ -1793,8 +1782,8 @@ void do_assembly(const char *input_filename) {
                 separate();
                 if (avoid_level == -1 || level < avoid_level) {
                     if (strcmp(part, "EQU") == 0) {
-                        instruction_value = match_expression(p);
-                        if (match_p_ret == NULL) {
+                        p = match_expression(p);
+                        if (p == NULL) {
                             message(1, "bad expression");
                         } else {
                             if (assembler_step == 1) {
@@ -1821,7 +1810,7 @@ void do_assembly(const char *input_filename) {
                                     last_label->value = instruction_value;
                                 }
                             }
-                            check_end(match_p_ret);
+                            check_end(p);
                         }
                         break;
                     }
@@ -1864,8 +1853,7 @@ void do_assembly(const char *input_filename) {
                 if (avoid_level != -1 && level >= avoid_level)
                     break;
                 undefined = 0;
-                instruction_value = match_expression(p);
-                p = match_p_ret;
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1941,8 +1929,7 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "BITS") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                instruction_value = match_expression(p);
-                p = match_p_ret;
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1977,8 +1964,7 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                instruction_value = match_expression(p);
-                p = match_p_ret;
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -2005,8 +1991,7 @@ void do_assembly(const char *input_filename) {
             if (strcmp(part, "ALIGN") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                instruction_value = match_expression(p);
-                p = match_p_ret;
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -2031,8 +2016,7 @@ void do_assembly(const char *input_filename) {
             times = 1;
             if (strcmp(part, "TIMES") == 0) {
                 undefined = 0;
-                instruction_value = match_expression(p);
-                p = match_p_ret;
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                     break;
@@ -2180,8 +2164,7 @@ int main(int argc, char **argv) {
                 if (*p == '=') {
                     *(char*)p++ = 0;
                     undefined = 0;
-                    instruction_value = match_expression(p);
-                    p = match_p_ret;
+                    p = match_expression(p);
                     if (p == NULL) {
                         message(1, "Bad expression");
                         return 1;
