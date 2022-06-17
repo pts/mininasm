@@ -982,7 +982,7 @@ const char *match_expression_level5(const char *p, value_t *value) {
  */
 const char *match_expression_level6(const char *p, value_t *value) {
     value_t number;
-    int c;
+    char c;
     unsigned shift;
     char *p2;
     struct label MY_FAR *label;
@@ -1030,14 +1030,12 @@ const char *match_expression_level6(const char *p, value_t *value) {
     }
     if (p[0] == '0' && tolower(p[1]) == 'x' && isxdigit(p[2])) {  /* Hexadecimal */
         p += 2;
+      parse_hex:
         number = 0;
-        while (isxdigit(p[0])) {
-            c = toupper(p[0]);
-            c = c - '0';
-            if (c > 9)
-                c -= 7;
+        for (number = 0; c = p[0], isxdigit(c); ++p) {
+            c -= '0';
+            if ((unsigned char)c > 9) c = (c & ~32) - 7;
             number = (number << 4) | c;
-            p++;
         }
         *value = number;
         return p;
@@ -1046,21 +1044,11 @@ const char *match_expression_level6(const char *p, value_t *value) {
         /* This is nasm syntax, notice no letter is allowed after $ */
         /* So it's preferrable to use prefix 0x for hexadecimal */
         p += 1;
-        number = 0;
-        while (isxdigit(p[0])) {
-            c = toupper(p[0]);
-            c = c - '0';
-            if (c > 9)
-                c -= 7;
-            number = (number << 4) | c;
-            p++;
-        }
-        *value = number;
-        return p;
+        goto parse_hex;
     }
     if (p[0] == '\'' || p[0] == '"') {  /* Character constant */
         number = 0; shift = 0;
-        for (c = *p++; *p != '\0' && *p != (char)c; ++p) {
+        for (c = *p++; *p != '\0' && *p != c; ++p) {
             if (shift < sizeof(number) * 8) {
                 number |= (unsigned char)*p << shift;
                 shift += 8;
@@ -1076,10 +1064,8 @@ const char *match_expression_level6(const char *p, value_t *value) {
     }
     if (isdigit(*p)) {   /* Decimal */
         number = 0;
-        while (isdigit(p[0])) {
-            c = p[0] - '0';
+        for (number = 0; (unsigned char)(c = p[0] - '0') <= 9; ++p) {
             number = number * 10 + c;
-            p++;
         }
         *value = number;
         return p;
@@ -1107,7 +1093,7 @@ const char *match_expression_level6(const char *p, value_t *value) {
             *p2++ = *p++;
         *p2 = '\0';
         for (c = 0; c < 16; c++)
-            if (strcmp(expr_name, reg1[c]) == 0)
+            if (strcmp(expr_name, reg1[(unsigned char)c]) == 0)
                 return NULL;
         label = find_label(expr_name);
         if (label == NULL) {
@@ -1557,7 +1543,7 @@ void process_instruction()
     if (strcmp(part, "DB") == 0) {  /* Define byte */
         while (1) {
             p = avoid_spaces(p);
-            if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
+            if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. " */
                 c = *p++;
                 for (p2 = p; *p2 != '\0' && *p2 != (char)c; ++p2) {}
                 p3 = p2;
