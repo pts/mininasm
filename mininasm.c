@@ -691,7 +691,7 @@ const char *match_expression(const char *match_p) {
                 }
                 match_p++;
             }
-        } else if (c == '0' && tolower(match_p[1]) == 'x' && isxdigit(match_p[2])) {  /* Hexadecimal */
+        } else if (c == '0' && tolower(match_p[1]) == 'x') {  /* Hexadecimal */
             match_p += 2;
           parse_hex:
             /*value1 = 0;*/
@@ -700,7 +700,7 @@ const char *match_expression(const char *match_p) {
                 if ((unsigned char)c > 9) c = (c & ~32) - 7;
                 value1 = (value1 << 4) | c;
             }
-        } else if (c == '0' && tolower(match_p[1]) == 'o' && match_p[2] - '0' + 0U < 8U) {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
+        } else if (c == '0' && tolower(match_p[1]) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
             /*value1 = 0;*/
             for (; (unsigned char)(c = match_p[0] - '0') < 8; ++match_p) {
