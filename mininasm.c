@@ -680,8 +680,7 @@ const char *match_expression(const char *match_p) {
               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
               value1 += value2;
             }
-            /* !! TODO(pts): Add unary ~ */
-        } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */  /* !! TODO(pts): Add octal: 0... and 0o... */
+        } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */
             match_p += 2;
             /*value1 = 0;*/
             while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
@@ -700,6 +699,12 @@ const char *match_expression(const char *match_p) {
                 c -= '0';
                 if ((unsigned char)c > 9) c = (c & ~32) - 7;
                 value1 = (value1 << 4) | c;
+            }
+        } else if (c == '0' && tolower(match_p[1]) == 'o' && match_p[2] - '0' + 0U < 8U) {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
+            match_p += 2;
+            /*value1 = 0;*/
+            for (; (unsigned char)(c = match_p[0] - '0') < 8; ++match_p) {
+                value1 = (value1 << 3) | c;
             }
         } else if (c == '$' && isdigit(match_p[1])) {  /* Hexadecimal */
             /* This is nasm syntax, notice no letter is allowed after $ */

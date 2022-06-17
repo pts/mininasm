@@ -10,6 +10,10 @@ db ~-~~-4
 db -~-~~-~5
 db -+~+5
 db +~-++5
+db 0376  ; Decimal, for NASM compatibility.
+;db 0d376  ; Decimal, for NASM 0.99.06 compatibility. NASM 0.98.39 doesn't support it.
+db 3<<6 | 7<<3 | 6
+    ;db 0o376  ; NASM 0.98.39 doesn't have any octal literal syntax; NASM 0.99.06 supports 0o... as octal; 0376 is just decimal in both.
 db 1 << 14 >> 14
 db 1 << 15 >> 15
 db (1 << 8 << 8) / 501
