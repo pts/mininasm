@@ -663,19 +663,22 @@ const char *match_expression(const char *match_p) {
                 return NULL;
             }
             match_p++;
-        } else if (c == '-' || c == '+') {    /* Unary - and +. */
-            for (;;) {  /* Shortcut to squeeze multiple - and + operators to a single match_stack_item. */
+        } else if (c == '-' || c == '+' || c == '~') {  /* Unary -, + and ~. */
+            /*value1 = 0;*/  /* Delta, can be nonzero iff unary ~ is encountered. */
+            if (c == '~') { --value1; c = '-'; }
+            for (;;) {  /* Shortcut to squeeze multiple unary - and + operators to a single match_stack_item. */
                 match_p = avoid_spaces(match_p + 1);
                 if (match_p[0] == '+') {}
-                else if (match_p[0] == '-') { c ^= 6; }  /* Switch between ASCII '+' and '-'. */
+                else if (match_p[0] == '-') { do_switch_pm: c ^= 6; }  /* Switch between ASCII '+' and '-'. */
+                else if (match_p[0] == '~') { value1 += (value_t)c - ('-' - 1); goto do_switch_pm; }  /* Either ++value1 or --value1. */
                 else { break; }
             }
             if (c == '-') {
               MATCH_CASEI_LEVEL_TO_VALUE2(2, 6);
-              value1 = -value2;
+              value1 -= value2;
             } else {
               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
-              value1 = value2;
+              value1 += value2;
             }
             /* !! TODO(pts): Add unary ~ */
         } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */  /* !! TODO(pts): Add octal: 0... and 0o... */
