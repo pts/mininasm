@@ -663,14 +663,21 @@ const char *match_expression(const char *match_p) {
                 return NULL;
             }
             match_p++;
-        } else if (c == '-') {    /* Simple negation */  /* !! TODO(pts): Compress a run of + and - */
-            match_p++;
-            MATCH_CASEI_LEVEL_TO_VALUE2(2, 6);
-            value1 = -value2;
-        } else if (c == '+') {    /* Unary + */  /* !! TODO(pts): Add unary ~ */
-            match_p++;
-            MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
-            value1 = value2;
+        } else if (c == '-' || c == '+') {    /* Unary - and +. */
+            for (;;) {  /* Shortcut to squeeze multiple - and + operators to a single match_stack_item. */
+                match_p = avoid_spaces(match_p + 1);
+                if (match_p[0] == '+') {}
+                else if (match_p[0] == '-') { c ^= 6; }  /* Switch between ASCII '+' and '-'. */
+                else { break; }
+            }
+            if (c == '-') {
+              MATCH_CASEI_LEVEL_TO_VALUE2(2, 6);
+              value1 = -value2;
+            } else {
+              MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
+              value1 = value2;
+            }
+            /* !! TODO(pts): Add unary ~ */
         } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */  /* !! TODO(pts): Add octal: 0... and 0o... */
             match_p += 2;
             /*value1 = 0;*/
