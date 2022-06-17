@@ -617,7 +617,7 @@ const char *avoid_spaces(const char *p) {
  */
 const char *match_expression(const char *match_p) {
     static struct match_stack_item {
-        unsigned char casei;
+        signed char casei;
         unsigned char level;
         value_t value1;
     } match_stack[CONFIG_MATCH_STACK_DEPTH];  /* This static variable makes match_expression(...) not reentrant. */
@@ -640,29 +640,37 @@ const char *match_expression(const char *match_p) {
     value2 = value1;
     value1 = msp->value1;
     level = msp->level;
+    if (msp->casei < 0) {  /* End of expression in patentheses. */
+        value1 = value2;
+        match_p = avoid_spaces(match_p);
+        if (match_p[0] != ')') {
+            message(1, "Missing close paren");
+          match_error:
+            instruction_value = 0;
+            return NULL;
+        }
+        match_p++;
+        if (++msp->casei != 0) {
+            level = 0;
+            if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) goto too_deep;
+        }
+        goto have_value1;
+    }
 #define MATCH_CASEI_LEVEL_TO_VALUE2(casei2, level2) do { msp->casei = casei2; msp->level = level; level = level2; goto do_push; case casei2: ; } while (0)
     switch (msp->casei) {  /* This will jump after one of the MATCH_CASEI_LEVEL_TO_VALUE2(...) macros. */
       do_push:
         msp->value1 = value1;
-        if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) {
+        if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) { too_deep:
             message(1, "Expression too deep");  /* Stack overflow in match stack. */
             goto match_error;
         }
       do_match:
         match_p = avoid_spaces(match_p);
         value1 = 0;  /* In addition to preventing duplicate initialization below, it also does pacify GCC 7.5.0: do_push jumped to by MATCH_CASEI_LEVEL_TO_VALUE2 does an `msp->value1 = value1'. */
-        if ((c = match_p[0]) == '(') {    /* Handle parenthesized expressions */  /* !! TODO(pts): Count the parens for increased depth. */
-            match_p++;
-            MATCH_CASEI_LEVEL_TO_VALUE2(1, 0);
-            value1 = value2;
-            match_p = avoid_spaces(match_p);
-            if (match_p[0] != ')') {
-                message(1, "Missing close paren");
-              match_error:
-                instruction_value = 0;
-                return NULL;
-            }
-            match_p++;
+        if ((c = match_p[0]) == '(') {  /* Parenthesized expression. */
+            /* Count the consecutive open parentheses, and add a single match_stack_item. */
+            for (; (c = (match_p = avoid_spaces(match_p))[0]) == '(' && value1 > -127; ++match_p, --value1) {}
+            msp->casei = value1; msp->level = level; level = 0; goto do_push;
         } else if (c == '-' || c == '+' || c == '~') {  /* Unary -, + and ~. */
             /*value1 = 0;*/  /* Delta, can be nonzero iff unary ~ is encountered. */
             if (c == '~') { --value1; c = '-'; }
@@ -767,6 +775,7 @@ const char *match_expression(const char *match_p) {
             goto match_error;
         }
         /* Now value1 contains the value of the expression parsed so far. */
+      have_value1:
         if (level <= 5) {
             while (1) {
                 match_p = avoid_spaces(match_p);
