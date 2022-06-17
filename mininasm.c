@@ -1204,7 +1204,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         return NULL;
                     if (qualifier == 0) {
                         c = instruction_value - (address + 2);
-                        if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)  /* !! TODO(pts): Optimize all -128 (== 0x80 comparisons. */
+                        if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)
                             return NULL;
                     }
                 } else if (*pattern == '1' && pattern[1] == '6') {
