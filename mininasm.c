@@ -94,6 +94,14 @@ int close(int fd);
 #endif
 #endif
 
+#if !defined(CONFIG_SHIFT_OK_31)
+#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__)
+#define CONFIG_SHIFT_OK_31 1  /* `x << 31' and `x >> 31' works in C. */
+#else
+#define CONFIG_SHIFT_OK_31 0
+#endif
+#endif
+
 #ifndef CONFIG_BALANCED
 #define CONFIG_BALANCED 1
 #endif
@@ -187,6 +195,13 @@ modify [si cl]
 #define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value) - 1] = value
 #endif
 
+/* We aim for compatibility with NASM 0.98.39, so we do signed by default.
+ * Signed (sign-extended): NASM 0.99.06, Yasm 1.2.0, Yasm, 1.3.0.
+ * Unsigned (zero-extended): NASM 0.98.39, NASM 2.13.02.
+ */
+#ifndef CONFIG_SHIFT_SIGNED
+#define CONFIG_SHIFT_SIGNED 0
+#endif
 
 #define DEBUG
 
@@ -843,26 +858,49 @@ const char *match_expression_level2(const char *p, value_t *value) {
  */
 const char *match_expression_level3(const char *p, value_t *value) {
     value_t value1;
+    char c;
 
     p = match_expression_level4(p, value);
     if (p == NULL)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '<' && p[1] == '<') { /* Shift to left */
+        if (((c = *p) == '<' && p[1] == '<') || (c == '>' && p[1] == '>')) { /* Shift to left */
             p += 2;
             value1 = *value;
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
-            *value = value1 << (GET_UVALUE(*value) & (VALUE_BITS - 1U));  /* VALUE_BITS is for compability with mininasm and nasm on hosts i386 and amd64, e.g. (x << 16) should be the same as x. */
-        } else if (*p == '>' && p[1] == '>') {  /* Shift to right */
-            p += 2;
-            value1 = *value;
-            p = match_expression_level4(p, value);
-            if (p == NULL)
-                return NULL;
-            *value = GET_VALUE(value1) >> GET_UVALUE(*value);  /* Sign-extend value1 to VALUE_BITS. */
+            if (GET_UVALUE(*value) > 31) {
+                /* 8086 processor (in 16-bit mode) uses all 8 bits of the shift amount.
+                 * i386 and amd64 processors in both 16-bit and 32-bit mode uses the last 5 bits of the shift amount.
+                 * amd64 processor in 64-bit mode uses the last 6 bits of the shift amount.
+                 * To get deterministic output, we disallow shift amounts with more than 5 bits.
+                 * NASM has nondeterministic output, depending on the host architecture (32-bit mode or 64-bit mode).
+                 */
+                message(1, "shift by larger than 31");
+                *value = 0;
+#if !CONFIG_SHIFT_OK_31
+            } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(*value) > 15) {
+                /* We want `db 1 << 16' to emit 0, but if the host
+                 * architecture uses only the last 4 bits of the shift
+                 * amount, it would emit 1. Thus we forcibly emit 0 here.
+                 */
+#if CONFIG_SHIFT_SIGNED
+                *value = c == '<' ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to VALUE_BITS. */
+#else
+                *value = 0;
+#endif
+#endif  /* CONFIG_SHIFT_OK_31 */
+            } else {
+                *value = c == '<' ? value1 << GET_UVALUE(*value) :
+#if CONFIG_SHIFT_SIGNED
+                    GET_VALUE(value1)  /* Sign-extend value1 to VALUE_BITS. */
+#else
+                    GET_UVALUE(value1)  /* Zero-extend value1 to VALUE_BITS. */
+#endif
+                    >> GET_UVALUE(*value);
+            }
         } else {
             return p;
         }
