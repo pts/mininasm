@@ -12,12 +12,17 @@ following improvements:
   or 64-bit instructions, and it can't generate 32-bit DOS programs.)
   This hasn't been implemented yet.
 * `bits 16' works.
-  This hasn't been implemented yet.
 * `cpu 186' and `cpu 286' also work. (For the 286, it supports all
   instructions except for those related to protected mode.)
   This hasn't been implemented yet.
+* It supports 287 floating point instructions.
+  This hasn't been implemented yet.
 * It supports `%define MACRO VALUE'. (It doesn't support macros with
   arguments or multiline macros.)
+  This hasn't been implemented yet.
+* Its output (stderr, output file, listing file) doesn't depend on the host,
+  not even for integer overflow (e.g. number of bytes reported), this it's a
+  true cross-assembler.
 * When compiled for DOS, it uses memory with efficiently, and thus it is able
   to compile an assembly inpout file with >55000 labels (see the file
   most.asm). Most other 16-bit DOS assemblers support less than 8000 labels
@@ -27,6 +32,14 @@ following improvements:
   DOS .com file smaller than Tinyasm.
   Savings: about 17.1 KiB .com program instead of 30 KiB .com program
   with `owcc -bcom -Os'.
+* Its behavior is adjusted for better compatibility with NASM 0.98.39.
+  The most important difference is that it supports 16-bit numbers, but
+  NASM 0.98.39 supports 32-bit numbers. See more differences between
+  Tinyasm and NASM below.
+* Its stack use has a constant upper bound (e.g. no recursive function
+  calls), it never crashes because of large input.
+* It has some new (NASM-compatible) features such as 'multicharacter' string
+  literals, the unary `~' operator, 0o... octal integer literal syntax.
 
 Below is a copy of the README of Tinyasm.
 
