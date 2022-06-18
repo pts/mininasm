@@ -205,8 +205,6 @@ modify [si cl]
 
 #define DEBUG
 
-int line_number;
-
 char *output_filename;
 int output_fd;
 
@@ -227,6 +225,8 @@ typedef unsigned short uvalue_t;  /* At least VALUE_BITS bits, preferably exactl
 #error VALUE_BITS must be 16 or 32.
 #endif
 #endif
+
+uvalue_t line_number;
 
 int assembler_step;  /* !! Change many variables from int to char. */
 value_t default_start_address;
@@ -252,9 +252,9 @@ char global_label[MAX_SIZE];
 char *g;
 char generated[8];
 
-int errors;
-int warnings;  /* !! remove this, currently there are no possible warnings */
-int bytes;
+uvalue_t errors;
+uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
+uvalue_t bytes;
 int change;
 int change_number;
 
@@ -1493,10 +1493,10 @@ void message_start(int error) {
     const char *msg_prefix;
     if (error) {
         msg_prefix = "Error: ";  /* !! Also display current input_filename. */
-        errors++;
+        if (GET_UVALUE(++errors) == 0) --errors;  /* Cappped at max uvalue_t. */
     } else {
         msg_prefix = "Warning: ";
-        warnings++;
+        if (GET_UVALUE(++warnings) == 0) --warnings;  /* Cappped at max uvalue_t. */
     }
     if (!message_bbb.data) {
         message_flush(NULL);  /* Flush listing_fd. */
@@ -1661,7 +1661,7 @@ struct assembly_info {
     off_t file_offset;  /* Largest alignment first, to save size. */
     int level;
     int avoid_level;
-    int line_number;
+    uvalue_t line_number;
     char zero;  /* '\0'. Used by assembly_pop(...). */
     char input_filename[1];  /* Longer, ASCIIZ (NUL-terminated). */
 };
@@ -1794,7 +1794,7 @@ void do_assembly(const char *input_filename) {
         linep = (char*)p + 1;
        after_line_read:
 
-        line_number++;
+        if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
         p = line;
         while (*p) {
             if (*p == '\'' && *(p - 1) != '\\') {
@@ -2111,7 +2111,7 @@ void do_assembly(const char *input_filename) {
                 bbprintf(&message_bbb /* listing_fd */, "  ");
                 p++;
             }
-            bbprintf(&message_bbb /* listing_fd */, "  %05d %s\r\n", line_number, line);
+            bbprintf(&message_bbb /* listing_fd */, "  %05u %s\r\n", line_number, line);
         }
         if (include == 1) {
             if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
@@ -2302,9 +2302,9 @@ int main(int argc, char **argv) {
             do_assembly(ifname);
 
             if (listing_fd >= 0 && change == 0) {
-                bbprintf(&message_bbb /* listing_fd */, "\r\n%05d ERRORS FOUND\r\n", errors);
-                bbprintf(&message_bbb /* listing_fd */, "%05d WARNINGS FOUND\r\n\r\n", warnings);
-                bbprintf(&message_bbb /* listing_fd */, "%05d PROGRAM BYTES\r\n\r\n", bytes);
+                bbprintf(&message_bbb /* listing_fd */, "\r\n%05u ERRORS FOUND\r\n", errors);
+                bbprintf(&message_bbb /* listing_fd */, "%05u WARNINGS FOUND\r\n\r\n", warnings);
+                bbprintf(&message_bbb /* listing_fd */, "%05u PROGRAM BYTES\r\n\r\n", GET_UVALUE(bytes));
                 if (label_list != NULL) {
                     bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                     print_labels_sorted_to_listing_fd(label_list);
