@@ -1075,13 +1075,48 @@ const char *match_addressing(const char *p, int width) {
     return p;
 }
 
-void emit_bytes(const char *s, int size)  {
-    address += size;
-    if (assembler_step == 2) {
-        if (write(output_fd, s, size) != size) {  /* !! TODO(pts): Add output buffering to speed it up. */
+extern struct bbprintf_buf emit_bbb;
+
+char emit_buf[512];
+
+void emit_flush(struct bbprintf_buf *bbb) {
+    const int size = emit_bbb.p - emit_buf;
+    (void)bbb;  /* emit_bbb. */
+    if (size) {
+        if (write(output_fd, emit_buf, size) != size) {
             message(1, "error writing to output file");
             exit(3);
         }
+        emit_bbb.p = emit_buf;
+    }
+}
+
+struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf, 0, emit_flush };
+
+void emit_write(const char *s, int size) {
+    int emit_free;
+    while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
+#ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
+        emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, emit_free);
+#else
+        memcpy(emit_bbb.p, s, emit_free);
+        emit_bbb.p += emit_free;
+#endif
+        s += emit_free; size -= emit_free;
+        emit_flush(0);
+    }
+#ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
+    emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, size);
+#else
+    memcpy(emit_bbb.p, s, size);
+    emit_bbb.p += size;
+#endif
+}
+
+void emit_bytes(const char *s, int size)  {
+    address += size;
+    if (assembler_step == 2) {
+        emit_write(s, size);
         bytes += size;
         if (g != NULL) {
             for (; size > 0 && g != generated + sizeof(generated); *g++ = *s++, --size) {}
@@ -2275,6 +2310,7 @@ int main(int argc, char **argv) {
                     print_labels_sorted_to_listing_fd(label_list);
                 }
             }
+            emit_flush(0);
             close(output_fd);
             if (listing_filename != NULL) {
                 message_flush(NULL);
