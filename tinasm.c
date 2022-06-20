@@ -2,14 +2,14 @@
  ** tinasm: NASM-compatible mini assembler for 8086
  ** tinasm modifications by pts@fazekas.hu at Mon Jun 20 10:22:13 CEST 2022
  **
- ** Based on TinyASM (8086/8088 assembler for DOS) by Oscar Toledo G:
+ ** Based on Tinyasm (8086/8088 assembler for DOS) by Oscar Toledo G:
  ** https://github.com/nanochess/tinyasm/commit/2f213d809b685ccc5bccf52e2dbdd25dceedadd7
- ** TinyASM Creation date: Oct/01/2019.
+ ** Tinyasm Creation date: Oct/01/2019.
  ** tinasm.c is a concatenation of tinyasm.c and ins.c from the commit above.
  **
  ** The goal of tinasm is to provide critical bugfixes, portability
  ** improvements (to more systems and C and C++ compilers) and deterministic
- ** cross-compilation over TinyASM. For NASM compatibility improvements,
+ ** cross-compilation over Tinyasm. For NASM compatibility improvements,
  ** memory usage optimizations, stack safety fixes, see mininasm.c in
  ** https://github.com/pts/mininasm instead.
  **

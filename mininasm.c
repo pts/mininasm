@@ -2,7 +2,7 @@
  ** mininasm: NASM-compatible mini assembler for 8086, able to run on DOS and on modern systems
  ** mininasm modifications by pts@fazekas.hu at Wed May 18 21:39:36 CEST 2022
  **
- ** based on tinyasm by Oscar Toledo G, starting Oct/01/2019.
+ ** based on Tinyasm by Oscar Toledo G, starting Oct/01/2019.
  **
  ** Compilation instructions (pick any one):
  **
