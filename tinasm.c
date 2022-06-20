@@ -15,15 +15,17 @@
  **
  ** Compilation instructions (pick any one):
  **
- **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o tinasm tinasm.c ins.c bbprintf.c && ls -ld tinasm
+ **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o tinasm tinasm.c && ls -ld tinasm
  **
- **   #(it doesn't work yet) $ g++ -ansi -pedantic -s -Os -W -Wall -o tinasm tinasm.c ins.c bbprintf.c && ls -ld tinasm
+ **   #(it doesn't work yet) $ g++ -ansi -pedantic -s -Os -W -Wall -o tinasm tinasm.c && ls -ld tinasm
  **
- **   #(it doesn't work yet) $ pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c ins.c bbprintf.c && ls -ld tinasm.tcc
+ **   #(it doesn't work yet) $ pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c && ls -ld tinasm.tcc
  **
- **   $ owcc -bdos -o tinasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra tinasm.c ins.c bbprintf.c && ls -ld tinasm.exe
+ **   $ owcc -bdos -o tinasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra tinasm.c && ls -ld tinasm.exe
  **
- **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o tinasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra tinasm.c ins.c bbprintf.c nouser32.c && ls -ld tinasm.win32.exe
+ **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o tinasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra tinasm.c nouser32.c && ls -ld tinasm.win32.exe
+ **
+ **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o tinasm.win32msvcrt.exe tinasm.c
  */
 
 #include <stdio.h>
