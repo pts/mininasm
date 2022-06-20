@@ -41,6 +41,77 @@ following improvements:
 * It has some new (NASM-compatible) features such as 'multicharacter' string
   literals, the unary `~' operator, 0o... octal integer literal syntax.
 
+Differences between mininasm and NASM:
+
+* mininasm won't insert long jumps for miscalculated conditional jumps.
+
+* Labels are started with letter, underscore or period. Case is insensitive.
+
+* There is only support for 8086/8088 processors (cpu 8086).
+
+* All label values are integers, there are no section-relative values. This
+  makes mininasm more permissive, e.g. `db $ * 3' works in mininasm, but
+  only `db ($ - $$) * 3' works in NASM, because `$' is section-relative in
+  NASM.
+
+* Only the following directives are implemented:
+
+	%ifdef
+	%ifndef
+	%if
+	%else
+	%endif
+	%include
+	incbin
+	times
+	use16
+	bits 16
+	cpu 8086
+	equ
+	db
+	dw
+	align
+
+The segment prefix must be the first word in the instructions, e.g.
+`es cmp al, [di]' works in both NASM and Tinyasm, but `cmp al, [es:di]'
+doesn't work in Tinyasm.
+
+Similarities with NASM:
+
+* Local labels are supported, and should start with period.
+  The local labels final name is derived from concatenation
+  of the last global label (not starting with period) and
+  the local label.
+
+
+The following operators are implemented:
+
+	|	Bitwise OR
+	^	Bitwise XOR
+	&	Bitwise AND
+	~	Unary bitwise NOT
+	<<	Shift to left
+	>>	Shift to right
+	+	Addition
+	-	Subtraction
+	* 	Multiplication
+	/	Division (unsigned 16-bit)
+	%	Modulo operator
+	(expr)	Parenthesis
+	-	Unary negation
+        +       Unary addition (no-op).
+
+The following numbers are implemented:
+
+	0b0000_0100	Binary, you can use underscore (it will be ignored)
+	0xabcd		Hexadecimal.
+	$0abcd		Hexadecimal (after $ the first digit must be a number)
+	'a'		Character constant.
+	10		Decimal.
+	$$		Start address.
+	$		Current address.
+
+
 Below is a copy of the README of Tinyasm.
 
 ,--------.,--.
@@ -91,65 +162,6 @@ error codes.
 Thanks to humbertocsjr for contributing the INCBIN
 command.
 
-
->> DIFFERENCES BETWEEN TINYASM AND NASM >>
-
-The main difference is that Tinyasm won't insert long jumps
-for miscalculated conditional jumps.
-
-Labels are started with letter, underscore or period.
-Case is insensitive.
-
-Local labels are supported, and should start with period.
-The local labels final name is derived from concatenation
-of the last global label (not starting with period) and
-the local label.
-
-The segment prefix must be the first word in the instructions, e.g.
-`es cmp al, [di]' works in both NASM and Tinyasm, but `cmp al, [es:di]'
-doesn't work in Tinyasm.
-
-There is only support for 8086/8088 processors, and only
-are implemented the following directives:
-
-	%ifdef
-	%ifndef
-	%if
-	%else
-	%endif
-	%include
-	incbin
-	times
-	use16
-	cpu 8086
-	equ
-	db
-	dw
-
-The following operators are implemented:
-
-	|	Binary OR
-	^	Binary XOR
-	&	Binary AND
-	<<	Shift to left
-	>>	Shift to right
-	+	Addition
-	-	Subtraction
-	* 	Multiplication
-	/	Division (unsigned 16-bit)
-	%	Modulo operator
-	(expr)	Parenthesis
-	-	Unary negation
-
-The following numbers are implemented:
-
-	0b0000_0100	Binary, you can use underscore (it will be ignored)
-	0xabcd		Hexadecimal.
-	$0abcd		Hexadecimal (after $ the first digit must be a number)
-	'a'		Character constant.
-	10		Decimal.
-	$$		Start address.
-	$		Current address.
 
 This assembler won't win a speed test ;) because the
 internal implementation uses a linear search for the
