@@ -1674,7 +1674,7 @@ int main(argc, argv)
      */
     if (argc == 1) {
         fprintf(stderr, "Typical usage:\n");
-        fprintf(stderr, "tinyasm -f bin input.asm -o input.bin\n");
+        fprintf(stderr, "tinasm -f bin input.asm -o input.bin\n");
         exit(1);
     }
     
