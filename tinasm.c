@@ -392,6 +392,10 @@ char *match_register(p, width, value)
 
 /*
  ** Read character for string or character literal
+ **
+ ** This is incompatible with NASM (any version 0.98.39 and 2.13.2) and Yasm
+ ** (1.2.0 and 1.3.0). These assemblers don't process backslashes in '...'
+ ** or "..." string literals.
  */
 char *read_character(p, c)
     char *p;
