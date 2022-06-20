@@ -18,6 +18,8 @@
  **
  **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c ins.c bbprintf.c nouser32.c && ls -ld mininasm.win32.exe
  **
+ **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o mininasm.win32msvcrt.exe mininasm.c
+ **
  */
 
 #ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
