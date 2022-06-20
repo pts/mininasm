@@ -23,14 +23,35 @@
  */
 
 #ifdef __TINYC__
+#if defined(__i386__) /* || defined(__amd64__)*/ || defined(__x86_64__)
 #ifdef __i386__
 typedef char *va_list;  /* i386 only */
-#define va_start(ap,last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)  /* i386 only */
-#define va_arg(ap,type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only */
+#define va_start(ap, last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)  /* i386 only */
+#define va_arg(ap, type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only */
 #define va_copy(dest, src) (dest) = (src)  /* i386 only */
 #define va_end(ap)  /* i386 only */
+#endif
+#ifdef __x86_64__  /* amd64. */
+typedef struct {
+  unsigned int gp_offset;
+  unsigned int fp_offset;
+  union {
+    unsigned int overflow_offset;
+    char *overflow_arg_area;
+  };
+  char *reg_save_area;
+} __va_list_struct;
+typedef __va_list_struct va_list[1];
+void __va_start(__va_list_struct *ap, void *fp);
+void *__va_arg(__va_list_struct *ap, int arg_type, int size, int align);
+typedef va_list __gnuc_va_list;
+#define va_start(ap, last) __va_start(ap, __builtin_frame_address(0))  /* amd64 only */
+#define va_arg(ap, type) (*(type *)(__va_arg(ap, __builtin_va_arg_types(type), sizeof(type), __alignof__(type))))  /* amd64 only */
+#define va_copy(dest, src) (*(dest) = *(src))  /* amd64 only */
+#define va_end(ap)  /* amd64 only */
+#endif
 #else
-#error tcc is only supported on i386
+#error tcc is only supported on i386 and amd64
 #endif
 #else
 #include <stdarg.h>

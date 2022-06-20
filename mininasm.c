@@ -12,6 +12,8 @@
  **
  **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c bbprintf.c && ls -ld mininasm.tcc
  **
+ **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c ins.c bbprintf.c && ls -ld mininasm.tcc64
+ **
  **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
  **
  **   $ owcc -bdos -o mininasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra mininasm.c ins.c bbprintf.c && ls -ld mininasm.exe
@@ -22,17 +24,17 @@
  **
  */
 
-#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c */
-#ifdef __i386
+#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c bbprintf.c */
+#if defined(__i386__) /* || defined(__amd64__)*/ || defined(__x86_64__)
 #define ATTRIBUTE_NORETURN __attribute__((noreturn))
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
-typedef unsigned long uint32_t;
+typedef unsigned int uint32_t;
 typedef char int8_t;
 typedef short int16_t;
-typedef long int32_t;
-typedef unsigned int size_t;  /* TODO(pts): 64-bit tcc. */
-typedef int ssize_t;  /* TODO(pts): 64-bit tcc. */
+typedef int int32_t;
+typedef unsigned long size_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
+typedef long ssize_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
 typedef int off_t;
 #define NULL ((void*)0)
 void *malloc(size_t size);
@@ -42,6 +44,7 @@ void ATTRIBUTE_NORETURN exit(int status);
 char *strcpy(char *dest, const char *src);
 int strcmp(const char *s1, const char *s2);
 char *strcat(char *dest, const char *src);
+void *memcpy(void *dest, const void *src, size_t n);
 int memcmp(const void *s1, const void *s2, size_t n);
 int isalpha(int c);
 int isspace(int c);
@@ -49,11 +52,6 @@ int isdigit(int c);
 int isxdigit(int c);
 int tolower(int c);
 int toupper(int c);
-typedef char *va_list;  /* i386 only */
-#define va_start(ap,last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)  /* i386 only */
-#define va_arg(ap,type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only */
-#define va_copy(dest, src) (dest) = (src)  /* i386 only */
-#define va_end(ap)  /* i386 only */
 ssize_t read(int fd, void *buf, size_t count);
 ssize_t write(int fd, const void *buf, size_t count);
 #define SEEK_SET 0  /* whence value below. */
@@ -68,7 +66,7 @@ int creat(const char *pathname, int mode);
 int close(int fd);
 #define open2(pathname, flags) open(pathname, flags)
 #else
-#error tcc is only supported on i386
+#error tcc is only supported on i386 and amd64
 #endif
 #else
 #ifdef __DOSMC__

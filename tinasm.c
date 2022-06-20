@@ -19,7 +19,9 @@
  **
  **   #(it doesn't work yet) $ g++ -ansi -pedantic -s -Os -W -Wall -o tinasm tinasm.c && ls -ld tinasm
  **
- **   #(it doesn't work yet) $ pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c && ls -ld tinasm.tcc
+ **   $ pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c && ls -ld tinasm.tcc
+ **
+ **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o tinasm.tcc64 tinasm.c && ls -ld tinasm.tcc64
  **
  **   $ owcc -bdos -o tinasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra tinasm.c && ls -ld tinasm.exe
  **
@@ -28,10 +30,49 @@
  **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o tinasm.win32msvcrt.exe tinasm.c
  */
 
+#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c */
+#define ATTRIBUTE_NORETURN __attribute__((noreturn))
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned long uint32_t;
+typedef char int8_t;
+typedef short int16_t;
+typedef long int32_t;
+#ifdef __SIZE_TYPE__
+typedef __SIZE_TYPE__ size_t;
+#else
+typedef unsigned long size_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
+#endif
+#define NULL ((void*)0)
+typedef struct FILE FILE;
+extern FILE *stderr;
+void *malloc(size_t size);
+size_t strlen(const char *s);
+int fprintf(FILE *stream, const char *format, ...);
+int sprintf(char *str, const char *format, ...);
+FILE *fopen(const char *path, const char *mode);
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+char *fgets(char *s, int size, FILE *stream);
+int fclose(FILE *stream);
+int remove(const char *pathname);
+void ATTRIBUTE_NORETURN exit(int status);
+char *strcpy(char *dest, const char *src);
+int strcmp(const char *s1, const char *s2);
+char *strcat(char *dest, const char *src);
+int memcmp(const void *s1, const void *s2, size_t n);
+int isalpha(int c);
+int isspace(int c);
+int isdigit(int c);
+int isxdigit(int c);
+int tolower(int c);
+int toupper(int c);
+#else
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#endif
 
 #ifdef MSDOS
 #  include <fcntl.h>  /* O_BINARY. */
