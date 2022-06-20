@@ -73,7 +73,7 @@ int close(int fd);
 #include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
 #else /* Standard C. */
 #include <ctype.h>
-#include <fcntl.h>
+#include <fcntl.h>  /* O_BINARY. */
 #include <stdio.h>  /* remove(...) */
 #include <stdlib.h>
 #include <string.h>
@@ -2143,6 +2143,10 @@ int main(int argc, char **argv) {
     int d;
     const char *p;
     char *ifname;
+
+#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
+    setmode(2, O_BINARY);  /* STDERR_FILENO. */
+#endif
 
 #if 0
     malloc_init();
