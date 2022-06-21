@@ -1154,6 +1154,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
     if (assembler_step == 2) {
         if (undefined) {
             fprintf(stderr, "Error: undefined label '%s' at line %d\r\n", undefined_name, line_number);
+            errors++;
         }
     }
     return p;
@@ -1496,8 +1497,10 @@ void do_assembly(const char *fname) {
                 p = match_expression(p, &instruction_value);
                 if (p == NULL) {
                     message(1, "Bad expression");
+                    errors++;
                 } else if (undefined) {
                     message(1, "Undefined labels");
+                    errors++;
                 }
                 if (instruction_value != 0) {
                     ;
