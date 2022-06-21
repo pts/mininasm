@@ -120,8 +120,11 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 
 #define DEBUG
 
+#define GET_INT16(value) (int)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
+#define GET_UINT16(value) (unsigned)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)  /* Zero-extended. */
+
 const char *input_filename;
-int line_number;
+unsigned line_number;
 
 char *output_filename;
 FILE *output;
@@ -157,9 +160,9 @@ const char *p;
 char *g;
 char generated[8];
 
-int errors;
-int warnings;
-int bytes;
+unsigned errors;
+unsigned warnings;
+unsigned bytes;
 int change;
 int change_number;
 
@@ -285,7 +288,7 @@ struct label *find_label(const char *name) {
 void sort_labels(struct label *node) {
     if (node->left != NULL)
         sort_labels(node->left);
-    fprintf(listing, "%-20s %04x\r\n", node->name, node->value);
+    fprintf(listing, "%-20s %04x\r\n", node->name, GET_UINT16(node->value));
     if (node->right != NULL)
         sort_labels(node->right);
 }
@@ -428,6 +431,11 @@ const char *match_addressing(const char *p, int width) {
  */
 int islabel(int c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '.';
+}
+
+void inc_u16_capped(unsigned *p) {
+    ++*p;
+    if (GET_INT16(*p) == 0) --*p;  /* Capped at 0xffff. */
 }
 
 /*
@@ -599,7 +607,7 @@ const char *match_expression_level2(const char *p, int *value) {
  ** Match expression
  */
 const char *match_expression_level3(const char *p, int *value) {
-    int value1;
+    int value1, am;
     
     p = match_expression_level4(p, value);
     if (p == NULL)
@@ -612,14 +620,23 @@ const char *match_expression_level3(const char *p, int *value) {
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
-            *value = value1 << *value;
+            am = GET_INT16(*value);
+            if (am < 0) { shift_by_negative:
+                message(1, "shift by negative");
+                return NULL;
+            }
+            /* Checking (am > 15) to avoid i386 quirk: (x << 32) == x. */
+            *value = (am > 15) ? 0 : value1 << am;
         } else if (*p == '>' && p[1] == '>') {  /* Shift to right */
             p += 2;
             value1 = *value;
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
-            *value = value1 >> *value;
+            am = GET_INT16(*value);
+            if (am) goto shift_by_negative;
+            /* Checking (am > 15) to avoid i386 quirk: (x >> 32) == x. */
+            *value = GET_INT16(value1) >> ((am > 15) ? 15 : am);
         } else {
             return p;
         }
@@ -681,24 +698,27 @@ const char *match_expression_level5(const char *p, int *value) {
             p = match_expression_level6(p, value);
             if (p == NULL)
                 return NULL;
-            if (*value == 0) {
+            if (GET_UINT16(*value) == 0) {
                 if (assembler_step == 2)
                     message(1, "division by zero");
                 *value = 1;
             }
-            *value = (unsigned) value1 / *value;
+            *value = GET_UINT16(value1) / GET_UINT16(*value);
         } else if (*p == '%') { /* Modulo operator */
             p++;
             value1 = *value;
             p = match_expression_level6(p, value);
             if (p == NULL)
                 return NULL;
-            if (*value == 0) {
+            if (GET_UINT16(*value) == 0) {
                 if (assembler_step == 2)
                     message(1, "modulo by zero");
                 *value = 1;
             }
-            *value = value1 % *value;
+            /* Since '/' uses unsigned division, '%' must also use it,
+             * otherwise this wouldn't hold: (a % b) == a - (a / b) * b.
+             */
+            *value = GET_UINT16(value1) % GET_UINT16(*value);
         } else {
             return p;
         }
@@ -835,8 +855,8 @@ const char *match_expression_level6(const char *p, int *value) {
             *value = 0;
             undefined++;
             if (assembler_step == 2) {
-                fprintf(stderr, "Error: undefined label '%s' at line %d\r\n", expr_name, line_number);
-                errors++;
+                fprintf(stderr, "Error: undefined label '%s' at line %u\r\n", expr_name, line_number);
+                inc_u16_capped(&errors);
             }
         } else {
             *value = label->value;
@@ -1192,7 +1212,7 @@ void check_end(const char *p) {
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         fprintf(stderr, "Error: extra characters at end of line %d\r\n", line_number);
-        errors++;
+        inc_u16_capped(&errors);
     }
 }
 
@@ -1202,10 +1222,11 @@ void check_end(const char *p) {
 void message(int error, const char *message) {
     if (error) {
         fprintf(stderr, "Error: %s at line %d\r\n", message, line_number);
-        errors++;
+        inc_u16_capped(&errors);
     } else {
         fprintf(stderr, "Warning: %s at line %d\r\n", message, line_number);
-        warnings++;
+        ++warnings;
+        if (GET_INT16(warnings) == 0) ++warnings;
     }
     if (listing != NULL) {
         if (error) {
@@ -1358,7 +1379,7 @@ void do_assembly(const char *fname) {
     input = fopen(fname, "rb");
     if (input == NULL) {
         fprintf(stderr, "Error: cannot open '%s' for input\r\n", fname);
-        errors++;
+        inc_u16_capped(&errors);
         return;
     }
 
@@ -1371,7 +1392,7 @@ void do_assembly(const char *fname) {
     line_number = 0;
     base = 0;
     while (fgets(line, sizeof(line), input)) {
-        line_number++;
+        inc_u16_capped(&line_number);
         p = line;
         while (*p) {
             if (*p == '\'' && *(p - 1) != '\\') {
@@ -1495,12 +1516,12 @@ void do_assembly(const char *fname) {
                 p = match_expression(p, &instruction_value);
                 if (p == NULL) {
                     message(1, "Bad expression");
-                    errors++;
+                    inc_u16_capped(&errors);
                 } else if (undefined) {
                     message(1, "Undefined labels");
-                    errors++;
+                    inc_u16_capped(&errors);
                 }
-                if (instruction_value != 0) {
+                if (GET_INT16(instruction_value) != 0) {
                     ;
                 } else {
                     avoid_level = level;
@@ -1850,9 +1871,9 @@ int main(int argc, char **argv) {
             do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
-                fprintf(listing, "\r\n%05d ERRORS FOUND\r\n", errors);
-                fprintf(listing, "%05d WARNINGS FOUND\r\n\r\n", warnings);
-                fprintf(listing, "%05d PROGRAM BYTES\r\n\r\n", bytes);
+                fprintf(listing, "\r\n%05u ERRORS FOUND\r\n", errors);
+                fprintf(listing, "%05u WARNINGS FOUND\r\n\r\n", warnings);
+                fprintf(listing, "%05u PROGRAM BYTES\r\n\r\n", GET_UINT16(bytes));
                 if (label_list != NULL) {
                     fprintf(listing, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                     sort_labels(label_list);
@@ -1865,7 +1886,7 @@ int main(int argc, char **argv) {
                 change_number++;
                 if (change_number == 5) {
                     fprintf(stderr, "Aborted: Couldn't stabilize moving label\r\n");
-                    errors++;
+                    inc_u16_capped(&errors);
                 }
             }
             if (errors) {
