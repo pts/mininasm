@@ -2012,7 +2012,7 @@ void do_assembly(const char *input_filename) {
                     message(1, "Bad expression");
                 } else if (undefined) {
                     message(1, "Cannot use undefined labels");
-                } else if (instruction_value != 16) {
+                } else if (GET_UVALUE(instruction_value) != 16) {
                     message(1, "Unsupported BITS requested");
                 } else {
                     check_end(p);
