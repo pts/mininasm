@@ -1846,6 +1846,7 @@ int main(int argc, char **argv) {
             }
             assembler_step = 2;
             first_time = 1;
+            address = start_address;
             do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
