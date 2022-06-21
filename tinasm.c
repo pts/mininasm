@@ -286,11 +286,24 @@ struct label *find_label(const char *name) {
  ** Sort recursively labels (already done by binary tree)
  */
 void sort_labels(struct label *node) {
-    if (node->left != NULL)
-        sort_labels(node->left);
-    fprintf(listing, "%-20s %04x\r\n", node->name, GET_UINT16(node->value));
-    if (node->right != NULL)
-        sort_labels(node->right);
+    struct label *pre;
+    /* Morris in-order traversal of binary tree: iterative (non-recursive,
+     * so it uses O(1) stack), modifies the tree pointers temporarily, but
+     * then restores them, runs in O(n) time.
+     */
+    while (node) {
+        if (!node->left) goto do_print;
+        for (pre = node->left; pre->right && pre->right != node; pre = pre->right) {}
+        if (!pre->right) {
+            pre->right = node;
+            node = node->left;
+        } else {
+            pre->right = NULL;
+          do_print:
+            fprintf(listing, "%-20s %04x\r\n", node->name, GET_UINT16(node->value));
+            node = node->right;
+        }
+    }
 }
 
 /*
