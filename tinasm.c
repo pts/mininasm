@@ -17,7 +17,7 @@
  **
  **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o tinasm tinasm.c && ls -ld tinasm
  **
- **   #(it doesn't work yet) $ g++ -ansi -pedantic -s -Os -W -Wall -o tinasm tinasm.c && ls -ld tinasm
+ **   $ g++ -ansi -pedantic -s -Os -W -Wall -o tinasm tinasm.c && ls -ld tinasm
  **
  **   $ pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c && ls -ld tinasm.tcc
  **
@@ -30,6 +30,8 @@
  **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o tinasm.win32msvcrt.exe tinasm.c && ls -ld tinasm.win32msvcrt.exe
  **
  **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o tinasm.win32msvcrt_tcc.exe tinasm.c && ls -ld tinasm.win32msvcrt_tcc.exe
+ **
+ **   (DeSmet C 3.1N may also work.)
  */
 
 #ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
@@ -118,7 +120,7 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 
 #define DEBUG
 
-char *input_filename;
+const char *input_filename;
 int line_number;
 
 char *output_filename;
@@ -150,8 +152,8 @@ char name[MAX_SIZE];
 char expr_name[MAX_SIZE];
 char undefined_name[MAX_SIZE];
 char global_label[MAX_SIZE];
-char *prev_p;
-char *p;
+const char *prev_p;
+const char *p;
 
 char *g;
 char generated[8];
@@ -173,9 +175,9 @@ struct label *label_list;
 struct label *last_label;
 int undefined;
 
-extern char *instruction_set[];
+extern const char *instruction_set[];
 
-char *reg1[16] = {
+const char *reg1[16] = {
     "AL",
     "CL",
     "DL",
@@ -194,11 +196,16 @@ char *reg1[16] = {
     "DI"
 };
 
-void message();
-char *match_register(), *match_expression(),
-     *match_expression_level1(), *match_expression_level2(),
-     *match_expression_level3(), *match_expression_level4(),
-     *match_expression_level5(), *match_expression_level6();
+void message(int error, const char *message);
+
+const char *match_register(const char *p, int width, int *value);
+const char *match_expression(const char *p, int *value);
+const char *match_expression_level1(const char *p, int *value);
+const char *match_expression_level2(const char *p, int *value);
+const char *match_expression_level3(const char *p, int *value);
+const char *match_expression_level4(const char *p, int *value);
+const char *match_expression_level5(const char *p, int *value);
+const char *match_expression_level6(const char *p, int *value);
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
@@ -208,16 +215,13 @@ char *match_register(), *match_expression(),
 /*
  ** Define a new label
  */
-struct label *define_label(name, value)
-    char *name;
-    int value;
-{
+struct label *define_label(const char *name, int value) {
     struct label *label;
     struct label *explore;
     int c;
     
     /* Allocate label */
-    label = malloc(sizeof(struct label) + strlen(name));
+    label = (struct label*)malloc(sizeof(struct label) + strlen(name));
     if (label == NULL) {
         fprintf(stderr, "Out of memory for label\r\n");
         exit(1);
@@ -258,9 +262,7 @@ struct label *define_label(name, value)
 /*
  ** Find a label
  */
-struct label *find_label(name)
-    char *name;
-{
+struct label *find_label(const char *name) {
     struct label *explore;
     int c;
     
@@ -281,9 +283,7 @@ struct label *find_label(name)
 /*
  ** Sort recursively labels (already done by binary tree)
  */
-void sort_labels(node)
-    struct label *node;
-{
+void sort_labels(struct label *node) {
     if (node->left != NULL)
         sort_labels(node->left);
     fprintf(listing, "%-20s %04x\r\n", node->name, node->value);
@@ -294,9 +294,7 @@ void sort_labels(node)
 /*
  ** Avoid spaces in input
  */
-char *avoid_spaces(p)
-    char *p;
-{
+const char *avoid_spaces(const char *p) {
     while (isspace(*p))
         p++;
     return p;
@@ -305,13 +303,10 @@ char *avoid_spaces(p)
 /*
  ** Match addressing
  */
-char *match_addressing(p, width)
-    char *p;
-    int width;
-{
+const char *match_addressing(const char *p, int width) {
     int reg;
     int reg2;
-    char *p2;
+    const char *p2;
     int *bits;
     
     bits = &instruction_addressing;
@@ -432,20 +427,14 @@ char *match_addressing(p, width)
 /*
  ** Check for a label character
  */
-int islabel(c)
-    int c;
-{
+int islabel(int c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '.';
 }
 
 /*
  ** Match register
  */
-char *match_register(p, width, value)
-    char *p;
-    int width;
-    int *value;
-{
+const char *match_register(const char *p, int width, int *value) {
     char reg[3];
     int c;
     
@@ -482,10 +471,7 @@ char *match_register(p, width, value)
  ** (1.2.0 and 1.3.0). These assemblers don't process backslashes in '...'
  ** or "..." string literals.
  */
-char *read_character(p, c)
-    char *p;
-    int *c;
-{
+const char *read_character(const char *p, int *c) {
     if (*p == '\\') {
         p++;
         if (*p == '\'') {
@@ -541,10 +527,7 @@ char *read_character(p, c)
 /*
  ** Match expression (top tier)
  */
-char *match_expression(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression(const char *p, int *value) {
     int value1;
     
     p = match_expression_level1(p, value);
@@ -568,10 +551,7 @@ char *match_expression(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level1(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level1(const char *p, int *value) {
     int value1;
     
     p = match_expression_level2(p, value);
@@ -595,10 +575,7 @@ char *match_expression_level1(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level2(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level2(const char *p, int *value) {
     int value1;
     
     p = match_expression_level3(p, value);
@@ -622,10 +599,7 @@ char *match_expression_level2(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level3(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level3(const char *p, int *value) {
     int value1;
     
     p = match_expression_level4(p, value);
@@ -656,10 +630,7 @@ char *match_expression_level3(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level4(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level4(const char *p, int *value) {
     int value1;
     
     p = match_expression_level5(p, value);
@@ -690,10 +661,7 @@ char *match_expression_level4(p, value)
 /*
  ** Match expression
  */
-char *match_expression_level5(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level5(const char *p, int *value) {
     int value1;
     
     p = match_expression_level6(p, value);
@@ -741,10 +709,7 @@ char *match_expression_level5(p, value)
 /*
  ** Match expression (bottom tier)
  */
-char *match_expression_level6(p, value)
-    char *p;
-    int *value;
-{
+const char *match_expression_level6(const char *p, int *value) {
     int number;
     int c;
     char *p2;
@@ -882,8 +847,7 @@ char *match_expression_level6(p, value)
 /*
  ** Emit one byte to output
  */
-void emit_byte(int byte)
-{
+void emit_byte(int byte) {
     char buf[1];
     
     if (assembler_step == 2) {
@@ -900,17 +864,13 @@ void emit_byte(int byte)
 /*
  ** Search for a match with instruction
  */
-char *match(p, pattern, decode)
-    char *p;
-    char *pattern;
-    char *decode;
-{
-    char *p2;
+const char *match(const char *p, const char *pattern, const char *decode) {
+    const char *p2;
     int c;
     int d;
     int bit;
     int qualifier;
-    char *base;
+    const char *base;
     
     undefined = 0;
     while (*pattern) {
@@ -1202,9 +1162,7 @@ char *match(p, pattern, decode)
 /*
  ** Make a string lowercase
  */
-void to_lowercase(p)
-    char *p;
-{
+void to_lowercase(char *p) {
     while (*p) {
         *p = tolower(*p);
         p++;
@@ -1214,8 +1172,7 @@ void to_lowercase(p)
 /*
  ** Separate a portion of entry up to the first space
  */
-void separate(void)
-{
+void separate(void) {
     char *p2;
     
     while (*p && isspace(*p))
@@ -1232,9 +1189,7 @@ void separate(void)
 /*
  ** Check for end of line
  */
-void check_end(p)
-    char *p;
-{
+void check_end(const char *p) {
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         fprintf(stderr, "Error: extra characters at end of line %d\r\n", line_number);
@@ -1245,10 +1200,7 @@ void check_end(p)
 /*
  ** Generate a message
  */
-void message(error, message)
-    int error;
-    char *message;
-{
+void message(int error, const char *message) {
     if (error) {
         fprintf(stderr, "Error: %s at line %d\r\n", message, line_number);
         errors++;
@@ -1268,10 +1220,9 @@ void message(error, message)
 /*
  ** Process an instruction
  */
-void process_instruction()
-{
-    char *p2 = NULL;
-    char *p3;
+void process_instruction() {
+    const char *p2 = NULL;
+    const char *p3;
     int c;
     
     if (strcmp(part, "DB") == 0) {  /* Define byte */
@@ -1360,17 +1311,14 @@ void process_instruction()
  ** Reset current address.
  ** Called anytime the assembler needs to generate code.
  */
-void reset_address()
-{
+void reset_address() {
     address = start_address = default_start_address;
 }
 
 /*
  ** Include a binary file
  */
-void incbin(fname)
-    char *fname;
-{
+void incbin(const char *fname) {
     FILE *input;
     char buf[256];
     int size;
@@ -1395,13 +1343,11 @@ void incbin(fname)
 /*
  ** Do an assembler step
  */
-void do_assembly(fname)
-    char *fname;
-{
+void do_assembly(const char *fname) {
     FILE *input;
-    char *p2;
-    char *p3;
-    char *pfname;
+    const char *p2;
+    const char *p3;
+    const char *pfname;
     int level;
     int avoid_level;
     int times;
@@ -1442,14 +1388,14 @@ void do_assembly(fname)
                     p++;
                 break;
             }
-            *p = toupper(*p);
+            *(char*)p = toupper(*p);
             p++;
         }
         if (p > line && *(p - 1) == '\n')
             p--;
         if (p > line && *(p - 1) == '\r')
             p--;
-        *p = '\0';
+        *(char*)p = '\0';
 
         base = address;
         g = generated;
@@ -1751,14 +1697,11 @@ void do_assembly(fname)
 /*
  ** Main program
  */
-int main(argc, argv)
-    int argc;
-    char *argv[];
-{
+int main(int argc, char **argv) {
     int c;
     int d;
-    char *p;
-    char *ifname;
+    const char *p;
+    const char *ifname;
 
 #ifdef MSDOS
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
@@ -1832,11 +1775,11 @@ int main(argc, argv)
             } else if (d == 'd') {  /* Define label */
                 p = argv[c] + 2;
                 while (*p && *p != '=') {
-                    *p = toupper(*p);
+                    *(char*)p = toupper(*p);
                     p++;
                 }
                 if (*p == '=') {
-                    *p++ = 0;
+                    *(char*)p++ = 0;
                     undefined = 0;
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
@@ -1944,7 +1887,7 @@ int main(argc, argv)
 /*
  ** Notice some instructions are sorted by less byte usage first.
  */
-char *instruction_set[] = {
+const char *instruction_set[] = {
     "ADD\0%d8,%r8\0x00 %d8%r8%d8",
     "ADD\0%d16,%r16\0x01 %d16%r16%d16",
     "ADD\0%r8,%d8\0x02 %d8%r8%d8",
