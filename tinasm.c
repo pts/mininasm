@@ -150,7 +150,6 @@ char line[MAX_SIZE];
 char part[MAX_SIZE];
 char name[MAX_SIZE];
 char expr_name[MAX_SIZE];
-char undefined_name[MAX_SIZE];
 char global_label[MAX_SIZE];
 const char *prev_p;
 const char *p;
@@ -835,7 +834,10 @@ const char *match_expression_level6(const char *p, int *value) {
         if (label == NULL) {
             *value = 0;
             undefined++;
-            strcpy(undefined_name, expr_name);
+            if (assembler_step == 2) {
+                fprintf(stderr, "Error: undefined label '%s' at line %d\r\n", expr_name, line_number);
+                errors++;
+            }
         } else {
             *value = label->value;
         }
@@ -1149,12 +1151,6 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     emit_byte(instruction_offset >> 8);
                 }
             }
-        }
-    }
-    if (assembler_step == 2) {
-        if (undefined) {
-            fprintf(stderr, "Error: undefined label '%s' at line %d\r\n", undefined_name, line_number);
-            errors++;
         }
     }
     return p;
