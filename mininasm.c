@@ -612,7 +612,7 @@ void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
             strcpy_far(global_label, node->name);
-            bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, node->value);
+            bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, GET_UVALUE(node->value));
             node = RBL_GET_RIGHT(node);
         }
     }
