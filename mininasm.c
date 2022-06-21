@@ -20,66 +20,87 @@
  **
  **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c ins.c bbprintf.c nouser32.c && ls -ld mininasm.win32.exe
  **
- **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o mininasm.win32msvcrt.exe mininasm.c
+ **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -march=i386 -o mininasm.win32msvcrt.exe mininasm.c ins.c bbprintf.c && ls -ld mininasm.win32msvcrt.exe
+ **
+ **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c ins.c bbprintf.c && ls -ld mininasm.win32msvcrt_tcc.exe
  **
  */
 
-#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c bbprintf.c */
-#if defined(__i386__) /* || defined(__amd64__)*/ || defined(__x86_64__)
-#define ATTRIBUTE_NORETURN __attribute__((noreturn))
+#ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
+#  if !defined(__i386__) /* && !defined(__amd64__)*/ && !defined(__x86_64__)
+#    error tcc is supported only on i386 and amd64.  /* Because of ssize_t. */
+#  endif
+#  if (defined(_WIN32) && !defined(__i386)) || defined(_WIN64)
+#    error Windows is supported only on i386.
+#  endif
+#  define ATTRIBUTE_NORETURN __attribute__((noreturn))
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
-typedef char int8_t;
+typedef signed char int8_t;
 typedef short int16_t;
 typedef int int32_t;
-typedef unsigned long size_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
-typedef long ssize_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
-typedef int off_t;
-#define NULL ((void*)0)
-void *malloc(size_t size);
-size_t strlen(const char *s);
-int remove(const char *pathname);
-void ATTRIBUTE_NORETURN exit(int status);
-char *strcpy(char *dest, const char *src);
-int strcmp(const char *s1, const char *s2);
-char *strcat(char *dest, const char *src);
-void *memcpy(void *dest, const void *src, size_t n);
-int memcmp(const void *s1, const void *s2, size_t n);
-int isalpha(int c);
-int isspace(int c);
-int isdigit(int c);
-int isxdigit(int c);
-int tolower(int c);
-int toupper(int c);
-ssize_t read(int fd, void *buf, size_t count);
-ssize_t write(int fd, const void *buf, size_t count);
+typedef unsigned long size_t;  /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
+typedef long ssize_t;  /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
+typedef long off_t;  /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
+#  define NULL ((void*)0)
+#  ifdef _WIN32
+#    define __cdecl __attribute__((__cdecl__))
+#  else
+#    define __cdecl
+#  endif
+void *__cdecl malloc(size_t size);
+size_t __cdecl strlen(const char *s);
+int __cdecl remove(const char *pathname);
+void ATTRIBUTE_NORETURN __cdecl exit(int status);
+char *__cdecl strcpy(char *dest, const char *src);
+int __cdecl strcmp(const char *s1, const char *s2);
+char *__cdecl strcat(char *dest, const char *src);
+void *__cdecl memcpy(void *dest, const void *src, size_t n);
+int __cdecl memcmp(const void *s1, const void *s2, size_t n);
+int __cdecl isalpha(int c);
+int __cdecl isspace(int c);
+int __cdecl isdigit(int c);
+int __cdecl isxdigit(int c);
+int __cdecl tolower(int c);
+int __cdecl toupper(int c);
+ssize_t __cdecl read(int fd, void *buf, size_t count);  /* Win32 uses int instead of size_t etc. */
+ssize_t __cdecl write(int fd, const void *buf, size_t count);  /* Win32 uses int instead of size_t etc. */
 #define SEEK_SET 0  /* whence value below. */
 #define SEEK_CUR 1
 #define SEEK_END 2
-off_t lseek(int fd, off_t offset, int whence);  /* Just 32-bit off_t. */
+off_t __cdecl lseek(int fd, off_t offset, int whence);  /* Just 32-bit off_t. */
 #define O_RDONLY 0  /* flags bitfield value below. */
 #define O_WRONLY 1
 #define O_RDWR 2
-int open(const char *pathname, int flags, ...);  /* int mode */
-int creat(const char *pathname, int mode);
-int close(int fd);
-#define open2(pathname, flags) open(pathname, flags)
+int __cdecl open(const char *pathname, int flags, ...);  /* int mode */
+int __cdecl creat(const char *pathname, int mode);
+int __cdecl close(int fd);
+#  define open2(pathname, flags) open(pathname, flags)
+#  ifdef _WIN32
+#    define O_CREAT 0x100
+#    define O_TRUNC 0x200
+#    define O_BINARY 0x8000
+#    define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine warning: fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.  */
+int __cdecl setmode(int _FileHandle,int _Mode);
+#  endif
 #else
-#error tcc is only supported on i386 and amd64
-#endif
-#else
-#ifdef __DOSMC__
-#include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
-#else /* Standard C. */
-#include <ctype.h>
-#include <fcntl.h>  /* O_BINARY. */
-#include <stdio.h>  /* remove(...) */
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#define open2(pathname, flags) open(pathname, flags)
-#endif
+#  ifdef __DOSMC__
+#    include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
+#  else /* Standard C. */
+#    include <ctype.h>
+#    include <fcntl.h>  /* open(...), O_BINARY. */
+#    include <stdio.h>  /* remove(...) */
+#    include <stdlib.h>
+#    include <string.h>
+#    if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works. */
+#      include <io.h>  /* setmode(...) */
+#      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
+#    else
+#      include <unistd.h>
+#    endif
+#    define open2(pathname, flags) open(pathname, flags)
+#  endif
 #endif
 
 #ifndef O_BINARY  /* Unix. */

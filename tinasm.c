@@ -27,61 +27,94 @@
  **
  **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o tinasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra tinasm.c nouser32.c && ls -ld tinasm.win32.exe
  **
- **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o tinasm.win32msvcrt.exe tinasm.c
+ **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -march=i386 -o tinasm.win32msvcrt.exe tinasm.c && ls -ld tinasm.win32msvcrt.exe
+ **
+ **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o tinasm.win32msvcrt_tcc.exe tinasm.c && ls -ld tinasm.win32msvcrt_tcc.exe
  */
 
-#ifdef __TINYC__  /* pts-tcc -s -O2 -W -Wall -o tinasm.tcc tinasm.c */
-#define ATTRIBUTE_NORETURN __attribute__((noreturn))
+#ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
+#  ifdef _WIN32
+#    ifndef __i386__
+#      error Windows is supported only on i386.
+#    endif
+#  else
+#    ifdef _WIN64
+#      error Windows is supported only on i386.
+#    endif
+#  endif
+#  define ATTRIBUTE_NORETURN __attribute__((noreturn))
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
-typedef unsigned long uint32_t;
-typedef char int8_t;
+typedef unsigned int uint32_t;
+typedef signed char int8_t;
 typedef short int16_t;
-typedef long int32_t;
-#ifdef __SIZE_TYPE__
+typedef int int32_t;
+#  ifdef __SIZE_TYPE__
 typedef __SIZE_TYPE__ size_t;
-#else
+#  else
 typedef unsigned long size_t; /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
-#endif
-#define NULL ((void*)0)
-typedef struct FILE FILE;
-extern FILE *stderr;
-void *malloc(size_t size);
-size_t strlen(const char *s);
-int fprintf(FILE *stream, const char *format, ...);
-int sprintf(char *str, const char *format, ...);
-FILE *fopen(const char *path, const char *mode);
-size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
-size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-char *fgets(char *s, int size, FILE *stream);
-int fclose(FILE *stream);
-int remove(const char *pathname);
-void ATTRIBUTE_NORETURN exit(int status);
-char *strcpy(char *dest, const char *src);
-int strcmp(const char *s1, const char *s2);
-char *strcat(char *dest, const char *src);
-int memcmp(const void *s1, const void *s2, size_t n);
-int isalpha(int c);
-int isspace(int c);
-int isdigit(int c);
-int isxdigit(int c);
-int tolower(int c);
-int toupper(int c);
+#  endif
+#  define NULL ((void*)0)
+#  ifdef _WIN32
+struct _iobuf {
+  char *_ptr;
+  int _cnt;
+  char *_base;
+  int _flag;
+  int _file;
+  int _charbuf;
+  int _bufsiz;
+  char *_tmpfname;
+};
+typedef struct _iobuf FILE;
+extern FILE (*_imp___iob)[];
+#    define stderr (&(*_imp___iob) [2])
+#    define __cdecl __attribute__((__cdecl__))
+#  else
+#    define __cdecl
+  typedef struct FILE FILE;
+  extern FILE *stderr;
+#  endif
+void *__cdecl malloc(size_t size);
+size_t __cdecl strlen(const char *s);
+int __cdecl fprintf(FILE *stream, const char *format, ...);
+int __cdecl sprintf(char *str, const char *format, ...);
+FILE *__cdecl fopen(const char *path, const char *mode);
+size_t __cdecl fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+size_t __cdecl fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+char *__cdecl fgets(char *s, int size, FILE *stream);
+int __cdecl fclose(FILE *stream);
+int __cdecl remove(const char *pathname);
+void ATTRIBUTE_NORETURN __cdecl exit(int status);
+char *__cdecl strcpy(char *dest, const char *src);
+int __cdecl strcmp(const char *s1, const char *s2);
+char *__cdecl strcat(char *dest, const char *src);
+int __cdecl memcmp(const void *s1, const void *s2, size_t n);
+int __cdecl isalpha(int c);
+int __cdecl isspace(int c);
+int __cdecl isdigit(int c);
+int __cdecl isxdigit(int c);
+int __cdecl tolower(int c);
+int __cdecl toupper(int c);
+#  ifdef _WIN32
+#    define O_BINARY 0x8000
+int __cdecl setmode(int _FileHandle,int _Mode);
+#  endif
 #else
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
+#  include <stdio.h>
+#  include <stdlib.h>
+#  include <string.h>
+#  include <ctype.h>
+#  ifdef MSDOS
+#    include <fcntl.h>  /* O_BINARY. */
+#    include <unistd.h>  /* setmode(...). */
+#  endif
+#  ifdef _WIN32
+#    include <fcntl.h>  /* O_BINARY. */
+#    include <io.h>  /* setmode(...). Also in <unistd.h> in some systems. */
+#  endif
 #endif
 
-#ifdef MSDOS
-#  include <fcntl.h>  /* O_BINARY. */
-#  include <unistd.h>  /* setmode(...). */
-#endif
-#ifdef _WIN32
-#  include <fcntl.h>  /* O_BINARY. */
-#  include <unistd.h>  /* setmode(...). */
-#endif
 
 #define DEBUG
 
