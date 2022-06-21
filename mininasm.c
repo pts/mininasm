@@ -813,7 +813,7 @@ const char *match_expression(const char *match_p) {
                         value2 = 1;
                     }
                     value1 = GET_UVALUE(value1) / GET_UVALUE(value2);
-                } else if (c == '%') {  /* Module operator. */
+                } else if (c == '%') {  /* Modulo operator. */
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
                     if (GET_UVALUE(value2) == 0) {
