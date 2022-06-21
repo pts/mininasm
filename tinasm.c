@@ -201,13 +201,7 @@ const char *reg1[16] = {
 void message(int error, const char *message);
 
 const char *match_register(const char *p, int width, int *value);
-const char *match_expression(const char *p, int *value);
-const char *match_expression_level1(const char *p, int *value);
-const char *match_expression_level2(const char *p, int *value);
-const char *match_expression_level3(const char *p, int *value);
-const char *match_expression_level4(const char *p, int *value);
-const char *match_expression_level5(const char *p, int *value);
-const char *match_expression_level6(const char *p, int *value);
+const char *match_expression(const char *match_p);
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
@@ -372,9 +366,10 @@ const char *match_addressing(const char *p, int width) {
                     if (*p == ']') {
                         p++;
                     } else if (*p == '+' || *p == '-') {
-                        p2 = match_expression(p, &instruction_offset);
+                        p2 = match_expression(p);
                         if (p2 == NULL)
                             return NULL;
+                        instruction_offset = instruction_value;
                         p = avoid_spaces(p2);
                         if (*p != ']')
                             return NULL;
@@ -401,9 +396,10 @@ const char *match_addressing(const char *p, int width) {
                     } else {    /* Not valid */
                         return NULL;
                     }
-                    p2 = match_expression(p, &instruction_offset);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
+                    instruction_offset = instruction_value;
                     p = avoid_spaces(p2);
                     if (*p != ']')
                         return NULL;
@@ -420,9 +416,10 @@ const char *match_addressing(const char *p, int width) {
                 return NULL;
             }
         } else {    /* No valid register, try expression (absolute addressing) */
-            p2 = match_expression(p, &instruction_offset);
+            p2 = match_expression(p);
             if (p2 == NULL)
                 return NULL;
+            instruction_offset = instruction_value;
             p = avoid_spaces(p2);
             if (*p != ']')
                 return NULL;
@@ -544,339 +541,268 @@ const char *read_character(const char *p, int *c) {
     return p;
 }
 
+#ifndef CONFIG_MATCH_STACK_DEPTH
+#define CONFIG_MATCH_STACK_DEPTH 100
+#endif
+
 /*
- ** Match expression (top tier)
+ ** Match expression.
+ ** Saves the result to `instruction_value'.
  */
-const char *match_expression(const char *p, int *value) {
+const char *match_expression(const char *match_p) {
+    static struct match_stack_item {
+        signed char casei;
+        unsigned char level;
+        int value1;
+    } match_stack[CONFIG_MATCH_STACK_DEPTH];  /* This static variable makes match_expression(...) not reentrant. */
+    struct match_stack_item *msp;  /* Stack pointer within match_stack. */
     int value1;
-    
-    p = match_expression_level1(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '|') {    /* Binary OR */
-            p++;
-            value1 = *value;
-            p = match_expression_level1(p, value);
-            if (p == NULL)
-                return NULL;
-            *value |= value1;
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression
- */
-const char *match_expression_level1(const char *p, int *value) {
-    int value1;
-    
-    p = match_expression_level2(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '^') {    /* Binary XOR */
-            p++;
-            value1 = *value;
-            p = match_expression_level2(p, value);
-            if (p == NULL)
-                return NULL;
-            *value ^= value1;
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression
- */
-const char *match_expression_level2(const char *p, int *value) {
-    int value1;
-    
-    p = match_expression_level3(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '&') {    /* Binary AND */
-            p++;
-            value1 = *value;
-            p = match_expression_level3(p, value);
-            if (p == NULL)
-                return NULL;
-            *value &= value1;
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression
- */
-const char *match_expression_level3(const char *p, int *value) {
-    int value1, am;
-    
-    p = match_expression_level4(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '<' && p[1] == '<') { /* Shift to left */
-            p += 2;
-            value1 = *value;
-            p = match_expression_level4(p, value);
-            if (p == NULL)
-                return NULL;
-            am = GET_INT16(*value);
-            if (am < 0) { shift_by_negative:
-                message(1, "shift by negative");
-                return NULL;
-            }
-            /* Checking (am > 15) to avoid i386 quirk: (x << 32) == x. */
-            *value = (am > 15) ? 0 : value1 << am;
-        } else if (*p == '>' && p[1] == '>') {  /* Shift to right */
-            p += 2;
-            value1 = *value;
-            p = match_expression_level4(p, value);
-            if (p == NULL)
-                return NULL;
-            am = GET_INT16(*value);
-            if (am) goto shift_by_negative;
-            /* Checking (am > 15) to avoid i386 quirk: (x >> 32) == x. */
-            *value = GET_INT16(value1) >> ((am > 15) ? 15 : am);
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression
- */
-const char *match_expression_level4(const char *p, int *value) {
-    int value1;
-    
-    p = match_expression_level5(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '+') {    /* Add operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level5(p, value);
-            if (p == NULL)
-                return NULL;
-            *value = value1 + *value;
-        } else if (*p == '-') { /* Subtract operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level5(p, value);
-            if (p == NULL)
-                return NULL;
-            *value = value1 - *value;
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression
- */
-const char *match_expression_level5(const char *p, int *value) {
-    int value1;
-    
-    p = match_expression_level6(p, value);
-    if (p == NULL)
-        return NULL;
-    while (1) {
-        p = avoid_spaces(p);
-        if (*p == '*') {    /* Multiply operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
-            *value = value1 * *value;
-        } else if (*p == '/') { /* Division operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
-            if (GET_UINT16(*value) == 0) {
-                if (assembler_step == 2)
-                    message(1, "division by zero");
-                *value = 1;
-            }
-            *value = GET_UINT16(value1) / GET_UINT16(*value);
-        } else if (*p == '%') { /* Modulo operator */
-            p++;
-            value1 = *value;
-            p = match_expression_level6(p, value);
-            if (p == NULL)
-                return NULL;
-            if (GET_UINT16(*value) == 0) {
-                if (assembler_step == 2)
-                    message(1, "modulo by zero");
-                *value = 1;
-            }
-            /* Since '/' uses unsigned division, '%' must also use it,
-             * otherwise this wouldn't hold: (a % b) == a - (a / b) * b.
-             */
-            *value = GET_UINT16(value1) % GET_UINT16(*value);
-        } else {
-            return p;
-        }
-    }
-}
-
-/*
- ** Match expression (bottom tier)
- */
-const char *match_expression_level6(const char *p, int *value) {
-    int number;
-    int c;
+    int value2;
     char *p2;
     struct label *label;
-    
-    p = avoid_spaces(p);
-    if (*p == '(') {    /* Handle parenthesized expressions */
-        p++;
-        p = match_expression(p, value);
-        if (p == NULL)
+    char c;
+    unsigned char level;
+
+    level = 0;
+    msp = match_stack;
+    goto do_match;
+  do_pop:
+    --msp;
+    value2 = value1;
+    value1 = msp->value1;
+    level = msp->level;
+    if (msp->casei < 0) {  /* End of expression in patentheses. */
+        value1 = value2;
+        match_p = avoid_spaces(match_p);
+        if (match_p[0] != ')') {
+            message(1, "Missing close paren");
+          match_error:
+            instruction_value = 0;
             return NULL;
-        p = avoid_spaces(p);
-        if (*p != ')')
-            return NULL;
-        p++;
-        return p;
+        }
+        match_p++;
+        if (++msp->casei != 0) {
+            level = 0;
+            if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) goto too_deep;
+        }
+        goto have_value1;
     }
-    if (*p == '-') {    /* Simple negation */
-        p++;
-        p = match_expression_level6(p, value);
-        if (p == NULL)
-            return NULL;
-        *value = -*value;
-        return p;
-    }
-    if (*p == '+') {    /* Unary */
-        p++;
-        p = match_expression_level6(p, value);
-        if (p == NULL)
-            return NULL;
-        return p;
-    }
-    if (p[0] == '0' && tolower(p[1]) == 'b') {  /* Binary */
-        p += 2;
-        number = 0;
-        while (p[0] == '0' || p[0] == '1' || p[0] == '_') {
-            if (p[0] != '_') {
-                number <<= 1;
-                if (p[0] == '1')
-                    number |= 1;
+#define MATCH_CASEI_LEVEL_TO_VALUE2(casei2, level2) do { msp->casei = casei2; msp->level = level; level = level2; goto do_push; case casei2: ; } while (0)
+    switch (msp->casei) {  /* This will jump after one of the MATCH_CASEI_LEVEL_TO_VALUE2(...) macros. */
+      do_push:
+        msp->value1 = value1;
+        if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) { too_deep:
+            message(1, "Expression too deep");  /* Stack overflow in match stack. */
+            goto match_error;
+        }
+      do_match:
+        match_p = avoid_spaces(match_p);
+        value1 = 0;  /* In addition to preventing duplicate initialization below, it also does pacify GCC 7.5.0: do_push jumped to by MATCH_CASEI_LEVEL_TO_VALUE2 does an `msp->value1 = value1'. */
+        if ((c = match_p[0]) == '(') {  /* Parenthesized expression. */
+            /* Count the consecutive open parentheses, and add a single match_stack_item. */
+            for (; (c = (match_p = avoid_spaces(match_p))[0]) == '(' && value1 > -127; ++match_p, --value1) {}
+            msp->casei = value1; msp->level = level; level = 0; goto do_push;
+        } else if (c == '-' || c == '+') {  /* Unary - and -. */
+            for (;;) {  /* Shortcut to squeeze multiple unary - and + operators to a single match_stack_item. */
+                match_p = avoid_spaces(match_p + 1);
+                if (match_p[0] == '+') {}
+                else if (match_p[0] == '-') { c ^= 6; }  /* Switch between ASCII '+' and '-'. */
+                else { break; }
             }
-            p++;
-        }
-        *value = number;
-        return p;
-    }
-    if (p[0] == '0' && tolower(p[1]) == 'x' && isxdigit(p[2])) {	/* Hexadecimal */
-        p += 2;
-        number = 0;
-        while (isxdigit(p[0])) {
-            c = toupper(p[0]);
-            c = c - '0';
-            if (c > 9)
-                c -= 7;
-            number = (number << 4) | c;
-            p++;
-        }
-        *value = number;
-        return p;
-    }
-    if (p[0] == '$' && isdigit(p[1])) {	/* Hexadecimal */
-        /* This is nasm syntax, notice no letter is allowed after $ */
-        /* So it's preferrable to use prefix 0x for hexadecimal */
-        p += 1;
-        number = 0;
-        while (isxdigit(p[0])) {
-            c = toupper(p[0]);
-            c = c - '0';
-            if (c > 9)
-                c -= 7;
-            number = (number << 4) | c;
-            p++;
-        }
-        *value = number;
-        return p;
-    }
-    if (p[0] == '\'') { /* Character constant */
-        p++;
-        p = read_character(p, value);
-        if (p[0] != '\'') {
-            message(1, "Missing apostrophe");
-        } else {
-            p++;
-        }
-        return p;
-    }
-    if (isdigit(*p)) {   /* Decimal */
-        number = 0;
-        while (isdigit(p[0])) {
-            c = p[0] - '0';
-            number = number * 10 + c;
-            p++;
-        }
-        *value = number;
-        return p;
-    }
-    if (*p == '$' && p[1] == '$') { /* Start address */
-        p += 2;
-        *value = start_address;
-        return p;
-    }
-    if (*p == '$') { /* Current address */
-        p++;
-        *value = address;
-        return p;
-    }
-    if (isalpha(*p) || *p == '_' || *p == '.') { /* Label */
-        if (*p == '.') {
-            strcpy(expr_name, global_label);
+            if (c == '-') {
+              MATCH_CASEI_LEVEL_TO_VALUE2(2, 6);
+              value1 -= value2;
+            } else {
+              MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
+              value1 += value2;
+            }
+        } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */
+            match_p += 2;
+            /*value1 = 0;*/
+            while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
+                if (match_p[0] != '_') {
+                    value1 <<= 1;
+                    if (match_p[0] == '1')
+                        value1 |= 1;
+                }
+                match_p++;
+            }
+        } else if (c == '0' && tolower(match_p[1]) == 'x') {  /* Hexadecimal */
+            match_p += 2;
+          parse_hex:
+            /*value1 = 0;*/
+            for (; c = match_p[0], isxdigit(c); ++match_p) {
+                c -= '0';
+                if ((unsigned char)c > 9) c = (c & ~32) - 7;
+                value1 = (value1 << 4) | c;
+            }
+        } else if (c == '$' && isdigit(match_p[1])) {  /* Hexadecimal */
+            /* This is nasm syntax, notice no letter is allowed after $ */
+            /* So it's preferrable to use prefix 0x for hexadecimal */
+            match_p += 1;
+            goto parse_hex;
+        } else if (c == '\'') {  /* Character constant */
+            match_p = read_character(match_p + 1, &value1);
+            if (match_p[0] != '\'') {
+                message(1, "Missing apostrophe");
+                goto match_error;
+            } else {
+                ++match_p;
+            }
+        } else if (isdigit(c)) {   /* Decimal */
+            /*value1 = 0;*/
+            for (; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
+                value1 = value1 * 10 + c;
+            }
+        } else if (c == '$' && match_p[1] == '$') { /* Start address */
+            match_p += 2;
+            value1 = start_address;
+        } else if (c == '$') { /* Current address */
+            match_p++;
+            value1 = address;
+        } else if (isalpha(c) || c == '_' || c == '.') {  /* Start of label. */
             p2 = expr_name;
-            while (*p2)
-                p2++;
-        } else {
-            p2 = expr_name;
-        }
-        while (isalpha(*p) || isdigit(*p) || *p == '_' || *p == '.')
-            *p2++ = *p++;
-        *p2 = '\0';
-        for (c = 0; c < 16; c++)
-            if (strcmp(expr_name, reg1[c]) == 0)
-                return NULL;
-        label = find_label(expr_name);
-        if (label == NULL) {
-            *value = 0;
-            undefined++;
-            if (assembler_step == 2) {
-                fprintf(stderr, "Error: undefined label '%s' at line %u\r\n", expr_name, line_number);
-                inc_u16_capped(&errors);
+            if (c == '.') {
+                strcpy(expr_name, global_label);
+                while (*p2 != '\0')
+                    p2++;
+            }
+            while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
+                *p2++ = *match_p++;
+            *p2 = '\0';
+            for (c = 0; c < 16; c++) {
+                if (strcmp(expr_name, reg1[(unsigned char)c]) == 0) goto match_error;    /* Using a register name as a label is an error. */
+            }
+            label = find_label(expr_name);
+            if (label == NULL) {
+                /*value1 = 0;*/
+                undefined++;
+                if (assembler_step == 2) {
+                    fprintf(stderr, "Error: undefined label '%s' at line %u\r\n", expr_name, line_number);
+                    inc_u16_capped(&errors);
+                }
+            } else {
+                value1 = label->value;
             }
         } else {
-            *value = label->value;
+            /* TODO(pts): Make this match syntax error nonsilent? What about when trying instructions? */
+            goto match_error;
         }
-        return p;
+        /* Now value1 contains the value of the expression parsed so far. */
+      have_value1:
+        if (level <= 5) {
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if ((c = match_p[0]) == '*') {  /* Multiply operator. */  
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(10, 6);
+                    value1 *= value2;
+                } else if (c == '/') {  /* Division operator. */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
+                    if (GET_UINT16(value2) == 0) {
+                        if (assembler_step == 2)
+                            message(1, "division by zero");
+                        value2 = 1;
+                    }
+                    value1 = GET_UINT16(value1) / GET_UINT16(value2);
+                } else if (c == '%') {  /* Modulo operator. */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
+                    if (GET_UINT16(value2) == 0) {
+                        if (assembler_step == 2)
+                            message(1, "modulo by zero");
+                        value2 = 1;
+                    }
+                    /* Since '/' uses unsigned division, '%' must also use it,
+                     * otherwise this wouldn't hold: (a % b) == a - (a / b) * b.
+                     */
+                    value1 = GET_UINT16(value1) % GET_UINT16(value2);
+                } else {
+                    break;
+                }
+            }
+        }
+        if (level <= 4) {
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if ((c = match_p[0]) == '+') {  /* Add operator. */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(13, 5);
+                    value1 += value2;
+                } else if (c == '-') {  /* Subtract operator. */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(14, 5);
+                    value1 -= value2;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (level <= 3) {
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if (((c = match_p[0]) == '<' && match_p[1] == '<') || (c == '>' && match_p[1] == '>')) { /* Shift to left */
+                    match_p += 2;
+                    if (c == '<') {
+                        MATCH_CASEI_LEVEL_TO_VALUE2(15, 4);
+                        c = 1;
+                    } else {
+                        MATCH_CASEI_LEVEL_TO_VALUE2(16, 4);
+                        c = 0;
+                    }
+                    value2 = GET_INT16(value2);
+                    if (value2 < 0) {
+                        message(1, "shift by negative");
+                        return NULL;
+                    }
+                    /* Checking (value2 > 15) to avoid i386 quirk: (x << 32) == x. */
+                    value1 = c ? ((value2 > 15) ? 0 : value1 << value2) : (GET_INT16(value1) >> ((value2 > 15) ? 15 : value2));
+                } else {
+                    break;
+                }
+            }
+        }
+        if (level <= 2) {
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if (match_p[0] == '&') {    /* Binary AND */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(17, 3);
+                    value1 &= value2;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (level <= 1) {
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if (match_p[0] == '^') {    /* Binary XOR */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(18, 2);
+                    value1 ^= value2;
+                } else {
+                    break;
+                }
+            }
+        }
+        if (level == 0) {  /* Top tier. */
+            while (1) {
+                match_p = avoid_spaces(match_p);
+                if (match_p[0] == '|') {    /* Binary OR */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(19, 1);
+                    value1 |= value2;
+                } else {
+                    break;
+                }
+            }
+        }
     }
-    return NULL;
+    if (msp != match_stack) goto do_pop;
+    instruction_value = value1;
+    return avoid_spaces(match_p);
 }
 
 /*
@@ -976,13 +902,13 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -999,7 +925,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 5;
                         qualifier = 1;
                     }
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     if (qualifier == 0) {
@@ -1014,7 +940,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5]))
                         p2 = NULL;
                     else
-                        p2 = match_expression(p, &instruction_value);
+                        p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -1031,7 +957,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         p += 4;
                         qualifier = 1;
                     }
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     if (qualifier == 0) {
@@ -1051,13 +977,14 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     return NULL;
                  } else if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value2);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
+                    instruction_value2 = instruction_value;
                     if (*p2 != ':')
                         return NULL;
                     p = p2 + 1;
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -1273,7 +1200,7 @@ void process_instruction() {
                     fprintf(stderr, "Error: unterminated string at line %d\r\n", line_number);
                 }
             } else {
-                p2 = match_expression(p, &instruction_value);
+                p2 = match_expression(p);
                 if (p2 == NULL) {
                     fprintf(stderr, "Error: bad expression at line %d\r\n", line_number);
                     break;
@@ -1293,7 +1220,7 @@ void process_instruction() {
     }
     if (strcmp(part, "DW") == 0) {  /* Define word */
         while (1) {
-            p2 = match_expression(p, &instruction_value);
+            p2 = match_expression(p);
             if (p2 == NULL) {
                 fprintf(stderr, "Error: bad expression at line %d\r\n", line_number);
                 break;
@@ -1451,7 +1378,7 @@ void do_assembly(const char *fname) {
                 separate();
                 if (avoid_level == -1 || level < avoid_level) {
                     if (strcmp(part, "EQU") == 0) {
-                        p2 = match_expression(p, &instruction_value);
+                        p2 = match_expression(p);
                         if (p2 == NULL) {
                             message(1, "bad expression");
                         } else {
@@ -1526,7 +1453,7 @@ void do_assembly(const char *fname) {
                 if (avoid_level != -1 && level >= avoid_level)
                     break;
                 undefined = 0;
-                p = match_expression(p, &instruction_value);
+                p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                     inc_u16_capped(&errors);
@@ -1624,7 +1551,7 @@ void do_assembly(const char *fname) {
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
+                p2 = match_expression(p);
                 if (p2 == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1651,7 +1578,7 @@ void do_assembly(const char *fname) {
             if (strcmp(part, "ALIGN") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
+                p2 = match_expression(p);
                 if (p2 == NULL) {
                     message(1, "Bad expression");
                 } else if (undefined) {
@@ -1676,7 +1603,7 @@ void do_assembly(const char *fname) {
             times = 1;
             if (strcmp(part, "TIMES") == 0) {
                 undefined = 0;
-                p2 = match_expression(p, &instruction_value);
+                p2 = match_expression(p);
                 if (p2 == NULL) {
                     message(1, "bad expression");
                     break;
@@ -1816,7 +1743,7 @@ int main(int argc, char **argv) {
                 if (*p == '=') {
                     *(char*)p++ = 0;
                     undefined = 0;
-                    p = match_expression(p, &instruction_value);
+                    p = match_expression(p);
                     if (p == NULL) {
                         fprintf(stderr, "Error: wrong label definition\r\n");
                         exit(1);
