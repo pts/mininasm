@@ -1548,8 +1548,7 @@ void message(int error, const char *message) {
 /*
  ** Process an instruction
  */
-void process_instruction()
-{
+void process_instruction(void) {
     const char *p2 = NULL;
     const char *p3;
     const char *pi;
@@ -1639,8 +1638,7 @@ void process_instruction()
  ** Reset current address.
  ** Called anytime the assembler needs to generate code.
  */
-void reset_address()
-{
+void reset_address(void) {
     address = start_address = default_start_address;
 }
 
