@@ -23,7 +23,7 @@
  **
  **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o tinasm.tcc64 tinasm.c && ls -ld tinasm.tcc64
  **
- **   $ owcc -bdos -o tinasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra tinasm.c && ls -ld tinasm.exe
+ **   $ owcc -bdos -o tinasm.exe -mcmodel=l -Os -s -fstack-check -Wl,option -Wl,stack=20480 -march=i86 -W -Wall -Wextra tinasm.c && ls -ld tinasm.exe
  **
  **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o tinasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra tinasm.c nouser32.c && ls -ld tinasm.win32.exe
  **
