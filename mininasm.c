@@ -16,7 +16,7 @@
  **
  **   $ dosmc -mt mininasm.c ins.c bbprintf.c && ls -ld mininasm.com
  **
- **   $ owcc -bdos -o mininasm.exe -mcmodel=l -Os -s -fno-stack-check -march=i86 -W -Wall -Wextra mininasm.c ins.c bbprintf.c && ls -ld mininasm.exe
+ **   $ owcc -bdos -o mininasm.exe -mcmodel=l -Os -s -fstack-check -Wl,option -Wl,stack=1800 -march=i86 -W -Wall -Wextra mininasm.c ins.c bbprintf.c && ls -ld mininasm.exe
  **
  **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c ins.c bbprintf.c nouser32.c && ls -ld mininasm.win32.exe
  **
