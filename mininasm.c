@@ -1678,8 +1678,8 @@ typedef char guess_align_assembly_info[sizeof(struct guess_align_assembly_info_h
 
 struct assembly_info {
     off_t file_offset;  /* Largest alignment first, to save size. */
-    int level;
-    int avoid_level;
+    uvalue_t level;
+    uvalue_t avoid_level;
     uvalue_t line_number;
     char zero;  /* '\0'. Used by assembly_pop(...). */
     char input_filename[1];  /* Longer, ASCIIZ (NUL-terminated). */
@@ -1704,8 +1704,8 @@ static struct assembly_info *assembly_push(const char *input_filename) {
 #endif
     struct assembly_info *aip;
     if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
-    assembly_p->level = 0;
-    assembly_p->avoid_level = -1;
+    assembly_p->level = 1;
+    assembly_p->avoid_level = 0;
     assembly_p->line_number = 0;
     assembly_p->file_offset = 0;
     aip = assembly_p;
@@ -1747,8 +1747,8 @@ void do_assembly(const char *input_filename) {
     char *linep;
     char *liner;
     char *line_rend;
-    int level;
-    int avoid_level;
+    uvalue_t level;
+    uvalue_t avoid_level;
     int times;
     int base;
     int include;
@@ -1858,7 +1858,7 @@ void do_assembly(const char *input_filename) {
                     strcpy(global_label, name);
                 }
                 separate();
-                if (avoid_level == -1 || level < avoid_level) {
+                if (avoid_level == 0 || level < avoid_level) {
                     if (strcmp(part, "EQU") == 0) {
                         p = match_expression(p);
                         if (p == NULL) {
@@ -1927,8 +1927,11 @@ void do_assembly(const char *input_filename) {
                 }
             }
             if (strcmp(part, "%IF") == 0) {
-                level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UVALUE(++level) == 0) { if_too_deep:
+                    message(1, "%IF too deep");
+                    goto close_return;
+                }
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 undefined = 0;
                 p = match_expression(p);
@@ -1946,8 +1949,8 @@ void do_assembly(const char *input_filename) {
                 break;
             }
             if (strcmp(part, "%IFDEF") == 0) {
-                level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UVALUE(++level) == 0) goto if_too_deep;
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
                 if (find_label(part) != NULL) {
@@ -1959,8 +1962,8 @@ void do_assembly(const char *input_filename) {
                 break;
             }
             if (strcmp(part, "%IFNDEF") == 0) {
-                level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UVALUE(++level) == 0) goto if_too_deep;
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
                 if (find_label(part) == NULL) {
@@ -1972,11 +1975,15 @@ void do_assembly(const char *input_filename) {
                 break;
             }
             if (strcmp(part, "%ELSE") == 0) {
-                if (avoid_level != -1 && level > avoid_level)
+                if (level == 1) {
+                    message(1, "%ELSE without %IF");
+                    goto close_return;
+                }
+                if (avoid_level != 0 && level > avoid_level)
                     break;
                 if (avoid_level == level) {
-                    avoid_level = -1;
-                } else if (avoid_level == -1) {
+                    avoid_level = 0;
+                } else if (avoid_level == 0) {
                     avoid_level = level;
                 }
                 check_end(p);
@@ -1984,12 +1991,15 @@ void do_assembly(const char *input_filename) {
             }
             if (strcmp(part, "%ENDIF") == 0) {
                 if (avoid_level == level)
-                    avoid_level = -1;
-                level--;
+                    avoid_level = 0;
+                if (--level == 0) {
+                    message(1, "%ENDIF without %IF");
+                    goto close_return;
+                }
                 check_end(p);
                 break;
             }
-            if (avoid_level != -1 && level >= avoid_level) {
+            if (avoid_level != 0 && level >= avoid_level) {
 #ifdef DEBUG
                 /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
 #endif
@@ -2150,6 +2160,10 @@ void do_assembly(const char *input_filename) {
             incbin(part + 1);
         }
     }
+    if (level != 1) {
+        message(1, "pending %IF at end of file");
+    }
+  close_return:
     close(input_fd);
     if ((aip = assembly_pop(aip)) != NULL) goto do_open_again;  /* Continue processing the input file which %INCLUDE()d the current input file. */
 }
