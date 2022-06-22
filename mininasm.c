@@ -1732,7 +1732,7 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
         for (; *p == '\0'; --p) {}
 #endif
         for (; *p != '\0'; --p) {}  /* Find ->zero with value '\0', preceding ->input_filename. */
-        aip = (struct assembly_info*)(p - (char*)&((struct assembly_info*)0)->zero);
+        aip = (struct assembly_info*)(p - (int)(size_t)&((struct assembly_info*)0)->zero);
     }
     return aip;
 }
