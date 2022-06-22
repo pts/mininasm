@@ -77,6 +77,7 @@ extern FILE (*_imp___iob)[];
   typedef struct FILE FILE;
   extern FILE *stderr;
 #  endif
+#  define SEEK_SET 0  /* whence value for fseek. */
 void *__cdecl malloc(size_t size);
 size_t __cdecl strlen(const char *s);
 int __cdecl fprintf(FILE *stream, const char *format, ...);
@@ -85,12 +86,15 @@ FILE *__cdecl fopen(const char *path, const char *mode);
 size_t __cdecl fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t __cdecl fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 char *__cdecl fgets(char *s, int size, FILE *stream);
+int __cdecl fseek(FILE *stream, long offset, int whence);
+long __cdecl ftell(FILE *stream);
 int __cdecl fclose(FILE *stream);
 int __cdecl remove(const char *pathname);
 void ATTRIBUTE_NORETURN __cdecl exit(int status);
 char *__cdecl strcpy(char *dest, const char *src);
 int __cdecl strcmp(const char *s1, const char *s2);
 char *__cdecl strcat(char *dest, const char *src);
+void *__cdecl memcpy(void *dest, const void *src, size_t n);
 int __cdecl memcmp(const void *s1, const void *s2, size_t n);
 int __cdecl isalpha(int c);
 int __cdecl isspace(int c);
@@ -123,7 +127,6 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #define GET_INT16(value) (int)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
 #define GET_UINT16(value) (unsigned)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)  /* Zero-extended. */
 
-const char *input_filename;
 unsigned line_number;
 
 char *output_filename;
@@ -1300,37 +1303,49 @@ void incbin(const char *fname) {
     fclose(input);
 }
 
+
 /*
  ** Do an assembler step
  */
 void do_assembly(const char *fname) {
-    FILE *input;
+    long ofs;
+    static FILE *input;  /* Using a global variable to prevent the allocation of read buffers (by fread) for each pending %INCLUDE. */
+    static char include_buf[512];  /* Contains filenames. */
+    static char *ibp;
     const char *p2;
     const char *p3;
-    const char *pfname;
-    int level;
-    int avoid_level;
+    unsigned level;
+    unsigned avoid_level;
     int times;
     int base;
-    int pline;
     int include;
     int align;
 
-    input = fopen(fname, "rb");
-    if (input == NULL) {
-        fprintf(stderr, "Error: cannot open '%s' for input\r\n", fname);
-        inc_u16_capped(&errors);
-        return;
-    }
-
-    pfname = input_filename;
-    pline = line_number;
-    input_filename = fname;
-    level = 0;
-    avoid_level = -1;
     global_label[0] = '\0';
-    line_number = 0;
     base = 0;
+  do_open:
+    input = fopen(fname, "rb");
+    if (input == NULL) { open_error:
+        fprintf(stderr, "Error: cannot open '%s' for input\r\n", fname);
+      io_error:
+        inc_u16_capped(&errors);
+        goto do_return;
+    }
+    if (ibp == NULL) ibp = include_buf;
+    times = strlen(fname);
+    if (times + (int)(2 + sizeof(level) + sizeof(avoid_level) + sizeof(line_number) + sizeof(ofs)) > include_buf + sizeof(include_buf) - ibp) {
+        fclose(input);
+        message(1, "assembly stack overflow, too many pending %INCLUDE files");
+        goto io_error;
+    }
+    *ibp++ = '\0';  /* Sentinel to find benginning of the filename after an %INCLUDE has finished. */
+    strcpy(ibp, fname);
+    /*fname = ibp;*/
+    ibp += times + 1;
+    level = 1;
+    avoid_level = 0;
+    line_number = 0;
+  do_assemble:
     while (fgets(line, sizeof(line), input)) {
         inc_u16_capped(&line_number);
         p = line;
@@ -1376,7 +1391,7 @@ void do_assembly(const char *fname) {
                     strcpy(global_label, name);
                 }
                 separate();
-                if (avoid_level == -1 || level < avoid_level) {
+                if (avoid_level == 0 || level < avoid_level) {
                     if (strcmp(part, "EQU") == 0) {
                         p2 = match_expression(p);
                         if (p2 == NULL) {
@@ -1450,16 +1465,18 @@ void do_assembly(const char *fname) {
             }
             if (strcmp(part, "%IF") == 0) {
                 level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UINT16(level) == 0) { if_too_deep:
+                    message(1, "%IF too deep");
+                    goto close_return;
+                }
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 undefined = 0;
                 p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
-                    inc_u16_capped(&errors);
                 } else if (undefined) {
                     message(1, "Undefined labels");
-                    inc_u16_capped(&errors);
                 }
                 if (GET_INT16(instruction_value) != 0) {
                     ;
@@ -1471,7 +1488,8 @@ void do_assembly(const char *fname) {
             }
             if (strcmp(part, "%IFDEF") == 0) {
                 level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UINT16(level) == 0) goto if_too_deep;
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
                 if (find_label(part) != NULL) {
@@ -1484,7 +1502,8 @@ void do_assembly(const char *fname) {
             }
             if (strcmp(part, "%IFNDEF") == 0) {
                 level++;
-                if (avoid_level != -1 && level >= avoid_level)
+                if (GET_UINT16(level) == 0) goto if_too_deep;
+                if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
                 if (find_label(part) == NULL) {
@@ -1496,11 +1515,15 @@ void do_assembly(const char *fname) {
                 break;
             }
             if (strcmp(part, "%ELSE") == 0) {
-                if (avoid_level != -1 && level > avoid_level)
+                if (level == 1) {
+                    message(1, "%ELSE without %IF");
+                    goto close_return;
+                }
+                if (avoid_level != 0 && level > avoid_level)
                     break;
                 if (avoid_level == level) {
-                    avoid_level = -1;
-                } else if (avoid_level == -1) {
+                    avoid_level = 0;
+                } else if (avoid_level == 0) {
                     avoid_level = level;
                 }
                 check_end(p);
@@ -1508,12 +1531,16 @@ void do_assembly(const char *fname) {
             }
             if (strcmp(part, "%ENDIF") == 0) {
                 if (avoid_level == level)
-                    avoid_level = -1;
+                    avoid_level = 0;
                 level--;
+                if (level == 0) {
+                    message(1, "%ENDIF without %IF");
+                    goto close_return;
+                }
                 check_end(p);
                 break;
             }
-            if (avoid_level != -1 && level >= avoid_level) {
+            if (avoid_level != 0 && level >= avoid_level) {
 #ifdef DEBUG
                 /*fprintf(stderr, "Avoiding '%s'\r\n", line);*/
 #endif
@@ -1644,16 +1671,45 @@ void do_assembly(const char *fname) {
         }
         if (include == 1) {
             part[strlen(part) - 1] = '\0';
-            do_assembly(part + 1);
+            ofs = ftell(input);
+            fclose(input);
+            memcpy(ibp, &level, sizeof(level)); ibp += sizeof(level);  /* We use memcpy to avoid alignment issues. TODO(pts): Do direct copy if the CPU allows it. */
+            memcpy(ibp, &avoid_level, sizeof(avoid_level)); ibp += sizeof(avoid_level);
+            memcpy(ibp, &line_number, sizeof(line_number)); ibp += sizeof(line_number);
+            memcpy(ibp, &ofs, sizeof(ofs)); ibp += sizeof(ofs);
+            fname = part + 1;
+            goto do_open;
         }
         if (include == 2) {
             part[strlen(part) - 1] = '\0';
             incbin(part + 1);
         }
     }
+    if (level != 1) {
+        message(1, "pending %IF at end of file");
+    }
+  close_return:
     fclose(input);
-    line_number = pline;
-    input_filename = pfname;
+    for (--ibp; ibp[-1] != '\0'; --ibp) {}
+    --ibp;
+  do_return:
+    if (ibp != include_buf) {  /* Continue in file which has done the %INCLUDE of the file just finished. */
+        ibp -= sizeof(ofs); memcpy(&ofs, ibp, sizeof(ofs));
+        ibp -= sizeof(line_number); memcpy(&line_number, ibp, sizeof(line_number));
+        ibp -= sizeof(avoid_level); memcpy(&avoid_level, ibp, sizeof(avoid_level));
+        ibp -= sizeof(level); memcpy(&level, ibp, sizeof(level));
+        for (fname = ibp - 1; fname[-1] != '\0'; --fname) {}
+        if ((input = fopen(fname, "rb")) == NULL) {
+            ibp = (char*)fname - 1;
+            goto open_error;
+        }
+        if (fseek(input, ofs, SEEK_SET) != 0) {
+            ibp = (char*)fname - 1;
+            fprintf(stderr, "Error: cannot seek in '%s'\r\n", fname);
+            goto io_error;
+        }
+        goto do_assemble;
+    }
 }
 
 /*
