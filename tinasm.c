@@ -109,7 +109,7 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  include <ctype.h>
 #  ifdef MSDOS
 #    include <fcntl.h>  /* O_BINARY. */
-#    include <unistd.h>  /* setmode(...). */
+#    include <io.h>  /* setmode(...). Also in <unistd.h> in some systems. */
 #  endif
 #  ifdef _WIN32
 #    include <fcntl.h>  /* O_BINARY. */
