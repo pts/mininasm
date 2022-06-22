@@ -1283,7 +1283,7 @@ void reset_address() {
  */
 void incbin(const char *fname) {
     FILE *input;
-    char buf[256];
+    static char buf[512];
     int size;
     int i;
     
@@ -1294,7 +1294,7 @@ void incbin(const char *fname) {
         return;
     }
     
-    while ((size = fread(buf, 1, 30, input)) > 0) {
+    while ((size = fread(buf, 1, sizeof(buf), input)) > 0) {
         for (i = 0; i < size; i++) {
             emit_byte(buf[i]);
         }
