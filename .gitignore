@@ -3,3 +3,5 @@ nasm
 nasm.exe
 *.orig
 *~
+/compat32.bin
+/incompat.bin

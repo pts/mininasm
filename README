@@ -10,7 +10,6 @@ following improvements:
 
 * It supports 32-bit numbers. (However, it doesn't support the 32-bit
   or 64-bit instructions, and it can't generate 32-bit DOS programs.)
-  This hasn't been implemented yet.
 * `bits 16' works.
 * `cpu 186' and `cpu 286' also work. (For the 286, it supports all
   instructions except for those related to protected mode.)

@@ -8,6 +8,8 @@
  **
  **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
  **
+ **   $ gcc -m32 -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm.gcc32
+ **
  **   $ g++ -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c ins.c bbprintf.c && ls -ld mininasm
  **
  **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c ins.c bbprintf.c && ls -ld mininasm.tcc
@@ -106,6 +108,31 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
 #endif
+
+#if !__SIZEOF_INT__  /* GCC has it, tried with GCC 4.8. */
+#undef __SIZEOF_INT__
+#ifdef __WATCOMC__
+#ifdef _M_I86  /* OpenWatcom only defines this for 16-bit targets, e.g. `owcc -bdos', but not for `owcc -bwin32'. */
+#define __SIZEOF_INT__ 2  /* Example: __DOSMC__. */
+#else
+#define __SIZEOF_INT__ 4
+#endif
+#ifdef _M_I386  /* OpenWatcom only defines this for 32-bit (and maybe 64-bit?) targets, e.g. `owcc -bwin32', but not for `owcc -bdos'. */
+#endif
+#else  /* Else __WATCOMC__. */
+#ifdef _M_I86
+#define __SIZEOF_INT__ 2
+#else
+#if defined(__TINYC__) && defined(__x86_64__)
+#define __SIZEOF_INT__ 4
+#else
+#if defined(__linux) || defined(__i386__) || defined(__i386) || defined(__linux__) || defined(_WIN32)  /* For __TINYC__. */
+#define __SIZEOF_INT__ 4
+#endif
+#endif
+#endif
+#endif  /* __WATCOMC__ */
+#endif  /* !__SIZEOF_INT__ */
 
 #if !defined(CONFIG_CPU_UNALIGN)
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__)
@@ -232,20 +259,35 @@ int output_fd;
 char *listing_filename;
 int listing_fd = -1;
 
-#define VALUE_BITS 16
-typedef short value_t;  /* At least VALUE_BITS bits, preferably exactly. */
-typedef unsigned short uvalue_t;  /* At least VALUE_BITS bits, preferably exactly. */
-#if VALUE_BITS == 16
+#ifndef CONFIG_VALUE_BITS
+#define CONFIG_VALUE_BITS 32
+#endif
+
+#undef IS_VALUE_LONG
+#if CONFIG_VALUE_BITS == 16
+#define IS_VALUE_LONG 0
+typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
+typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
 #define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
 #define GET_UVALUE(value) (uvalue_t)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
-#if VALUE_BITS == 32
+#if CONFIG_VALUE_BITS == 32
+#if __SIZEOF_INT__ >= 4
+#define IS_VALUE_LONG 0
+typedef int value_t;
+typedef unsigned uvalue_t;
+#else  /* sizeof(long) >= 4 is guaranteed by the C standard. */
+#define IS_VALUE_LONG 1
+typedef long value_t;
+typedef unsigned long uvalue_t;
+#endif
 #define GET_VALUE(value) (value_t)(sizeof(value_t) == 4 ? (value_t)(value) : sizeof(int) == 4 ? (value_t)(int)(value) : sizeof(long) == 4 ? (value_t)(long)(value) : (value_t)(((long)(value) & 0x7fffffffL) | -((long)(value) & 0x80000000UL)))
 #define GET_UVALUE(value) (uvalue_t)(sizeof(uvalue_t) == 4 ? (uvalue_t)(value) : sizeof(unsigned) == 4 ? (uvalue_t)(unsigned)(value) : sizeof(unsigned long) == 4 ? (uvalue_t)(unsigned long)(value) : (uvalue_t)(value) & 0xffffffffUL)
 #else
-#error VALUE_BITS must be 16 or 32.
+#error CONFIG_VALUE_BITS must be 16 or 32.
 #endif
 #endif
+typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
 uvalue_t line_number;
 
@@ -612,7 +654,15 @@ void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
             strcpy_far(global_label, node->name);
+#if CONFIG_VALUE_BITS == 32
+#if IS_VALUE_LONG
+            bbprintf(&message_bbb, "%-20s %04x%04x\r\n", global_label, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
+#else
+            bbprintf(&message_bbb, "%-20s %08x\r\n", global_label, GET_UVALUE(node->value));
+#endif
+#else
             bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, GET_UVALUE(node->value));
+#endif
             node = RBL_GET_RIGHT(node);
         }
     }
@@ -871,19 +921,18 @@ const char *match_expression(const char *match_p) {
                          * amount, it would emit 1. Thus we forcibly emit 0 here.
                          */
 #if CONFIG_SHIFT_SIGNED
-                        value1 = c ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to VALUE_BITS. */
+                        value1 = c ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to CONFIG_VALUE_BITS. */
 #else
                         value1 = 0;
 #endif
 #endif  /* CONFIG_SHIFT_OK_31 */
                     } else {
-                        value1 = c ? value1 << GET_UVALUE(value2) :
 #if CONFIG_SHIFT_SIGNED
-                            GET_VALUE(value1)  /* Sign-extend value1 to VALUE_BITS. */
+                        value1 = c ? GET_VALUE( value1) << GET_UVALUE(value2) : GET_VALUE( value1) >> GET_UVALUE(value2);  /* Sign-extend value1 to CONFIG_VALUE_BITS. */
 #else
-                            GET_UVALUE(value1)  /* Zero-extend value1 to VALUE_BITS. */
+                        value1 = c ? GET_UVALUE(value1) << GET_UVALUE(value2) : GET_UVALUE(value1) >> GET_UVALUE(value2);  /* Zero-extend value1 to CONFIG_VALUE_BITS. */
 #endif
-                            >> GET_UVALUE(value2);
+                            
                     }
                 } else {
                     break;
@@ -1552,14 +1601,14 @@ void process_instruction(void) {
     const char *p2 = NULL;
     const char *p3;
     const char *pi;
-    int c;
+    char c;
 
-    if (strcmp(part, "DB") == 0) {  /* Define byte */
+    if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
         while (1) {
             p = avoid_spaces(p);
             if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. " */
                 c = *p++;
-                for (p2 = p; *p2 != '\0' && *p2 != (char)c; ++p2) {}
+                for (p2 = p; *p2 != '\0' && *p2 != c; ++p2) {}
                 p3 = p2;
                 if (*p3 == '\0') {
                     message(1, "Missing close quote");
@@ -1587,8 +1636,11 @@ void process_instruction(void) {
             }
         }
         return;
-    }
-    if (strcmp(part, "DW") == 0) {  /* Define word */
+    } else if ((c = strcmp(part, "DW")) == 0 /* Define 16-bit word. */
+#if CONFIG_VALUE_BITS == 32
+               || strcmp(part, "DD") == 0  /* Define 32-bit quadword. */
+              ) {
+#endif
         while (1) {
             p = match_expression(p);
             if (p == NULL) {
@@ -1597,6 +1649,12 @@ void process_instruction(void) {
             }
             emit_byte(instruction_value);
             emit_byte(instruction_value >> 8);
+#if CONFIG_VALUE_BITS == 32
+            if (c) {
+                emit_byte(instruction_value >> 16);
+                emit_byte(instruction_value >> 24);
+            }
+#endif
             if (*p == ',') {
                 p++;
                 p = avoid_spaces(p);
@@ -1736,6 +1794,28 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
     }
     return aip;
 }
+
+#if CONFIG_VALUE_BITS == 32 && IS_VALUE_LONG  /* Example: __DOSMC__. */
+#define FMT_05U "%05s"
+#define GET_FMT_U_VALUE(value) get_fmt_u_value(value)  /* Only one of this works in a single bbprintf(...), because get_fmt_u_value(...) uses a static, global buffer. */
+/* Returns uvalue_t formatted as a decimal, '\0'-terminated string.
+ * The returned pointer points to within a static, global buffer.
+ * We can't use bbprintf(...), because it supports only int size, and here sizeof(uvalue_t) > sizeof(int).
+ */
+static const char *get_fmt_u_value(uvalue_t u) {
+    static char buf[sizeof(u) * 3 + 1];  /* Long enough for a decimal representation. */
+    char *p = buf + sizeof(buf) - 1;
+    *p = '\0';
+    do {
+        *--p = '0' + (unsigned char)(u % 10);
+        u /= 10;
+    } while (u != 0);
+    return p;
+}
+#else
+#define FMT_05U "%05u"
+#define GET_FMT_U_VALUE(value) (value)
+#endif
 
 /*
  ** Do an assembler step
@@ -2140,7 +2220,7 @@ void do_assembly(const char *input_filename) {
                 bbprintf(&message_bbb /* listing_fd */, "  ");
                 p++;
             }
-            bbprintf(&message_bbb /* listing_fd */, "  %05u %s\r\n", line_number, line);
+            bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
         }
         if (include == 1) {
             if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
@@ -2339,9 +2419,9 @@ int main(int argc, char **argv) {
             do_assembly(ifname);
 
             if (listing_fd >= 0 && change == 0) {
-                bbprintf(&message_bbb /* listing_fd */, "\r\n%05u ERRORS FOUND\r\n", errors);
-                bbprintf(&message_bbb /* listing_fd */, "%05u WARNINGS FOUND\r\n\r\n", warnings);
-                bbprintf(&message_bbb /* listing_fd */, "%05u PROGRAM BYTES\r\n\r\n", GET_UVALUE(bytes));
+                bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n\r\n", GET_FMT_U_VALUE(warnings));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
                 if (label_list != NULL) {
                     bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                     print_labels_sorted_to_listing_fd(label_list);
