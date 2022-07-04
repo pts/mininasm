@@ -297,9 +297,9 @@ value_t start_address;
 value_t address;
 int first_time;
 
-int instruction_addressing;
+unsigned char instruction_addressing;
+unsigned char instruction_offset_width;
 value_t instruction_offset;
-int instruction_offset_width;
 
 int instruction_register;
 
@@ -1022,15 +1022,15 @@ const char *match_register(const char *p, int width, int *reg) {
 }
 
 /*
- ** Match addressing
+ ** Match addressing.
+ ** As a side effect, it sets instruction_addressing, instruction_offset, instruction_offset_width.
  */
 const char *match_addressing(const char *p, int width) {
     int reg;
     int reg2;
     const char *p2;
-    int *bits;
+    unsigned char *instruction_addressing_p = &instruction_addressing;
 
-    bits = &instruction_addressing;
     instruction_offset = 0;
     instruction_offset_width = 0;
 
@@ -1043,15 +1043,15 @@ const char *match_addressing(const char *p, int width) {
             if (*p == ']') {
                 p++;
                 if (reg == 3) {   /* BX */
-                    *bits = 0x07;
+                    *instruction_addressing_p = 0x07;
                 } else if (reg == 5) {  /* BP */
-                    *bits = 0x46;
+                    *instruction_addressing_p = 0x46;
                     instruction_offset = 0;
                     instruction_offset_width = 1;
                 } else if (reg == 6) {  /* SI */
-                    *bits = 0x04;
+                    *instruction_addressing_p = 0x04;
                 } else if (reg == 7) {  /* DI */
-                    *bits = 0x05;
+                    *instruction_addressing_p = 0x05;
                 } else {    /* Not valid */
                     return NULL;
                 }
@@ -1064,13 +1064,13 @@ const char *match_addressing(const char *p, int width) {
                 }
                 if (p2 != NULL) {
                     if ((reg == 3 && reg2 == 6) || (reg == 6 && reg2 == 3)) {   /* BX+SI / SI+BX */
-                        *bits = 0x00;
+                        *instruction_addressing_p = 0x00;
                     } else if ((reg == 3 && reg2 == 7) || (reg == 7 && reg2 == 3)) {    /* BX+DI / DI+BX */
-                        *bits = 0x01;
+                        *instruction_addressing_p = 0x01;
                     } else if ((reg == 5 && reg2 == 6) || (reg == 6 && reg2 == 5)) {    /* BP+SI / SI+BP */
-                        *bits = 0x02;
+                        *instruction_addressing_p = 0x02;
                     } else if ((reg == 5 && reg2 == 7) || (reg == 7 && reg2 == 5)) {    /* BP+DI / DI+BP */
-                        *bits = 0x03;
+                        *instruction_addressing_p = 0x03;
                     } else {    /* Not valid */
                         return NULL;
                     }
@@ -1085,25 +1085,26 @@ const char *match_addressing(const char *p, int width) {
                         if (*p != ']')
                             return NULL;
                         p++;
+                      set_width:
                         if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
                             instruction_offset_width = 1;
-                            *bits |= 0x40;
+                            *instruction_addressing_p |= 0x40;
                         } else {
                             instruction_offset_width = 2;
-                            *bits |= 0x80;
+                            *instruction_addressing_p |= 0x80;
                         }
                     } else {    /* Syntax error */
                         return NULL;
                     }
                 } else {
                     if (reg == 3) {   /* BX */
-                        *bits = 0x07;
+                        *instruction_addressing_p = 0x07;
                     } else if (reg == 5) {  /* BP */
-                        *bits = 0x06;
+                        *instruction_addressing_p = 0x06;
                     } else if (reg == 6) {  /* SI */
-                        *bits = 0x04;
+                        *instruction_addressing_p = 0x04;
                     } else if (reg == 7) {  /* DI */
-                        *bits = 0x05;
+                        *instruction_addressing_p = 0x05;
                     } else {    /* Not valid */
                         return NULL;
                     }
@@ -1114,13 +1115,7 @@ const char *match_addressing(const char *p, int width) {
                     if (*p != ']')
                         return NULL;
                     p++;
-                    if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
-                        instruction_offset_width = 1;
-                        *bits |= 0x40;
-                    } else {
-                        instruction_offset_width = 2;
-                        *bits |= 0x80;
-                    }
+                    goto set_width;
                 }
             } else {    /* Syntax error */
                 return NULL;
@@ -1133,14 +1128,14 @@ const char *match_addressing(const char *p, int width) {
             if (*p != ']')
                 return NULL;
             p++;
-            *bits = 0x06;
+            *instruction_addressing_p = 0x06;
             instruction_offset_width = 2;
         }
     } else {    /* Register */
         p = match_register(p, width, &reg);
         if (p == NULL)
             return NULL;
-        *bits = 0xc0 | reg;
+        *instruction_addressing_p = 0xc0 | reg;
     }
     return p;
 }
@@ -1249,12 +1244,14 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 }
                 if (*pattern == '8') {
                     pattern++;
+                    /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                     p2 = match_addressing(p, 8);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
+                    /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                     p2 = match_addressing(p, 16);
                     if (p2 == NULL)
                         return NULL;
