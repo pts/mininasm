@@ -301,7 +301,7 @@ unsigned char instruction_addressing;
 unsigned char instruction_offset_width;
 value_t instruction_offset;
 
-int instruction_register;
+unsigned char instruction_register;
 
 value_t instruction_value;
 
@@ -371,24 +371,8 @@ int undefined;
 
 extern const char instruction_set[];
 
-const char *reg1[16] = {
-    "AL",
-    "CL",
-    "DL",
-    "BL",
-    "AH",
-    "CH",
-    "DH",
-    "BH",
-    "AX",
-    "CX",
-    "DX",
-    "BX",
-    "SP",
-    "BP",
-    "SI",
-    "DI"
-};
+/* [32] without the trailing \0 wouldn't work in C++. */
+const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
 
 extern struct bbprintf_buf message_bbb;
 
@@ -825,8 +809,8 @@ const char *match_expression(const char *match_p) {
             while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
                 *p2++ = *match_p++;
             *p2 = '\0';
-            for (c = 0; c < 16; c++) {
-                if (strcmp(expr_name, reg1[(unsigned char)c]) == 0) goto match_error;    /* Using a register name as a label is an error. */
+            for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
+                if (expr_name[0] == p2[0] && expr_name[1] == p2[1]) goto match_error;  /* Using a register name as a label is an error. */
             }
             label = find_label(expr_name);
             if (label == NULL) {
@@ -991,45 +975,32 @@ int islabel(int c) {
 /*
  ** Match register
  */
-const char *match_register(const char *p, int width, int *reg) {
-    char regc[3];
-    int c;
+const char *match_register(const char *p, int width, unsigned char *reg) {
+    const char *r0, *r, *r2;
 
     p = avoid_spaces(p);
     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
         return NULL;
-    regc[0] = p[0];
-    regc[1] = p[1];
-    regc[2] = '\0';
-    if (width == 8) {   /* 8-bit */
-        for (c = 0; c < 8; c++)
-            if (strcmp(regc, reg1[c]) == 0)
-                break;
-        if (c < 8) {
-            *reg = c;
-            return p + 2;
-        }
-    } else {    /* 16-bit */
-        for (c = 0; c < 8; c++)
-            if (strcmp(regc, reg1[c + 8]) == 0)
-                break;
-        if (c < 8) {
-            *reg = c;
+    r0 = r = register_names + (width & 16);  /* Works for width == 8 and width == 16. */
+    for (r2 = r + 16; r != r2; r += 2) {
+        if (p[0] == r[0] && p[1] == r[1]) {
+            *reg = (r - r0) >> 1;
             return p + 2;
         }
     }
     return NULL;
 }
 
+const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
+
 /*
  ** Match addressing.
  ** As a side effect, it sets instruction_addressing, instruction_offset, instruction_offset_width.
  */
 const char *match_addressing(const char *p, int width) {
-    int reg;
-    int reg2;
+    unsigned char reg, reg2, reg12;
+    unsigned char *instruction_addressing_p = &instruction_addressing;  /* Using this pointer saves 20 bytes in __DOSMC__. */
     const char *p2;
-    unsigned char *instruction_addressing_p = &instruction_addressing;
 
     instruction_offset = 0;
     instruction_offset_width = 0;
@@ -1042,18 +1013,12 @@ const char *match_addressing(const char *p, int width) {
             p = avoid_spaces(p2);
             if (*p == ']') {
                 p++;
-                if (reg == 3) {   /* BX */
-                    *instruction_addressing_p = 0x07;
-                } else if (reg == 5) {  /* BP */
+                if (reg == 5) {  /* BP. */
                     *instruction_addressing_p = 0x46;
-                    instruction_offset = 0;
-                    instruction_offset_width = 1;
-                } else if (reg == 6) {  /* SI */
-                    *instruction_addressing_p = 0x04;
-                } else if (reg == 7) {  /* DI */
-                    *instruction_addressing_p = 0x05;
-                } else {    /* Not valid */
-                    return NULL;
+                    /*instruction_offset = 0;*/  /* Already set. */
+                    ++instruction_offset_width;
+                } else {
+                    if ((*instruction_addressing_p = reg_to_addressing[reg]) == 0) return NULL;
                 }
             } else if (*p == '+' || *p == '-') {
                 if (*p == '+') {
@@ -1063,17 +1028,15 @@ const char *match_addressing(const char *p, int width) {
                     p2 = NULL;
                 }
                 if (p2 != NULL) {
-                    if ((reg == 3 && reg2 == 6) || (reg == 6 && reg2 == 3)) {   /* BX+SI / SI+BX */
-                        *instruction_addressing_p = 0x00;
-                    } else if ((reg == 3 && reg2 == 7) || (reg == 7 && reg2 == 3)) {    /* BX+DI / DI+BX */
-                        *instruction_addressing_p = 0x01;
-                    } else if ((reg == 5 && reg2 == 6) || (reg == 6 && reg2 == 5)) {    /* BP+SI / SI+BP */
-                        *instruction_addressing_p = 0x02;
-                    } else if ((reg == 5 && reg2 == 7) || (reg == 7 && reg2 == 5)) {    /* BP+DI / DI+BP */
-                        *instruction_addressing_p = 0x03;
-                    } else {    /* Not valid */
+                    reg12 = reg * reg2;
+                    if (reg12 == 6 * 3) {  /* BX+SI / SI+BX. */
+                    } else if (reg12 == 7 * 3) {  /* BX+DI / DI+BX. */
+                    } else if (reg12 == 6 * 5) {  /* BP+SI / SI+BP. */
+                    } else if (reg12 == 7 * 5) {  /* BP+DI / DI+BP. */
+                    } else {  /* Not valid. */
                         return NULL;
                     }
+                    *instruction_addressing_p = reg + reg2 - 9;  /* Magic formula for encoding any of BX+SI, BX+DI, BP+SI, BP+DI. */
                     p = avoid_spaces(p2);
                     if (*p == ']') {
                         p++;
@@ -1086,28 +1049,18 @@ const char *match_addressing(const char *p, int width) {
                             return NULL;
                         p++;
                       set_width:
+                        ++instruction_offset_width;
                         if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
-                            instruction_offset_width = 1;
                             *instruction_addressing_p |= 0x40;
                         } else {
-                            instruction_offset_width = 2;
+                            ++instruction_offset_width;
                             *instruction_addressing_p |= 0x80;
                         }
                     } else {    /* Syntax error */
                         return NULL;
                     }
                 } else {
-                    if (reg == 3) {   /* BX */
-                        *instruction_addressing_p = 0x07;
-                    } else if (reg == 5) {  /* BP */
-                        *instruction_addressing_p = 0x06;
-                    } else if (reg == 6) {  /* SI */
-                        *instruction_addressing_p = 0x04;
-                    } else if (reg == 7) {  /* DI */
-                        *instruction_addressing_p = 0x05;
-                    } else {    /* Not valid */
-                        return NULL;
-                    }
+                    if ((*instruction_addressing_p = reg_to_addressing[reg]) == 0) return NULL;
                     p = match_expression(p);
                     if (p == NULL)
                         return NULL;
@@ -1208,6 +1161,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
     int qualifier;
     const char *base;
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
+    unsigned char unused_reg;
 
     undefined = 0;
     while (*pattern) {
@@ -1230,11 +1184,11 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 }
                 if (*pattern == 'w') {
                     pattern++;
-                    if (qualifier != 16 && match_register(p, 16, &d) == 0)
+                    if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0)
                         return NULL;
                 } else if (*pattern == 'b') {
                     pattern++;
-                    if (qualifier != 8 && match_register(p, 8, &d) == 0)
+                    if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0)
                         return NULL;
                 } else {
                     if (qualifier == 8 && *pattern != '8')
