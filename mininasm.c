@@ -1156,12 +1156,12 @@ void emit_byte(int byte) {
 const char *match(const char *p, const char *pattern, const char *decode) {
     const char *p2;
     int c;
-    int d;
     int bit;
     int qualifier;
     const char *base;
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
     unsigned char unused_reg;
+    char dc, dw;
 
     undefined = 0;
     while (*pattern) {
@@ -1323,7 +1323,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
         if (toupper(*p) != *pattern)
             return NULL;
         p++;
-        if (*pattern == ',')    /* Allow spaces after comma */
+        if (*pattern == ',')    /* Allow spaces after comma !! TODO(pts): Not needed. */
             p = avoid_spaces(p);
         pattern++;
     }
@@ -1331,84 +1331,55 @@ const char *match(const char *p, const char *pattern, const char *decode) {
     /*
      ** Instruction properly matched, now generate binary
      */
-    base = decode;
-    while (*decode) {
-        if ((unsigned char)decode[0] <= 'F' + 0U) { /* Byte: lowercase hex. */
-            c = *decode - '0';
+    for (base = decode; (dc = *decode++) != '\0';) {
+        dw = 0;
+        if ((unsigned char)dc <= 'F' + 0U) {  /* Byte: uppercase hex. */
+            c = dc - '0';
             if (c > 9) c -= 7;
-            d = *++decode - '0';
-            if (d > 9) d -= 7;
-            ++decode;
-            emit_byte((c << 4) | d);
-        } else {    /* Binary */
-            bit = 0;
+            dc = *decode++ - '0';
+            if (dc > 9) dc -= 7;
+            c = (c << 4) | dc;
+        } else if (dc == 'i') {
+            c = instruction_value;
+        } else if (dc == 'j') {
+            c = instruction_value;
+            instruction_offset = instruction_value >> 8;
+            dw = 1;
+        } else if (dc == 'a') {
+            c = instruction_value - (address + 1);
+            if (assembler_step == 2 && (c < -128 || c > 127))
+                message(1, "short jump too long");
+        } else if (dc == 'b') {
+            c = instruction_value - (address + 2);
+            instruction_offset = c >> 8;
+            dw = 1;
+        } else if (dc == 'f') {  /* Far (16+16 bit) jump or call. */
+            emit_byte(instruction_value);
+            c = instruction_value >> 8;
+            instruction_offset = segment_value;
+            dw = 2;
+        } else {  /* Binary. */
             c = 0;
-            d = 0;
-            while (bit < 8) {
-                if (decode[0] == 'z') { /* Zero */
-                    decode++;
+            --decode;
+            for (bit = 0; bit < 8;) {
+                dc = *decode++;
+                if (dc == 'z') {  /* Zero. */
                     bit++;
-                } else if (decode[0] == 'o') {  /* One */
+                } else if (dc == 'o') {  /* One. */
                     c |= 0x80 >> bit;
-                    decode++;
                     bit++;
-                } else if (decode[0] == 'r') { /* Register field */
-                    decode++;
-                    if (decode[0] == '8')
-                        decode++;
-                    else if (decode[0] == '1' && decode[1] == '6')
-                        decode += 2;
+                } else if (dc == 'r') {  /* Register field. */
                     c |= instruction_register << (5 - bit);
                     bit += 3;
-                } else if (decode[0] == 'd') {  /* Addressing field */
-                    if (decode[1] == '8')
-                        decode += 2;
-                    else
-                        decode += 3;
+                } else if (dc == 'd') {  /* Addressing field. */
                     if (bit == 0) {
                         c |= instruction_addressing & 0xc0;
                         bit += 2;
                     } else {
                         c |= instruction_addressing & 0x07;
                         bit += 3;
-                        d = 1;
+                        dw = instruction_offset_width;  /* 1 or 2. */
                     }
-                } else if (decode[0] == 'i' || decode[0] == 's') {
-                    if (decode[1] == '8') {
-                        decode += 2;
-                        c = instruction_value;
-                        break;
-                    } else {
-                        decode += 3;
-                        c = instruction_value;
-                        instruction_offset = instruction_value >> 8;
-                        instruction_offset_width = 1;
-                        d = 1;
-                        break;
-                    }
-                } else if (decode[0] == 'a') {
-                    if (decode[1] == '8') {
-                        decode += 2;
-                        c = instruction_value - (address + 1);
-                        if (assembler_step == 2 && (c < -128 || c > 127))
-                            message(1, "short jump too long");
-                        break;
-                    } else {
-                        decode += 3;
-                        c = instruction_value - (address + 2);
-                        instruction_offset = c >> 8;
-                        instruction_offset_width = 1;
-                        d = 1;
-                        break;
-                    }
-                } else if (decode[0] == 'f') {  /* Far (16+16 bit) jump or call. */
-                    ++decode;
-                    emit_byte(instruction_value);
-                    c = instruction_value >> 8;
-                    instruction_offset = segment_value;
-                    instruction_offset_width = 2;
-                    d = 1;
-                    break;
                 } else {
                     message_start(1);
                     bbprintf(&message_bbb, "decode: internal error (%s)", base);
@@ -1417,16 +1388,11 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     break;
                 }
             }
-            emit_byte(c);
-            if (d == 1) {
-                d = 0;
-                if (instruction_offset_width >= 1) {
-                    emit_byte(instruction_offset);
-                }
-                if (instruction_offset_width >= 2) {
-                    emit_byte(instruction_offset >> 8);
-                }
-            }
+        }
+        emit_byte(c);
+        if (dw != 0) {
+            emit_byte(instruction_offset);
+            if (dw > 1) emit_byte(instruction_offset >> 8);
         }
     }
     return p;
@@ -2396,148 +2362,148 @@ int main(int argc, char **argv) {
  ** Notice some instructions are sorted by less byte usage first.
  */
 const char instruction_set[] =
-    "ADD\0%d8,%r8\0""00d8r8d8\0"
-    "ADD\0%d16,%r16\0""01d16r16d16\0"
-    "ADD\0%r8,%d8\0""02d8r8d8\0"
-    "ADD\0%r16,%d16\0""03d16r16d16\0"
-    "ADD\0AL,%i8\0""04i8\0"
-    "ADD\0AX,%i16\0""05i16\0"
+    "ADD\0%d8,%r8\0""00drd\0"
+    "ADD\0%d16,%r16\0""01drd\0"
+    "ADD\0%r8,%d8\0""02drd\0"
+    "ADD\0%r16,%d16\0""03drd\0"
+    "ADD\0AL,%i8\0""04i\0"
+    "ADD\0AX,%i16\0""05j\0"
     "PUSH\0ES\0""06\0"
     "POP\0ES\0""07\0"
-    "OR\0%d8,%r8\0""08d8r8d8\0"
-    "OR\0%d16,%r16\0""09d16r16d16\0"
-    "OR\0%r8,%d8\0""0Ad8r8d8\0"
-    "OR\0%r16,%d16\0""0Bd16r16d16\0"
-    "OR\0AL,%i8\0""0Ci8\0"
-    "OR\0AX,%i16\0""0Di16\0"
+    "OR\0%d8,%r8\0""08drd\0"
+    "OR\0%d16,%r16\0""09drd\0"
+    "OR\0%r8,%d8\0""0Adrd\0"
+    "OR\0%r16,%d16\0""0Bdrd\0"
+    "OR\0AL,%i8\0""0Ci\0"
+    "OR\0AX,%i16\0""0Dj\0"
     "PUSH\0CS\0""0E\0"
-    "ADC\0%d8,%r8\0""10d8r8d8\0"
-    "ADC\0%d16,%r16\0""11d16r16d16\0"
-    "ADC\0%r8,%d8\0""12d8r8d8\0"
-    "ADC\0%r16,%d16\0""13d16r16d16\0"
-    "ADC\0AL,%i8\0""14i8\0"
-    "ADC\0AX,%i16\0""15i16\0"
+    "ADC\0%d8,%r8\0""10drd\0"
+    "ADC\0%d16,%r16\0""11drd\0"
+    "ADC\0%r8,%d8\0""12drd\0"
+    "ADC\0%r16,%d16\0""13drd\0"
+    "ADC\0AL,%i8\0""14i\0"
+    "ADC\0AX,%i16\0""15j\0"
     "PUSH\0SS\0""16\0"
     "POP\0SS\0""17\0"
-    "SBB\0%d8,%r8\0""18d8r8d8\0"
-    "SBB\0%d16,%r16\0""19d16r16d16\0"
-    "SBB\0%r8,%d8\0""1Ad8r8d8\0"
-    "SBB\0%r16,%d16\0""1Bd16r16d16\0"
-    "SBB\0AL,%i8\0""1Ci8\0"
-    "SBB\0AX,%i16\0""1Di16\0"
+    "SBB\0%d8,%r8\0""18drd\0"
+    "SBB\0%d16,%r16\0""19drd\0"
+    "SBB\0%r8,%d8\0""1Adrd\0"
+    "SBB\0%r16,%d16\0""1Bdrd\0"
+    "SBB\0AL,%i8\0""1Ci\0"
+    "SBB\0AX,%i16\0""1Dj\0"
     "PUSH\0DS\0""1E\0"
     "POP\0DS\0""1F\0"
-    "AND\0%d8,%r8\0""20d8r8d8\0"
-    "AND\0%d16,%r16\0""21d16r16d16\0"
-    "AND\0%r8,%d8\0""22d8r8d8\0"
-    "AND\0%r16,%d16\0""23d16r16d16\0"
-    "AND\0AL,%i8\0""24i8\0"
-    "AND\0AX,%i16\0""25i16\0"
+    "AND\0%d8,%r8\0""20drd\0"
+    "AND\0%d16,%r16\0""21drd\0"
+    "AND\0%r8,%d8\0""22drd\0"
+    "AND\0%r16,%d16\0""23drd\0"
+    "AND\0AL,%i8\0""24i\0"
+    "AND\0AX,%i16\0""25j\0"
     "ES\0\0""26\0"
     "DAA\0\0""27\0"
-    "SUB\0%d8,%r8\0""28d8r8d8\0"
-    "SUB\0%d16,%r16\0""29d16r16d16\0"
-    "SUB\0%r8,%d8\0""2Ad8r8d8\0"
-    "SUB\0%r16,%d16\0""2Bd16r16d16\0"
-    "SUB\0AL,%i8\0""2Ci8\0"
-    "SUB\0AX,%i16\0""2Di16\0"
+    "SUB\0%d8,%r8\0""28drd\0"
+    "SUB\0%d16,%r16\0""29drd\0"
+    "SUB\0%r8,%d8\0""2Adrd\0"
+    "SUB\0%r16,%d16\0""2Bdrd\0"
+    "SUB\0AL,%i8\0""2Ci\0"
+    "SUB\0AX,%i16\0""2Dj\0"
     "CS\0\0""2E\0"
     "DAS\0\0""2F\0"
-    "XOR\0%d8,%r8\0""30d8r8d8\0"
-    "XOR\0%d16,%r16\0""31d16r16d16\0"
-    "XOR\0%r8,%d8\0""32d8r8d8\0"
-    "XOR\0%r16,%d16\0""33d16r16d16\0"
-    "XOR\0AL,%i8\0""34i8\0"
-    "XOR\0AX,%i16\0""35i16\0"
+    "XOR\0%d8,%r8\0""30drd\0"
+    "XOR\0%d16,%r16\0""31drd\0"
+    "XOR\0%r8,%d8\0""32drd\0"
+    "XOR\0%r16,%d16\0""33drd\0"
+    "XOR\0AL,%i8\0""34i\0"
+    "XOR\0AX,%i16\0""35j\0"
     "SS\0\0""36\0"
     "AAA\0\0""37\0"
-    "CMP\0%d8,%r8\0""38d8r8d8\0"
-    "CMP\0%d16,%r16\0""39d16r16d16\0"
-    "CMP\0%r8,%d8\0""3Ad8r8d8\0"
-    "CMP\0%r16,%d16\0""3Bd16r16d16\0"
-    "CMP\0AL,%i8\0""3Ci8\0"
-    "CMP\0AX,%i16\0""3Di16\0"
+    "CMP\0%d8,%r8\0""38drd\0"
+    "CMP\0%d16,%r16\0""39drd\0"
+    "CMP\0%r8,%d8\0""3Adrd\0"
+    "CMP\0%r16,%d16\0""3Bdrd\0"
+    "CMP\0AL,%i8\0""3Ci\0"
+    "CMP\0AX,%i16\0""3Dj\0"
     "DS\0\0""3E\0"
     "AAS\0\0""3F\0"
-    "INC\0%r16\0""zozzzr16\0"
-    "DEC\0%r16\0""zozzor16\0"
-    "PUSH\0%r16\0""zozozr16\0"
-    "POP\0%r16\0""zozoor16\0"
-    "JO\0%a8\0""70a8\0"
-    "JNO\0%a8\0""71a8\0"
-    "JB\0%a8\0""72a8\0"
-    "JC\0%a8\0""72a8\0"
-    "JNB\0%a8\0""73a8\0"
-    "JNC\0%a8\0""73a8\0"
-    "JZ\0%a8\0""74a8\0"
-    "JNZ\0%a8\0""75a8\0"
-    "JE\0%a8\0""74a8\0"
-    "JNE\0%a8\0""75a8\0"
-    "JBE\0%a8\0""76a8\0"
-    "JA\0%a8\0""77a8\0"
-    "JS\0%a8\0""78a8\0"
-    "JNS\0%a8\0""79a8\0"
-    "JPE\0%a8\0""7Aa8\0"
-    "JPO\0%a8\0""7Ba8\0"
-    "JL\0%a8\0""7Ca8\0"
-    "JGE\0%a8\0""7Da8\0"
-    "JLE\0%a8\0""7Ea8\0"
-    "JG\0%a8\0""7Fa8\0"
-    "ADD\0%d16,%s8\0""83d16zzzd16s8\0"
-    "OR\0%d16,%s8\0""83d16zzod16s8\0"
-    "ADC\0%d16,%s8\0""83d16zozd16s8\0"
-    "SBB\0%d16,%s8\0""83d16zood16s8\0"
-    "AND\0%d16,%s8\0""83d16ozzd16s8\0"
-    "SUB\0%d16,%s8\0""83d16ozod16s8\0"
-    "XOR\0%d16,%s8\0""83d16oozd16s8\0"
-    "CMP\0%d16,%s8\0""83d16oood16s8\0"
-    "ADD\0%d8,%i8\0""80d8zzzd8i8\0"
-    "OR\0%d8,%i8\0""80d8zzod8i8\0"
-    "ADC\0%d8,%i8\0""80d8zozd8i8\0"
-    "SBB\0%d8,%i8\0""80d8zood8i8\0"
-    "AND\0%d8,%i8\0""80d8ozzd8i8\0"
-    "SUB\0%d8,%i8\0""80d8ozod8i8\0"
-    "XOR\0%d8,%i8\0""80d8oozd8i8\0"
-    "CMP\0%d8,%i8\0""80d8oood8i8\0"
-    "ADD\0%d16,%i16\0""81d16zzzd16i16\0"
-    "OR\0%d16,%i16\0""81d16zzod16i16\0"
-    "ADC\0%d16,%i16\0""81d16zozd16i16\0"
-    "SBB\0%d16,%i16\0""81d16zood16i16\0"
-    "AND\0%d16,%i16\0""81d16ozzd16i16\0"
-    "SUB\0%d16,%i16\0""81d16ozod16i16\0"
-    "XOR\0%d16,%i16\0""81d16oozd16i16\0"
-    "CMP\0%d16,%i16\0""81d16oood16i16\0"
-    "TEST\0%d8,%r8\0""84d8r8d8\0"
-    "TEST\0%r8,%d8\0""84d8r8d8\0"
-    "TEST\0%d16,%r16\0""85d16r16d16\0"
-    "TEST\0%r16,%d16\0""85d16r16d16\0"
+    "INC\0%r16\0""zozzzr\0"
+    "DEC\0%r16\0""zozzor\0"
+    "PUSH\0%r16\0""zozozr\0"
+    "POP\0%r16\0""zozoor\0"
+    "JO\0%a8\0""70a\0"
+    "JNO\0%a8\0""71a\0"
+    "JB\0%a8\0""72a\0"
+    "JC\0%a8\0""72a\0"
+    "JNB\0%a8\0""73a\0"
+    "JNC\0%a8\0""73a\0"
+    "JZ\0%a8\0""74a\0"
+    "JNZ\0%a8\0""75a\0"
+    "JE\0%a8\0""74a\0"
+    "JNE\0%a8\0""75a\0"
+    "JBE\0%a8\0""76a\0"
+    "JA\0%a8\0""77a\0"
+    "JS\0%a8\0""78a\0"
+    "JNS\0%a8\0""79a\0"
+    "JPE\0%a8\0""7Aa\0"
+    "JPO\0%a8\0""7Ba\0"
+    "JL\0%a8\0""7Ca\0"
+    "JGE\0%a8\0""7Da\0"
+    "JLE\0%a8\0""7Ea\0"
+    "JG\0%a8\0""7Fa\0"
+    "ADD\0%d16,%s8\0""83dzzzdi\0"
+    "OR\0%d16,%s8\0""83dzzodi\0"
+    "ADC\0%d16,%s8\0""83dzozdi\0"
+    "SBB\0%d16,%s8\0""83dzoodi\0"
+    "AND\0%d16,%s8\0""83dozzdi\0"
+    "SUB\0%d16,%s8\0""83dozodi\0"
+    "XOR\0%d16,%s8\0""83doozdi\0"
+    "CMP\0%d16,%s8\0""83dooodi\0"
+    "ADD\0%d8,%i8\0""80dzzzdi\0"
+    "OR\0%d8,%i8\0""80dzzodi\0"
+    "ADC\0%d8,%i8\0""80dzozdi\0"
+    "SBB\0%d8,%i8\0""80dzoodi\0"
+    "AND\0%d8,%i8\0""80dozzdi\0"
+    "SUB\0%d8,%i8\0""80dozodi\0"
+    "XOR\0%d8,%i8\0""80doozdi\0"
+    "CMP\0%d8,%i8\0""80dooodi\0"
+    "ADD\0%d16,%i16\0""81dzzzdj\0"
+    "OR\0%d16,%i16\0""81dzzodj\0"
+    "ADC\0%d16,%i16\0""81dzozdj\0"
+    "SBB\0%d16,%i16\0""81dzoodj\0"
+    "AND\0%d16,%i16\0""81dozzdj\0"
+    "SUB\0%d16,%i16\0""81dozodj\0"
+    "XOR\0%d16,%i16\0""81doozdj\0"
+    "CMP\0%d16,%i16\0""81dooodj\0"
+    "TEST\0%d8,%r8\0""84drd\0"
+    "TEST\0%r8,%d8\0""84drd\0"
+    "TEST\0%d16,%r16\0""85drd\0"
+    "TEST\0%r16,%d16\0""85drd\0"
 
-    "MOV\0AL,[%i16]\0""A0i16\0"
-    "MOV\0AX,[%i16]\0""A1i16\0"
-    "MOV\0[%i16],AL\0""A2i16\0"
-    "MOV\0[%i16],AX\0""A3i16\0"
-    "MOV\0%d8,%r8\0""88d8r8d8\0"
-    "MOV\0%d16,%r16\0""89d16r16d16\0"
-    "MOV\0%r8,%d8\0""8Ad8r8d8\0"
-    "MOV\0%r16,%d16\0""8Bd16r16d16\0"
+    "MOV\0AL,[%i16]\0""A0j\0"
+    "MOV\0AX,[%i16]\0""A1j\0"
+    "MOV\0[%i16],AL\0""A2j\0"
+    "MOV\0[%i16],AX\0""A3j\0"
+    "MOV\0%d8,%r8\0""88drd\0"
+    "MOV\0%d16,%r16\0""89drd\0"
+    "MOV\0%r8,%d8\0""8Adrd\0"
+    "MOV\0%r16,%d16\0""8Bdrd\0"
 
-    "MOV\0%d16,ES\0""8Cd16zzzd16\0"
-    "MOV\0%d16,CS\0""8Cd16zzod16\0"
-    "MOV\0%d16,SS\0""8Cd16zozd16\0"
-    "MOV\0%d16,DS\0""8Cd16zood16\0"
-    "LEA\0%r16,%d16\0""8Dd16r16d16\0"
-    "MOV\0ES,%d16\0""8Ed16zzzd16\0"
-    "MOV\0CS,%d16\0""8Ed16zzod16\0"
-    "MOV\0SS,%d16\0""8Ed16zozd16\0"
-    "MOV\0DS,%d16\0""8Ed16zood16\0"
-    "POP\0%d16\0""8Fd16zzzd16\0"
+    "MOV\0%d16,ES\0""8Cdzzzd\0"
+    "MOV\0%d16,CS\0""8Cdzzod\0"
+    "MOV\0%d16,SS\0""8Cdzozd\0"
+    "MOV\0%d16,DS\0""8Cdzood\0"
+    "LEA\0%r16,%d16\0""8Ddrd\0"
+    "MOV\0ES,%d16\0""8Edzzzd\0"
+    "MOV\0CS,%d16\0""8Edzzod\0"
+    "MOV\0SS,%d16\0""8Edzozd\0"
+    "MOV\0DS,%d16\0""8Edzood\0"
+    "POP\0%d16\0""8Fdzzzd\0"
     "NOP\0\0""90\0"
-    "XCHG\0AX,%r16\0""ozzozr16\0"
-    "XCHG\0%r16,AX\0""ozzozr16\0"
-    "XCHG\0%d8,%r8\0""86d8r8d8\0"
-    "XCHG\0%r8,%d8\0""86d8r8d8\0"
-    "XCHG\0%d16,%r16\0""87d16r16d16\0"
-    "XCHG\0%r16,%d16\0""87d16r16d16\0"
+    "XCHG\0AX,%r16\0""ozzozr\0"
+    "XCHG\0%r16,AX\0""ozzozr\0"
+    "XCHG\0%d8,%r8\0""86drd\0"
+    "XCHG\0%r8,%d8\0""86drd\0"
+    "XCHG\0%d16,%r16\0""87drd\0"
+    "XCHG\0%r16,%d16\0""87drd\0"
     "CBW\0\0""98\0"
     "CWD\0\0""99\0"
     "WAIT\0\0""9B\0"
@@ -2549,82 +2515,82 @@ const char instruction_set[] =
     "MOVSW\0\0""A5\0"
     "CMPSB\0\0""A6\0"
     "CMPSW\0\0""A7\0"
-    "TEST\0AL,%i8\0""A8i8\0"
-    "TEST\0AX,%i16\0""A9i16\0"
+    "TEST\0AL,%i8\0""A8i\0"
+    "TEST\0AX,%i16\0""A9j\0"
     "STOSB\0\0""AA\0"
     "STOSW\0\0""AB\0"
     "LODSB\0\0""AC\0"
     "LODSW\0\0""AD\0"
     "SCASB\0\0""AE\0"
     "SCASW\0\0""AF\0"
-    "MOV\0%r8,%i8\0""ozoozr8i8\0"
-    "MOV\0%r16,%i16\0""ozooor16i16\0"
-    "RET\0%i16\0""C2i16\0"
+    "MOV\0%r8,%i8\0""ozoozri\0"
+    "MOV\0%r16,%i16\0""ozooorj\0"
+    "RET\0%i16\0""C2j\0"
     "RET\0\0""C3\0"
-    "LES\0%r16,%d16\0""oozzzozzd16r16d16\0"
-    "LDS\0%r16,%d16\0""oozzzozod16r16d16\0"
-    "MOV\0%db8,%i8\0""oozzzoozd8zzzd8i8\0"
-    "MOV\0%dw16,%i16\0""oozzzoood16zzzd16i16\0"
-    "RETF\0%i16\0""CAi16\0"
+    "LES\0%r16,%d16\0""oozzzozzdrd\0"
+    "LDS\0%r16,%d16\0""oozzzozodrd\0"
+    "MOV\0%db8,%i8\0""oozzzoozdzzzdi\0"
+    "MOV\0%dw16,%i16\0""oozzzooodzzzdj\0"
+    "RETF\0%i16\0""CAj\0"
     "RETF\0\0""CB\0"
     "INT3\0\0""CC\0"
-    "INT\0%i8\0""CDi8\0"
+    "INT\0%i8\0""CDi\0"
     "INTO\0\0""CE\0"
     "IRET\0\0""CF\0"
-    "ROL\0%d8,1\0""D0d8zzzd8\0"
-    "ROR\0%d8,1\0""D0d8zzod8\0"
-    "RCL\0%d8,1\0""D0d8zozd8\0"
-    "RCR\0%d8,1\0""D0d8zood8\0"
-    "SHL\0%d8,1\0""D0d8ozzd8\0"
-    "SHR\0%d8,1\0""D0d8ozod8\0"
-    "SAR\0%d8,1\0""D0d8oood8\0"
-    "ROL\0%d16,1\0""D1d16zzzd16\0"
-    "ROR\0%d16,1\0""D1d16zzod16\0"
-    "RCL\0%d16,1\0""D1d16zozd16\0"
-    "RCR\0%d16,1\0""D1d16zood16\0"
-    "SHL\0%d16,1\0""D1d16ozzd16\0"
-    "SHR\0%d16,1\0""D1d16ozod16\0"
-    "SAR\0%d16,1\0""D1d16oood16\0"
-    "ROL\0%d8,CL\0""D2d8zzzd8\0"
-    "ROR\0%d8,CL\0""D2d8zzod8\0"
-    "RCL\0%d8,CL\0""D2d8zozd8\0"
-    "RCR\0%d8,CL\0""D2d8zood8\0"
-    "SHL\0%d8,CL\0""D2d8ozzd8\0"
-    "SHR\0%d8,CL\0""D2d8ozod8\0"
-    "SAR\0%d8,CL\0""D2d8oood8\0"
-    "ROL\0%d16,CL\0""D3d16zzzd16\0"
-    "ROR\0%d16,CL\0""D3d16zzod16\0"
-    "RCL\0%d16,CL\0""D3d16zozd16\0"
-    "RCR\0%d16,CL\0""D3d16zood16\0"
-    "SHL\0%d16,CL\0""D3d16ozzd16\0"
-    "SHR\0%d16,CL\0""D3d16ozod16\0"
-    "SAR\0%d16,CL\0""D3d16oood16\0"
+    "ROL\0%d8,1\0""D0dzzzd\0"
+    "ROR\0%d8,1\0""D0dzzod\0"
+    "RCL\0%d8,1\0""D0dzozd\0"
+    "RCR\0%d8,1\0""D0dzood\0"
+    "SHL\0%d8,1\0""D0dozzd\0"
+    "SHR\0%d8,1\0""D0dozod\0"
+    "SAR\0%d8,1\0""D0doood\0"
+    "ROL\0%d16,1\0""D1dzzzd\0"
+    "ROR\0%d16,1\0""D1dzzod\0"
+    "RCL\0%d16,1\0""D1dzozd\0"
+    "RCR\0%d16,1\0""D1dzood\0"
+    "SHL\0%d16,1\0""D1dozzd\0"
+    "SHR\0%d16,1\0""D1dozod\0"
+    "SAR\0%d16,1\0""D1doood\0"
+    "ROL\0%d8,CL\0""D2dzzzd\0"
+    "ROR\0%d8,CL\0""D2dzzod\0"
+    "RCL\0%d8,CL\0""D2dzozd\0"
+    "RCR\0%d8,CL\0""D2dzood\0"
+    "SHL\0%d8,CL\0""D2dozzd\0"
+    "SHR\0%d8,CL\0""D2dozod\0"
+    "SAR\0%d8,CL\0""D2doood\0"
+    "ROL\0%d16,CL\0""D3dzzzd\0"
+    "ROR\0%d16,CL\0""D3dzzod\0"
+    "RCL\0%d16,CL\0""D3dzozd\0"
+    "RCR\0%d16,CL\0""D3dzood\0"
+    "SHL\0%d16,CL\0""D3dozzd\0"
+    "SHR\0%d16,CL\0""D3dozod\0"
+    "SAR\0%d16,CL\0""D3doood\0"
     "AAM\0\0""D40A\0"
     "AAD\0\0""D50A\0"
     "XLAT\0\0""D7\0"
-    "LOOPNZ\0%a8\0""E0a8\0"
-    "LOOPNE\0%a8\0""E0a8\0"
-    "LOOPZ\0%a8\0""E1a8\0"
-    "LOOPE\0%a8\0""E1a8\0"
-    "LOOP\0%a8\0""E2a8\0"
-    "JCXZ\0%a8\0""E3a8\0"
+    "LOOPNZ\0%a8\0""E0a\0"
+    "LOOPNE\0%a8\0""E0a\0"
+    "LOOPZ\0%a8\0""E1a\0"
+    "LOOPE\0%a8\0""E1a\0"
+    "LOOP\0%a8\0""E2a\0"
+    "JCXZ\0%a8\0""E3a\0"
     "IN\0AL,DX\0""EC\0"
     "IN\0AX,DX\0""ED\0"
     "OUT\0DX,AL\0""EE\0"
     "OUT\0DX,AX\0""EF\0"
-    "IN\0AL,%i8\0""E4i8\0"
-    "IN\0AX,%i8\0""E5i8\0"
-    "OUT\0%i8,AL\0""E6i8\0"
-    "OUT\0%i8,AX\0""E7i8\0"
-    "CALL\0FAR %d16\0""FFd16zood16\0"
-    "JMP\0FAR %d16\0""FFd16ozod16\0"
+    "IN\0AL,%i8\0""E4i\0"
+    "IN\0AX,%i8\0""E5i\0"
+    "OUT\0%i8,AL\0""E6i\0"
+    "OUT\0%i8,AX\0""E7i\0"
+    "CALL\0FAR %d16\0""FFdzood\0"
+    "JMP\0FAR %d16\0""FFdozod\0"
     "CALL\0%f32\0""9Af\0"
     "JMP\0%f32\0""EAf\0"
-    "CALL\0%d16\0""FFd16zozd16\0"
-    "JMP\0%d16\0""FFd16ozzd16\0"
-    "JMP\0%a8\0""EBa8\0"
-    "JMP\0%a16\0""E9a16\0"
-    "CALL\0%a16\0""E8a16\0"
+    "CALL\0%d16\0""FFdzozd\0"
+    "JMP\0%d16\0""FFdozzd\0"
+    "JMP\0%a8\0""EBa\0"
+    "JMP\0%a16\0""E9b\0"
+    "CALL\0%a16\0""E8b\0"
     "LOCK\0\0""F0\0"
     "REPNZ\0\0""F2\0"
     "REPNE\0\0""F2\0"
@@ -2633,29 +2599,29 @@ const char instruction_set[] =
     "REP\0\0""F3\0"
     "HLT\0\0""F4\0"
     "CMC\0\0""F5\0"
-    "TEST\0%db8,%i8\0""F6d8zzzd8i8\0"
-    "NOT\0%db8\0""F6d8zozd8\0"
-    "NEG\0%db8\0""F6d8zood8\0"
-    "MUL\0%db8\0""F6d8ozzd8\0"
-    "IMUL\0%db8\0""F6d8ozod8\0"
-    "DIV\0%db8\0""F6d8oozd8\0"
-    "IDIV\0%db8\0""F6d8oood8\0"
-    "TEST\0%dw16,%i16\0""F7d8zzzd8i16\0"
-    "NOT\0%dw16\0""F7d8zozd8\0"
-    "NEG\0%dw16\0""F7d8zood8\0"
-    "MUL\0%dw16\0""F7d8ozzd8\0"
-    "IMUL\0%dw16\0""F7d8ozod8\0"
-    "DIV\0%dw16\0""F7d8oozd8\0"
-    "IDIV\0%dw16\0""F7d8oood8\0"
+    "TEST\0%db8,%i8\0""F6dzzzdi\0"
+    "NOT\0%db8\0""F6dzozd\0"
+    "NEG\0%db8\0""F6dzood\0"
+    "MUL\0%db8\0""F6dozzd\0"
+    "IMUL\0%db8\0""F6dozod\0"
+    "DIV\0%db8\0""F6doozd\0"
+    "IDIV\0%db8\0""F6doood\0"
+    "TEST\0%dw16,%i16\0""F7dzzzdj\0"
+    "NOT\0%dw16\0""F7dzozd\0"
+    "NEG\0%dw16\0""F7dzood\0"
+    "MUL\0%dw16\0""F7dozzd\0"
+    "IMUL\0%dw16\0""F7dozod\0"
+    "DIV\0%dw16\0""F7doozd\0"
+    "IDIV\0%dw16\0""F7doood\0"
     "CLC\0\0""F8\0"
     "STC\0\0""F9\0"
     "CLI\0\0""FA\0"
     "STI\0\0""FB\0"
     "CLD\0\0""FC\0"
     "STD\0\0""FD\0"
-    "INC\0%db8\0""FEd8zzzd8\0"
-    "DEC\0%db8\0""FEd8zzod8\0"
-    "INC\0%dw16\0""FFd16zzzd16\0"
-    "DEC\0%dw16\0""FFd16zzod16\0"
-    "PUSH\0%d16\0""FFd16oozd16\0"
+    "INC\0%db8\0""FEdzzzd\0"
+    "DEC\0%db8\0""FEdzzod\0"
+    "INC\0%dw16\0""FFdzzzd\0"
+    "DEC\0%dw16\0""FFdzzod\0"
+    "PUSH\0%d16\0""FFdoozd\0"
 ;
