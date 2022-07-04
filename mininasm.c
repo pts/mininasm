@@ -1333,22 +1333,14 @@ const char *match(const char *p, const char *pattern, const char *decode) {
      */
     base = decode;
     while (*decode) {
-        decode = avoid_spaces(decode);
-        if (decode[0] == 'x') { /* Byte */
-            c = toupper(decode[1]);
-            c -= '0';
-            if (c > 9)
-                c -= 7;
-            d = toupper(decode[2]);
-            d -= '0';
-            if (d > 9)
-                d -= 7;
-            c = (c << 4) | d;
-            emit_byte(c);
-            decode += 3;
+        if (decode[0] == 'x') { /* Byte: lowercase hex. */
+            c = *++decode - '0';
+            if (c > 9) c -= 7 + 32;
+            d = *++decode - '0';
+            if (d > 9) d -= 7 + 32;
+            ++decode;
+            emit_byte((c << 4) | d);
         } else {    /* Binary */
-            if (*decode == 'b')
-                decode++;
             bit = 0;
             c = 0;
             d = 0;
@@ -1360,72 +1352,66 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     c |= 0x80 >> bit;
                     decode++;
                     bit++;
-                } else if (decode[0] == '%') {  /* Special */
+                } else if (decode[0] == 'r') { /* Register field */
                     decode++;
-                    if (decode[0] == 'r') { /* Register field */
+                    if (decode[0] == '8')
                         decode++;
-                        if (decode[0] == '8')
-                            decode++;
-                        else if (decode[0] == '1' && decode[1] == '6')
-                            decode += 2;
-                        c |= instruction_register << (5 - bit);
-                        bit += 3;
-                    } else if (decode[0] == 'd') {  /* Addressing field */
-                        if (decode[1] == '8')
-                            decode += 2;
-                        else
-                            decode += 3;
-                        if (bit == 0) {
-                            c |= instruction_addressing & 0xc0;
-                            bit += 2;
-                        } else {
-                            c |= instruction_addressing & 0x07;
-                            bit += 3;
-                            d = 1;
-                        }
-                    } else if (decode[0] == 'i' || decode[0] == 's') {
-                        if (decode[1] == '8') {
-                            decode += 2;
-                            c = instruction_value;
-                            break;
-                        } else {
-                            decode += 3;
-                            c = instruction_value;
-                            instruction_offset = instruction_value >> 8;
-                            instruction_offset_width = 1;
-                            d = 1;
-                            break;
-                        }
-                    } else if (decode[0] == 'a') {
-                        if (decode[1] == '8') {
-                            decode += 2;
-                            c = instruction_value - (address + 1);
-                            if (assembler_step == 2 && (c < -128 || c > 127))
-                                message(1, "short jump too long");
-                            break;
-                        } else {
-                            decode += 3;
-                            c = instruction_value - (address + 2);
-                            instruction_offset = c >> 8;
-                            instruction_offset_width = 1;
-                            d = 1;
-                            break;
-                        }
-                    } else if (decode[0] == 'f') {
+                    else if (decode[0] == '1' && decode[1] == '6')
+                        decode += 2;
+                    c |= instruction_register << (5 - bit);
+                    bit += 3;
+                } else if (decode[0] == 'd') {  /* Addressing field */
+                    if (decode[1] == '8')
+                        decode += 2;
+                    else
                         decode += 3;
-                        emit_byte(instruction_value);
-                        c = instruction_value >> 8;
-                        instruction_offset = segment_value;
-                        instruction_offset_width = 2;
+                    if (bit == 0) {
+                        c |= instruction_addressing & 0xc0;
+                        bit += 2;
+                    } else {
+                        c |= instruction_addressing & 0x07;
+                        bit += 3;
                         d = 1;
+                    }
+                } else if (decode[0] == 'i' || decode[0] == 's') {
+                    if (decode[1] == '8') {
+                        decode += 2;
+                        c = instruction_value;
                         break;
                     } else {
-                        message(1, "decode: internal error 2");
-                        exit(2);
+                        decode += 3;
+                        c = instruction_value;
+                        instruction_offset = instruction_value >> 8;
+                        instruction_offset_width = 1;
+                        d = 1;
+                        break;
                     }
+                } else if (decode[0] == 'a') {
+                    if (decode[1] == '8') {
+                        decode += 2;
+                        c = instruction_value - (address + 1);
+                        if (assembler_step == 2 && (c < -128 || c > 127))
+                            message(1, "short jump too long");
+                        break;
+                    } else {
+                        decode += 3;
+                        c = instruction_value - (address + 2);
+                        instruction_offset = c >> 8;
+                        instruction_offset_width = 1;
+                        d = 1;
+                        break;
+                    }
+                } else if (decode[0] == 'f') {
+                    decode += 3;
+                    emit_byte(instruction_value);
+                    c = instruction_value >> 8;
+                    instruction_offset = segment_value;
+                    instruction_offset_width = 2;
+                    d = 1;
+                    break;
                 } else {
                     message_start(1);
-                    bbprintf(&message_bbb, "decode: internal error 1 (%s)", base);
+                    bbprintf(&message_bbb, "decode: internal error (%s)", base);
                     message_end();
                     exit(2);
                     break;
@@ -2410,148 +2396,148 @@ int main(int argc, char **argv) {
  ** Notice some instructions are sorted by less byte usage first.
  */
 const char instruction_set[] =
-    "ADD\0%d8,%r8\0x00 %d8%r8%d8\0"
-    "ADD\0%d16,%r16\0x01 %d16%r16%d16\0"
-    "ADD\0%r8,%d8\0x02 %d8%r8%d8\0"
-    "ADD\0%r16,%d16\0x03 %d16%r16%d16\0"
-    "ADD\0AL,%i8\0x04 %i8\0"
-    "ADD\0AX,%i16\0x05 %i16\0"
+    "ADD\0%d8,%r8\0x00d8r8d8\0"
+    "ADD\0%d16,%r16\0x01d16r16d16\0"
+    "ADD\0%r8,%d8\0x02d8r8d8\0"
+    "ADD\0%r16,%d16\0x03d16r16d16\0"
+    "ADD\0AL,%i8\0x04i8\0"
+    "ADD\0AX,%i16\0x05i16\0"
     "PUSH\0ES\0x06\0"
     "POP\0ES\0x07\0"
-    "OR\0%d8,%r8\0x08 %d8%r8%d8\0"
-    "OR\0%d16,%r16\0x09 %d16%r16%d16\0"
-    "OR\0%r8,%d8\0x0a %d8%r8%d8\0"
-    "OR\0%r16,%d16\0x0b %d16%r16%d16\0"
-    "OR\0AL,%i8\0x0c %i8\0"
-    "OR\0AX,%i16\0x0d %i16\0"
+    "OR\0%d8,%r8\0x08d8r8d8\0"
+    "OR\0%d16,%r16\0x09d16r16d16\0"
+    "OR\0%r8,%d8\0x0ad8r8d8\0"
+    "OR\0%r16,%d16\0x0bd16r16d16\0"
+    "OR\0AL,%i8\0x0ci8\0"
+    "OR\0AX,%i16\0x0di16\0"
     "PUSH\0CS\0x0e\0"
-    "ADC\0%d8,%r8\0x10 %d8%r8%d8\0"
-    "ADC\0%d16,%r16\0x11 %d16%r16%d16\0"
-    "ADC\0%r8,%d8\0x12 %d8%r8%d8\0"
-    "ADC\0%r16,%d16\0x13 %d16%r16%d16\0"
-    "ADC\0AL,%i8\0x14 %i8\0"
-    "ADC\0AX,%i16\0x15 %i16\0"
+    "ADC\0%d8,%r8\0x10d8r8d8\0"
+    "ADC\0%d16,%r16\0x11d16r16d16\0"
+    "ADC\0%r8,%d8\0x12d8r8d8\0"
+    "ADC\0%r16,%d16\0x13d16r16d16\0"
+    "ADC\0AL,%i8\0x14i8\0"
+    "ADC\0AX,%i16\0x15i16\0"
     "PUSH\0SS\0x16\0"
     "POP\0SS\0x17\0"
-    "SBB\0%d8,%r8\0x18 %d8%r8%d8\0"
-    "SBB\0%d16,%r16\0x19 %d16%r16%d16\0"
-    "SBB\0%r8,%d8\0x1a %d8%r8%d8\0"
-    "SBB\0%r16,%d16\0x1b %d16%r16%d16\0"
-    "SBB\0AL,%i8\0x1c %i8\0"
-    "SBB\0AX,%i16\0x1d %i16\0"
+    "SBB\0%d8,%r8\0x18d8r8d8\0"
+    "SBB\0%d16,%r16\0x19d16r16d16\0"
+    "SBB\0%r8,%d8\0x1ad8r8d8\0"
+    "SBB\0%r16,%d16\0x1bd16r16d16\0"
+    "SBB\0AL,%i8\0x1ci8\0"
+    "SBB\0AX,%i16\0x1di16\0"
     "PUSH\0DS\0x1e\0"
     "POP\0DS\0x1f\0"
-    "AND\0%d8,%r8\0x20 %d8%r8%d8\0"
-    "AND\0%d16,%r16\0x21 %d16%r16%d16\0"
-    "AND\0%r8,%d8\0x22 %d8%r8%d8\0"
-    "AND\0%r16,%d16\0x23 %d16%r16%d16\0"
-    "AND\0AL,%i8\0x24 %i8\0"
-    "AND\0AX,%i16\0x25 %i16\0"
+    "AND\0%d8,%r8\0x20d8r8d8\0"
+    "AND\0%d16,%r16\0x21d16r16d16\0"
+    "AND\0%r8,%d8\0x22d8r8d8\0"
+    "AND\0%r16,%d16\0x23d16r16d16\0"
+    "AND\0AL,%i8\0x24i8\0"
+    "AND\0AX,%i16\0x25i16\0"
     "ES\0\0x26\0"
     "DAA\0\0x27\0"
-    "SUB\0%d8,%r8\0x28 %d8%r8%d8\0"
-    "SUB\0%d16,%r16\0x29 %d16%r16%d16\0"
-    "SUB\0%r8,%d8\0x2a %d8%r8%d8\0"
-    "SUB\0%r16,%d16\0x2b %d16%r16%d16\0"
-    "SUB\0AL,%i8\0x2c %i8\0"
-    "SUB\0AX,%i16\0x2d %i16\0"
+    "SUB\0%d8,%r8\0x28d8r8d8\0"
+    "SUB\0%d16,%r16\0x29d16r16d16\0"
+    "SUB\0%r8,%d8\0x2ad8r8d8\0"
+    "SUB\0%r16,%d16\0x2bd16r16d16\0"
+    "SUB\0AL,%i8\0x2ci8\0"
+    "SUB\0AX,%i16\0x2di16\0"
     "CS\0\0x2e\0"
     "DAS\0\0x2f\0"
-    "XOR\0%d8,%r8\0x30 %d8%r8%d8\0"
-    "XOR\0%d16,%r16\0x31 %d16%r16%d16\0"
-    "XOR\0%r8,%d8\0x32 %d8%r8%d8\0"
-    "XOR\0%r16,%d16\0x33 %d16%r16%d16\0"
-    "XOR\0AL,%i8\0x34 %i8\0"
-    "XOR\0AX,%i16\0x35 %i16\0"
+    "XOR\0%d8,%r8\0x30d8r8d8\0"
+    "XOR\0%d16,%r16\0x31d16r16d16\0"
+    "XOR\0%r8,%d8\0x32d8r8d8\0"
+    "XOR\0%r16,%d16\0x33d16r16d16\0"
+    "XOR\0AL,%i8\0x34i8\0"
+    "XOR\0AX,%i16\0x35i16\0"
     "SS\0\0x36\0"
     "AAA\0\0x37\0"
-    "CMP\0%d8,%r8\0x38 %d8%r8%d8\0"
-    "CMP\0%d16,%r16\0x39 %d16%r16%d16\0"
-    "CMP\0%r8,%d8\0x3a %d8%r8%d8\0"
-    "CMP\0%r16,%d16\0x3b %d16%r16%d16\0"
-    "CMP\0AL,%i8\0x3c %i8\0"
-    "CMP\0AX,%i16\0x3d %i16\0"
+    "CMP\0%d8,%r8\0x38d8r8d8\0"
+    "CMP\0%d16,%r16\0x39d16r16d16\0"
+    "CMP\0%r8,%d8\0x3ad8r8d8\0"
+    "CMP\0%r16,%d16\0x3bd16r16d16\0"
+    "CMP\0AL,%i8\0x3ci8\0"
+    "CMP\0AX,%i16\0x3di16\0"
     "DS\0\0x3e\0"
     "AAS\0\0x3f\0"
-    "INC\0%r16\0b01000%r16\0"
-    "DEC\0%r16\0b01001%r16\0"
-    "PUSH\0%r16\0b01010%r16\0"
-    "POP\0%r16\0b01011%r16\0"
-    "JO\0%a8\0x70 %a8\0"
-    "JNO\0%a8\0x71 %a8\0"
-    "JB\0%a8\0x72 %a8\0"
-    "JC\0%a8\0x72 %a8\0"
-    "JNB\0%a8\0x73 %a8\0"
-    "JNC\0%a8\0x73 %a8\0"
-    "JZ\0%a8\0x74 %a8\0"
-    "JNZ\0%a8\0x75 %a8\0"
-    "JE\0%a8\0x74 %a8\0"
-    "JNE\0%a8\0x75 %a8\0"
-    "JBE\0%a8\0x76 %a8\0"
-    "JA\0%a8\0x77 %a8\0"
-    "JS\0%a8\0x78 %a8\0"
-    "JNS\0%a8\0x79 %a8\0"
-    "JPE\0%a8\0x7a %a8\0"
-    "JPO\0%a8\0x7b %a8\0"
-    "JL\0%a8\0x7C %a8\0"
-    "JGE\0%a8\0x7D %a8\0"
-    "JLE\0%a8\0x7E %a8\0"
-    "JG\0%a8\0x7F %a8\0"
-    "ADD\0%d16,%s8\0x83 %d16000%d16 %s8\0"
-    "OR\0%d16,%s8\0x83 %d16001%d16 %s8\0"
-    "ADC\0%d16,%s8\0x83 %d16010%d16 %s8\0"
-    "SBB\0%d16,%s8\0x83 %d16011%d16 %s8\0"
-    "AND\0%d16,%s8\0x83 %d16100%d16 %s8\0"
-    "SUB\0%d16,%s8\0x83 %d16101%d16 %s8\0"
-    "XOR\0%d16,%s8\0x83 %d16110%d16 %s8\0"
-    "CMP\0%d16,%s8\0x83 %d16111%d16 %s8\0"
-    "ADD\0%d8,%i8\0x80 %d8000%d8 %i8\0"
-    "OR\0%d8,%i8\0x80 %d8001%d8 %i8\0"
-    "ADC\0%d8,%i8\0x80 %d8010%d8 %i8\0"
-    "SBB\0%d8,%i8\0x80 %d8011%d8 %i8\0"
-    "AND\0%d8,%i8\0x80 %d8100%d8 %i8\0"
-    "SUB\0%d8,%i8\0x80 %d8101%d8 %i8\0"
-    "XOR\0%d8,%i8\0x80 %d8110%d8 %i8\0"
-    "CMP\0%d8,%i8\0x80 %d8111%d8 %i8\0"
-    "ADD\0%d16,%i16\0x81 %d16000%d16 %i16\0"
-    "OR\0%d16,%i16\0x81 %d16001%d16 %i16\0"
-    "ADC\0%d16,%i16\0x81 %d16010%d16 %i16\0"
-    "SBB\0%d16,%i16\0x81 %d16011%d16 %i16\0"
-    "AND\0%d16,%i16\0x81 %d16100%d16 %i16\0"
-    "SUB\0%d16,%i16\0x81 %d16101%d16 %i16\0"
-    "XOR\0%d16,%i16\0x81 %d16110%d16 %i16\0"
-    "CMP\0%d16,%i16\0x81 %d16111%d16 %i16\0"
-    "TEST\0%d8,%r8\0x84 %d8%r8%d8\0"
-    "TEST\0%r8,%d8\0x84 %d8%r8%d8\0"
-    "TEST\0%d16,%r16\0x85 %d16%r16%d16\0"
-    "TEST\0%r16,%d16\0x85 %d16%r16%d16\0"
+    "INC\0%r16\0""01000r16\0"
+    "DEC\0%r16\0""01001r16\0"
+    "PUSH\0%r16\0""01010r16\0"
+    "POP\0%r16\0""01011r16\0"
+    "JO\0%a8\0x70a8\0"
+    "JNO\0%a8\0x71a8\0"
+    "JB\0%a8\0x72a8\0"
+    "JC\0%a8\0x72a8\0"
+    "JNB\0%a8\0x73a8\0"
+    "JNC\0%a8\0x73a8\0"
+    "JZ\0%a8\0x74a8\0"
+    "JNZ\0%a8\0x75a8\0"
+    "JE\0%a8\0x74a8\0"
+    "JNE\0%a8\0x75a8\0"
+    "JBE\0%a8\0x76a8\0"
+    "JA\0%a8\0x77a8\0"
+    "JS\0%a8\0x78a8\0"
+    "JNS\0%a8\0x79a8\0"
+    "JPE\0%a8\0x7aa8\0"
+    "JPO\0%a8\0x7ba8\0"
+    "JL\0%a8\0x7ca8\0"
+    "JGE\0%a8\0x7da8\0"
+    "JLE\0%a8\0x7ea8\0"
+    "JG\0%a8\0x7fa8\0"
+    "ADD\0%d16,%s8\0x83d16000d16s8\0"
+    "OR\0%d16,%s8\0x83d16001d16s8\0"
+    "ADC\0%d16,%s8\0x83d16010d16s8\0"
+    "SBB\0%d16,%s8\0x83d16011d16s8\0"
+    "AND\0%d16,%s8\0x83d16100d16s8\0"
+    "SUB\0%d16,%s8\0x83d16101d16s8\0"
+    "XOR\0%d16,%s8\0x83d16110d16s8\0"
+    "CMP\0%d16,%s8\0x83d16111d16s8\0"
+    "ADD\0%d8,%i8\0x80d8000d8i8\0"
+    "OR\0%d8,%i8\0x80d8001d8i8\0"
+    "ADC\0%d8,%i8\0x80d8010d8i8\0"
+    "SBB\0%d8,%i8\0x80d8011d8i8\0"
+    "AND\0%d8,%i8\0x80d8100d8i8\0"
+    "SUB\0%d8,%i8\0x80d8101d8i8\0"
+    "XOR\0%d8,%i8\0x80d8110d8i8\0"
+    "CMP\0%d8,%i8\0x80d8111d8i8\0"
+    "ADD\0%d16,%i16\0x81d16000d16i16\0"
+    "OR\0%d16,%i16\0x81d16001d16i16\0"
+    "ADC\0%d16,%i16\0x81d16010d16i16\0"
+    "SBB\0%d16,%i16\0x81d16011d16i16\0"
+    "AND\0%d16,%i16\0x81d16100d16i16\0"
+    "SUB\0%d16,%i16\0x81d16101d16i16\0"
+    "XOR\0%d16,%i16\0x81d16110d16i16\0"
+    "CMP\0%d16,%i16\0x81d16111d16i16\0"
+    "TEST\0%d8,%r8\0x84d8r8d8\0"
+    "TEST\0%r8,%d8\0x84d8r8d8\0"
+    "TEST\0%d16,%r16\0x85d16r16d16\0"
+    "TEST\0%r16,%d16\0x85d16r16d16\0"
 
-    "MOV\0AL,[%i16]\0xa0 %i16\0"
-    "MOV\0AX,[%i16]\0xa1 %i16\0"
-    "MOV\0[%i16],AL\0xa2 %i16\0"
-    "MOV\0[%i16],AX\0xa3 %i16\0"
-    "MOV\0%d8,%r8\0x88 %d8%r8%d8\0"
-    "MOV\0%d16,%r16\0x89 %d16%r16%d16\0"
-    "MOV\0%r8,%d8\0x8a %d8%r8%d8\0"
-    "MOV\0%r16,%d16\0x8b %d16%r16%d16\0"
+    "MOV\0AL,[%i16]\0xa0i16\0"
+    "MOV\0AX,[%i16]\0xa1i16\0"
+    "MOV\0[%i16],AL\0xa2i16\0"
+    "MOV\0[%i16],AX\0xa3i16\0"
+    "MOV\0%d8,%r8\0x88d8r8d8\0"
+    "MOV\0%d16,%r16\0x89d16r16d16\0"
+    "MOV\0%r8,%d8\0x8ad8r8d8\0"
+    "MOV\0%r16,%d16\0x8bd16r16d16\0"
 
-    "MOV\0%d16,ES\0x8c %d16000%d16\0"
-    "MOV\0%d16,CS\0x8c %d16001%d16\0"
-    "MOV\0%d16,SS\0x8c %d16010%d16\0"
-    "MOV\0%d16,DS\0x8c %d16011%d16\0"
-    "LEA\0%r16,%d16\0x8d %d16%r16%d16\0"
-    "MOV\0ES,%d16\0x8e %d16000%d16\0"
-    "MOV\0CS,%d16\0x8e %d16001%d16\0"
-    "MOV\0SS,%d16\0x8e %d16010%d16\0"
-    "MOV\0DS,%d16\0x8e %d16011%d16\0"
-    "POP\0%d16\0x8f %d16000%d16\0"
+    "MOV\0%d16,ES\0x8cd16000d16\0"
+    "MOV\0%d16,CS\0x8cd16001d16\0"
+    "MOV\0%d16,SS\0x8cd16010d16\0"
+    "MOV\0%d16,DS\0x8cd16011d16\0"
+    "LEA\0%r16,%d16\0x8dd16r16d16\0"
+    "MOV\0ES,%d16\0x8ed16000d16\0"
+    "MOV\0CS,%d16\0x8ed16001d16\0"
+    "MOV\0SS,%d16\0x8ed16010d16\0"
+    "MOV\0DS,%d16\0x8ed16011d16\0"
+    "POP\0%d16\0x8fd16000d16\0"
     "NOP\0\0x90\0"
-    "XCHG\0AX,%r16\0b10010%r16\0"
-    "XCHG\0%r16,AX\0b10010%r16\0"
-    "XCHG\0%d8,%r8\0x86 %d8%r8%d8\0"
-    "XCHG\0%r8,%d8\0x86 %d8%r8%d8\0"
-    "XCHG\0%d16,%r16\0x87 %d16%r16%d16\0"
-    "XCHG\0%r16,%d16\0x87 %d16%r16%d16\0"
+    "XCHG\0AX,%r16\0""10010r16\0"
+    "XCHG\0%r16,AX\0""10010r16\0"
+    "XCHG\0%d8,%r8\0x86d8r8d8\0"
+    "XCHG\0%r8,%d8\0x86d8r8d8\0"
+    "XCHG\0%d16,%r16\0x87d16r16d16\0"
+    "XCHG\0%r16,%d16\0x87d16r16d16\0"
     "CBW\0\0x98\0"
     "CWD\0\0x99\0"
     "WAIT\0\0x9b\0"
@@ -2563,82 +2549,82 @@ const char instruction_set[] =
     "MOVSW\0\0xa5\0"
     "CMPSB\0\0xa6\0"
     "CMPSW\0\0xa7\0"
-    "TEST\0AL,%i8\0xa8 %i8\0"
-    "TEST\0AX,%i16\0xa9 %i16\0"
+    "TEST\0AL,%i8\0xa8i8\0"
+    "TEST\0AX,%i16\0xa9i16\0"
     "STOSB\0\0xaa\0"
     "STOSW\0\0xab\0"
     "LODSB\0\0xac\0"
     "LODSW\0\0xad\0"
     "SCASB\0\0xae\0"
     "SCASW\0\0xaf\0"
-    "MOV\0%r8,%i8\0b10110%r8 %i8\0"
-    "MOV\0%r16,%i16\0b10111%r16 %i16\0"
-    "RET\0%i16\0xc2 %i16\0"
+    "MOV\0%r8,%i8\0""10110r8i8\0"
+    "MOV\0%r16,%i16\0""10111r16i16\0"
+    "RET\0%i16\0xc2i16\0"
     "RET\0\0xc3\0"
-    "LES\0%r16,%d16\0b11000100 %d16%r16%d16\0"
-    "LDS\0%r16,%d16\0b11000101 %d16%r16%d16\0"
-    "MOV\0%db8,%i8\0b11000110 %d8000%d8 %i8\0"
-    "MOV\0%dw16,%i16\0b11000111 %d16000%d16 %i16\0"
-    "RETF\0%i16\0xca %i16\0"
+    "LES\0%r16,%d16\0""11000100d16r16d16\0"
+    "LDS\0%r16,%d16\0""11000101d16r16d16\0"
+    "MOV\0%db8,%i8\0""11000110d8000d8i8\0"
+    "MOV\0%dw16,%i16\0""11000111d16000d16i16\0"
+    "RETF\0%i16\0xcai16\0"
     "RETF\0\0xcb\0"
     "INT3\0\0xcc\0"
-    "INT\0%i8\0xcd %i8\0"
+    "INT\0%i8\0xcdi8\0"
     "INTO\0\0xce\0"
     "IRET\0\0xcf\0"
-    "ROL\0%d8,1\0xd0 %d8000%d8\0"
-    "ROR\0%d8,1\0xd0 %d8001%d8\0"
-    "RCL\0%d8,1\0xd0 %d8010%d8\0"
-    "RCR\0%d8,1\0xd0 %d8011%d8\0"
-    "SHL\0%d8,1\0xd0 %d8100%d8\0"
-    "SHR\0%d8,1\0xd0 %d8101%d8\0"
-    "SAR\0%d8,1\0xd0 %d8111%d8\0"
-    "ROL\0%d16,1\0xd1 %d16000%d16\0"
-    "ROR\0%d16,1\0xd1 %d16001%d16\0"
-    "RCL\0%d16,1\0xd1 %d16010%d16\0"
-    "RCR\0%d16,1\0xd1 %d16011%d16\0"
-    "SHL\0%d16,1\0xd1 %d16100%d16\0"
-    "SHR\0%d16,1\0xd1 %d16101%d16\0"
-    "SAR\0%d16,1\0xd1 %d16111%d16\0"
-    "ROL\0%d8,CL\0xd2 %d8000%d8\0"
-    "ROR\0%d8,CL\0xd2 %d8001%d8\0"
-    "RCL\0%d8,CL\0xd2 %d8010%d8\0"
-    "RCR\0%d8,CL\0xd2 %d8011%d8\0"
-    "SHL\0%d8,CL\0xd2 %d8100%d8\0"
-    "SHR\0%d8,CL\0xd2 %d8101%d8\0"
-    "SAR\0%d8,CL\0xd2 %d8111%d8\0"
-    "ROL\0%d16,CL\0xd3 %d16000%d16\0"
-    "ROR\0%d16,CL\0xd3 %d16001%d16\0"
-    "RCL\0%d16,CL\0xd3 %d16010%d16\0"
-    "RCR\0%d16,CL\0xd3 %d16011%d16\0"
-    "SHL\0%d16,CL\0xd3 %d16100%d16\0"
-    "SHR\0%d16,CL\0xd3 %d16101%d16\0"
-    "SAR\0%d16,CL\0xd3 %d16111%d16\0"
-    "AAM\0\0xd4 x0a\0"
-    "AAD\0\0xd5 x0a\0"
+    "ROL\0%d8,1\0xd0d8000d8\0"
+    "ROR\0%d8,1\0xd0d8001d8\0"
+    "RCL\0%d8,1\0xd0d8010d8\0"
+    "RCR\0%d8,1\0xd0d8011d8\0"
+    "SHL\0%d8,1\0xd0d8100d8\0"
+    "SHR\0%d8,1\0xd0d8101d8\0"
+    "SAR\0%d8,1\0xd0d8111d8\0"
+    "ROL\0%d16,1\0xd1d16000d16\0"
+    "ROR\0%d16,1\0xd1d16001d16\0"
+    "RCL\0%d16,1\0xd1d16010d16\0"
+    "RCR\0%d16,1\0xd1d16011d16\0"
+    "SHL\0%d16,1\0xd1d16100d16\0"
+    "SHR\0%d16,1\0xd1d16101d16\0"
+    "SAR\0%d16,1\0xd1d16111d16\0"
+    "ROL\0%d8,CL\0xd2d8000d8\0"
+    "ROR\0%d8,CL\0xd2d8001d8\0"
+    "RCL\0%d8,CL\0xd2d8010d8\0"
+    "RCR\0%d8,CL\0xd2d8011d8\0"
+    "SHL\0%d8,CL\0xd2d8100d8\0"
+    "SHR\0%d8,CL\0xd2d8101d8\0"
+    "SAR\0%d8,CL\0xd2d8111d8\0"
+    "ROL\0%d16,CL\0xd3d16000d16\0"
+    "ROR\0%d16,CL\0xd3d16001d16\0"
+    "RCL\0%d16,CL\0xd3d16010d16\0"
+    "RCR\0%d16,CL\0xd3d16011d16\0"
+    "SHL\0%d16,CL\0xd3d16100d16\0"
+    "SHR\0%d16,CL\0xd3d16101d16\0"
+    "SAR\0%d16,CL\0xd3d16111d16\0"
+    "AAM\0\0xd4x0a\0"
+    "AAD\0\0xd5x0a\0"
     "XLAT\0\0xd7\0"
-    "LOOPNZ\0%a8\0xe0 %a8\0"
-    "LOOPNE\0%a8\0xe0 %a8\0"
-    "LOOPZ\0%a8\0xe1 %a8\0"
-    "LOOPE\0%a8\0xe1 %a8\0"
-    "LOOP\0%a8\0xe2 %a8\0"
-    "JCXZ\0%a8\0xe3 %a8\0"
+    "LOOPNZ\0%a8\0xe0a8\0"
+    "LOOPNE\0%a8\0xe0a8\0"
+    "LOOPZ\0%a8\0xe1a8\0"
+    "LOOPE\0%a8\0xe1a8\0"
+    "LOOP\0%a8\0xe2a8\0"
+    "JCXZ\0%a8\0xe3a8\0"
     "IN\0AL,DX\0xec\0"
     "IN\0AX,DX\0xed\0"
     "OUT\0DX,AL\0xee\0"
     "OUT\0DX,AX\0xef\0"
-    "IN\0AL,%i8\0xe4 %i8\0"
-    "IN\0AX,%i8\0xe5 %i8\0"
-    "OUT\0%i8,AL\0xe6 %i8\0"
-    "OUT\0%i8,AX\0xe7 %i8\0"
-    "CALL\0FAR %d16\0xff %d16011%d16\0"
-    "JMP\0FAR %d16\0xff %d16101%d16\0"
-    "CALL\0%f32\0x9a %f32\0"
-    "JMP\0%f32\0xea %f32\0"
-    "CALL\0%d16\0xff %d16010%d16\0"
-    "JMP\0%d16\0xff %d16100%d16\0"
-    "JMP\0%a8\0xeb %a8\0"
-    "JMP\0%a16\0xe9 %a16\0"
-    "CALL\0%a16\0xe8 %a16\0"
+    "IN\0AL,%i8\0xe4i8\0"
+    "IN\0AX,%i8\0xe5i8\0"
+    "OUT\0%i8,AL\0xe6i8\0"
+    "OUT\0%i8,AX\0xe7i8\0"
+    "CALL\0FAR %d16\0xffd16011d16\0"
+    "JMP\0FAR %d16\0xffd16101d16\0"
+    "CALL\0%f32\0x9af32\0"
+    "JMP\0%f32\0xeaf32\0"
+    "CALL\0%d16\0xffd16010d16\0"
+    "JMP\0%d16\0xffd16100d16\0"
+    "JMP\0%a8\0xeba8\0"
+    "JMP\0%a16\0xe9a16\0"
+    "CALL\0%a16\0xe8a16\0"
     "LOCK\0\0xf0\0"
     "REPNZ\0\0xf2\0"
     "REPNE\0\0xf2\0"
@@ -2647,29 +2633,29 @@ const char instruction_set[] =
     "REP\0\0xf3\0"
     "HLT\0\0xf4\0"
     "CMC\0\0xf5\0"
-    "TEST\0%db8,%i8\0xf6 %d8000%d8 %i8\0"
-    "NOT\0%db8\0xf6 %d8010%d8\0"
-    "NEG\0%db8\0xf6 %d8011%d8\0"
-    "MUL\0%db8\0xf6 %d8100%d8\0"
-    "IMUL\0%db8\0xf6 %d8101%d8\0"
-    "DIV\0%db8\0xf6 %d8110%d8\0"
-    "IDIV\0%db8\0xf6 %d8111%d8\0"
-    "TEST\0%dw16,%i16\0xf7 %d8000%d8 %i16\0"
-    "NOT\0%dw16\0xf7 %d8010%d8\0"
-    "NEG\0%dw16\0xf7 %d8011%d8\0"
-    "MUL\0%dw16\0xf7 %d8100%d8\0"
-    "IMUL\0%dw16\0xf7 %d8101%d8\0"
-    "DIV\0%dw16\0xf7 %d8110%d8\0"
-    "IDIV\0%dw16\0xf7 %d8111%d8\0"
+    "TEST\0%db8,%i8\0xf6d8000d8i8\0"
+    "NOT\0%db8\0xf6d8010d8\0"
+    "NEG\0%db8\0xf6d8011d8\0"
+    "MUL\0%db8\0xf6d8100d8\0"
+    "IMUL\0%db8\0xf6d8101d8\0"
+    "DIV\0%db8\0xf6d8110d8\0"
+    "IDIV\0%db8\0xf6d8111d8\0"
+    "TEST\0%dw16,%i16\0xf7d8000d8i16\0"
+    "NOT\0%dw16\0xf7d8010d8\0"
+    "NEG\0%dw16\0xf7d8011d8\0"
+    "MUL\0%dw16\0xf7d8100d8\0"
+    "IMUL\0%dw16\0xf7d8101d8\0"
+    "DIV\0%dw16\0xf7d8110d8\0"
+    "IDIV\0%dw16\0xf7d8111d8\0"
     "CLC\0\0xf8\0"
     "STC\0\0xf9\0"
     "CLI\0\0xfa\0"
     "STI\0\0xfb\0"
     "CLD\0\0xfc\0"
     "STD\0\0xfd\0"
-    "INC\0%db8\0xfe %d8000%d8\0"
-    "DEC\0%db8\0xfe %d8001%d8\0"
-    "INC\0%dw16\0xff %d16000%d16\0"
-    "DEC\0%dw16\0xff %d16001%d16\0"
-    "PUSH\0%d16\0xff %d16110%d16\0"
+    "INC\0%db8\0xfed8000d8\0"
+    "DEC\0%db8\0xfed8001d8\0"
+    "INC\0%dw16\0xffd16000d16\0"
+    "DEC\0%dw16\0xffd16001d16\0"
+    "PUSH\0%d16\0xffd16110d16\0"
 ;
