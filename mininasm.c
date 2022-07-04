@@ -1504,6 +1504,7 @@ void process_instruction(void) {
     const char *p2 = NULL;
     const char *p3;
     const char *pi;
+    const char *pinst;
     char c;
 
     if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
@@ -1571,10 +1572,16 @@ void process_instruction(void) {
     }
     while (part[0]) {   /* Match against instruction set */
         pi = instruction_set;
+        pinst = pi;  /* Pacify compilers. */
         while (*pi != '\0') {
-            for (p2 = pi; *p2++ != '\0';) {}
+            if (*pi == '-') {
+                p2 = pi + 1;
+            } else {
+                pinst = pi;  /* Different instructions than before. */
+                for (p2 = pi; *p2++ != '\0';) {}
+            }
             for (p3 = p2; *p3++ != '\0';) {}
-            if (strcmp(part, pi) == 0) {
+            if (strcmp(part, pinst) == 0) {
                 p2 = match(p, p2, p3);
                 if (p2 != NULL) {
                     p = p2;
@@ -2362,266 +2369,373 @@ int main(int argc, char **argv) {
  ** Notice some instructions are sorted by less byte usage first.
  */
 const char instruction_set[] =
-    "ADD\0%d8,%r8\0""00drd\0"
-    "ADD\0%d16,%r16\0""01drd\0"
-    "ADD\0%r8,%d8\0""02drd\0"
-    "ADD\0%r16,%d16\0""03drd\0"
-    "ADD\0AL,%i8\0""04i\0"
-    "ADD\0AX,%i16\0""05j\0"
-    "PUSH\0ES\0""06\0"
-    "POP\0ES\0""07\0"
-    "OR\0%d8,%r8\0""08drd\0"
-    "OR\0%d16,%r16\0""09drd\0"
-    "OR\0%r8,%d8\0""0Adrd\0"
-    "OR\0%r16,%d16\0""0Bdrd\0"
-    "OR\0AL,%i8\0""0Ci\0"
-    "OR\0AX,%i16\0""0Dj\0"
-    "PUSH\0CS\0""0E\0"
-    "ADC\0%d8,%r8\0""10drd\0"
-    "ADC\0%d16,%r16\0""11drd\0"
-    "ADC\0%r8,%d8\0""12drd\0"
-    "ADC\0%r16,%d16\0""13drd\0"
-    "ADC\0AL,%i8\0""14i\0"
-    "ADC\0AX,%i16\0""15j\0"
-    "PUSH\0SS\0""16\0"
-    "POP\0SS\0""17\0"
-    "SBB\0%d8,%r8\0""18drd\0"
-    "SBB\0%d16,%r16\0""19drd\0"
-    "SBB\0%r8,%d8\0""1Adrd\0"
-    "SBB\0%r16,%d16\0""1Bdrd\0"
-    "SBB\0AL,%i8\0""1Ci\0"
-    "SBB\0AX,%i16\0""1Dj\0"
-    "PUSH\0DS\0""1E\0"
-    "POP\0DS\0""1F\0"
-    "AND\0%d8,%r8\0""20drd\0"
-    "AND\0%d16,%r16\0""21drd\0"
-    "AND\0%r8,%d8\0""22drd\0"
-    "AND\0%r16,%d16\0""23drd\0"
-    "AND\0AL,%i8\0""24i\0"
-    "AND\0AX,%i16\0""25j\0"
-    "ES\0\0""26\0"
-    "DAA\0\0""27\0"
-    "SUB\0%d8,%r8\0""28drd\0"
-    "SUB\0%d16,%r16\0""29drd\0"
-    "SUB\0%r8,%d8\0""2Adrd\0"
-    "SUB\0%r16,%d16\0""2Bdrd\0"
-    "SUB\0AL,%i8\0""2Ci\0"
-    "SUB\0AX,%i16\0""2Dj\0"
-    "CS\0\0""2E\0"
-    "DAS\0\0""2F\0"
-    "XOR\0%d8,%r8\0""30drd\0"
-    "XOR\0%d16,%r16\0""31drd\0"
-    "XOR\0%r8,%d8\0""32drd\0"
-    "XOR\0%r16,%d16\0""33drd\0"
-    "XOR\0AL,%i8\0""34i\0"
-    "XOR\0AX,%i16\0""35j\0"
-    "SS\0\0""36\0"
     "AAA\0\0""37\0"
-    "CMP\0%d8,%r8\0""38drd\0"
-    "CMP\0%d16,%r16\0""39drd\0"
-    "CMP\0%r8,%d8\0""3Adrd\0"
-    "CMP\0%r16,%d16\0""3Bdrd\0"
-    "CMP\0AL,%i8\0""3Ci\0"
-    "CMP\0AX,%i16\0""3Dj\0"
-    "DS\0\0""3E\0"
+
+    "AAD\0\0""D50A\0"
+
+    "AAM\0\0""D40A\0"
+
     "AAS\0\0""3F\0"
-    "INC\0%r16\0""zozzzr\0"
+
+    "ADC\0%d8,%r8\0""10drd\0"
+    "-%d16,%r16\0""11drd\0"
+    "-%r8,%d8\0""12drd\0"
+    "-%r16,%d16\0""13drd\0"
+    "-AL,%i8\0""14i\0"
+    "-AX,%i16\0""15j\0"
+    "-%d16,%s8\0""83dzozdi\0"
+    "-%d8,%i8\0""80dzozdi\0"
+    "-%d16,%i16\0""81dzozdj\0"
+
+    "ADD\0%d8,%r8\0""00drd\0"
+    "-%d16,%r16\0""01drd\0"
+    "-%r8,%d8\0""02drd\0"
+    "-%r16,%d16\0""03drd\0"
+    "-AL,%i8\0""04i\0"
+    "-AX,%i16\0""05j\0"
+    "-%d16,%s8\0""83dzzzdi\0"
+    "-%d8,%i8\0""80dzzzdi\0"
+    "-%d16,%i16\0""81dzzzdj\0"
+
+    "AND\0%d8,%r8\0""20drd\0"
+    "-%d16,%r16\0""21drd\0"
+    "-%r8,%d8\0""22drd\0"
+    "-%r16,%d16\0""23drd\0"
+    "-AL,%i8\0""24i\0"
+    "-AX,%i16\0""25j\0"
+    "-%d16,%s8\0""83dozzdi\0"
+    "-%d8,%i8\0""80dozzdi\0"
+    "-%d16,%i16\0""81dozzdj\0"
+
+    "CALL\0FAR %d16\0""FFdzood\0"
+    "-%f32\0""9Af\0"
+    "-%d16\0""FFdzozd\0"
+    "-%a16\0""E8b\0"
+
+    "CBW\0\0""98\0"
+
+    "CLC\0\0""F8\0"
+
+    "CLD\0\0""FC\0"
+
+    "CLI\0\0""FA\0"
+
+    "CMC\0\0""F5\0"
+
+    "CMP\0%d8,%r8\0""38drd\0"
+    "-%d16,%r16\0""39drd\0"
+    "-%r8,%d8\0""3Adrd\0"
+    "-%r16,%d16\0""3Bdrd\0"
+    "-AL,%i8\0""3Ci\0"
+    "-AX,%i16\0""3Dj\0"
+    "-%d16,%s8\0""83dooodi\0"
+    "-%d8,%i8\0""80dooodi\0"
+    "-%d16,%i16\0""81dooodj\0"
+
+    "CMPSB\0\0""A6\0"
+
+    "CMPSW\0\0""A7\0"
+
+    "CS\0\0""2E\0"
+
+    "CWD\0\0""99\0"
+
+    "DAA\0\0""27\0"
+
+    "DAS\0\0""2F\0"
+
     "DEC\0%r16\0""zozzor\0"
-    "PUSH\0%r16\0""zozozr\0"
-    "POP\0%r16\0""zozoor\0"
-    "JO\0%a8\0""70a\0"
-    "JNO\0%a8\0""71a\0"
-    "JB\0%a8\0""72a\0"
-    "JC\0%a8\0""72a\0"
-    "JNB\0%a8\0""73a\0"
-    "JNC\0%a8\0""73a\0"
-    "JZ\0%a8\0""74a\0"
-    "JNZ\0%a8\0""75a\0"
-    "JE\0%a8\0""74a\0"
-    "JNE\0%a8\0""75a\0"
-    "JBE\0%a8\0""76a\0"
+    "-%db8\0""FEdzzod\0"
+    "-%dw16\0""FFdzzod\0"
+
+    "DIV\0%db8\0""F6doozd\0"
+    "-%dw16\0""F7doozd\0"
+
+    "DS\0\0""3E\0"
+
+    "ES\0\0""26\0"
+
+    "HLT\0\0""F4\0"
+
+    "IDIV\0%db8\0""F6doood\0"
+    "-%dw16\0""F7doood\0"
+
+    "IMUL\0%db8\0""F6dozod\0"
+    "-%dw16\0""F7dozod\0"
+
+    "IN\0AL,DX\0""EC\0"
+    "-AX,DX\0""ED\0"
+    "-AL,%i8\0""E4i\0"
+    "-AX,%i8\0""E5i\0"
+
+    "INC\0%r16\0""zozzzr\0"
+    "-%db8\0""FEdzzzd\0"
+    "-%dw16\0""FFdzzzd\0"
+
+    "INT\0%i8\0""CDi\0"
+
+    "INT3\0\0""CC\0"
+
+    "INTO\0\0""CE\0"
+
+    "IRET\0\0""CF\0"
+
     "JA\0%a8\0""77a\0"
-    "JS\0%a8\0""78a\0"
-    "JNS\0%a8\0""79a\0"
-    "JPE\0%a8\0""7Aa\0"
-    "JPO\0%a8\0""7Ba\0"
-    "JL\0%a8\0""7Ca\0"
-    "JGE\0%a8\0""7Da\0"
-    "JLE\0%a8\0""7Ea\0"
+
+    "JB\0%a8\0""72a\0"
+
+    "JBE\0%a8\0""76a\0"
+
+    "JC\0%a8\0""72a\0"
+
+    "JCXZ\0%a8\0""E3a\0"
+
+    "JE\0%a8\0""74a\0"
+
     "JG\0%a8\0""7Fa\0"
-    "ADD\0%d16,%s8\0""83dzzzdi\0"
-    "OR\0%d16,%s8\0""83dzzodi\0"
-    "ADC\0%d16,%s8\0""83dzozdi\0"
-    "SBB\0%d16,%s8\0""83dzoodi\0"
-    "AND\0%d16,%s8\0""83dozzdi\0"
-    "SUB\0%d16,%s8\0""83dozodi\0"
-    "XOR\0%d16,%s8\0""83doozdi\0"
-    "CMP\0%d16,%s8\0""83dooodi\0"
-    "ADD\0%d8,%i8\0""80dzzzdi\0"
-    "OR\0%d8,%i8\0""80dzzodi\0"
-    "ADC\0%d8,%i8\0""80dzozdi\0"
-    "SBB\0%d8,%i8\0""80dzoodi\0"
-    "AND\0%d8,%i8\0""80dozzdi\0"
-    "SUB\0%d8,%i8\0""80dozodi\0"
-    "XOR\0%d8,%i8\0""80doozdi\0"
-    "CMP\0%d8,%i8\0""80dooodi\0"
-    "ADD\0%d16,%i16\0""81dzzzdj\0"
-    "OR\0%d16,%i16\0""81dzzodj\0"
-    "ADC\0%d16,%i16\0""81dzozdj\0"
-    "SBB\0%d16,%i16\0""81dzoodj\0"
-    "AND\0%d16,%i16\0""81dozzdj\0"
-    "SUB\0%d16,%i16\0""81dozodj\0"
-    "XOR\0%d16,%i16\0""81doozdj\0"
-    "CMP\0%d16,%i16\0""81dooodj\0"
-    "TEST\0%d8,%r8\0""84drd\0"
-    "TEST\0%r8,%d8\0""84drd\0"
-    "TEST\0%d16,%r16\0""85drd\0"
-    "TEST\0%r16,%d16\0""85drd\0"
+
+    "JGE\0%a8\0""7Da\0"
+
+    "JL\0%a8\0""7Ca\0"
+
+    "JLE\0%a8\0""7Ea\0"
+
+    "JMP\0FAR %d16\0""FFdozod\0"
+    "-%f32\0""EAf\0"
+    "-%d16\0""FFdozzd\0"
+    "-%a8\0""EBa\0"
+    "-%a16\0""E9b\0"
+
+    "JNB\0%a8\0""73a\0"
+
+    "JNC\0%a8\0""73a\0"
+
+    "JNE\0%a8\0""75a\0"
+
+    "JNO\0%a8\0""71a\0"
+
+    "JNS\0%a8\0""79a\0"
+
+    "JNZ\0%a8\0""75a\0"
+
+    "JO\0%a8\0""70a\0"
+
+    "JPE\0%a8\0""7Aa\0"
+
+    "JPO\0%a8\0""7Ba\0"
+
+    "JS\0%a8\0""78a\0"
+
+    "JZ\0%a8\0""74a\0"
+
+    "LAHF\0\0""9F\0"
+
+    "LDS\0%r16,%d16\0""oozzzozodrd\0"
+
+    "LEA\0%r16,%d16\0""8Ddrd\0"
+
+    "LES\0%r16,%d16\0""oozzzozzdrd\0"
+
+    "LOCK\0\0""F0\0"
+
+    "LODSB\0\0""AC\0"
+
+    "LODSW\0\0""AD\0"
+
+    "LOOP\0%a8\0""E2a\0"
+
+    "LOOPE\0%a8\0""E1a\0"
+
+    "LOOPNE\0%a8\0""E0a\0"
+
+    "LOOPNZ\0%a8\0""E0a\0"
+
+    "LOOPZ\0%a8\0""E1a\0"
 
     "MOV\0AL,[%i16]\0""A0j\0"
-    "MOV\0AX,[%i16]\0""A1j\0"
-    "MOV\0[%i16],AL\0""A2j\0"
-    "MOV\0[%i16],AX\0""A3j\0"
-    "MOV\0%d8,%r8\0""88drd\0"
-    "MOV\0%d16,%r16\0""89drd\0"
-    "MOV\0%r8,%d8\0""8Adrd\0"
-    "MOV\0%r16,%d16\0""8Bdrd\0"
+    "-AX,[%i16]\0""A1j\0"
+    "-[%i16],AL\0""A2j\0"
+    "-[%i16],AX\0""A3j\0"
+    "-%d8,%r8\0""88drd\0"
+    "-%d16,%r16\0""89drd\0"
+    "-%r8,%d8\0""8Adrd\0"
+    "-%r16,%d16\0""8Bdrd\0"
+    "-%d16,ES\0""8Cdzzzd\0"
+    "-%d16,CS\0""8Cdzzod\0"
+    "-%d16,SS\0""8Cdzozd\0"
+    "-%d16,DS\0""8Cdzood\0"
+    "-ES,%d16\0""8Edzzzd\0"
+    "-CS,%d16\0""8Edzzod\0"
+    "-SS,%d16\0""8Edzozd\0"
+    "-DS,%d16\0""8Edzood\0"
+    "-%r8,%i8\0""ozoozri\0"
+    "-%r16,%i16\0""ozooorj\0"
+    "-%db8,%i8\0""oozzzoozdzzzdi\0"
+    "-%dw16,%i16\0""oozzzooodzzzdj\0"
 
-    "MOV\0%d16,ES\0""8Cdzzzd\0"
-    "MOV\0%d16,CS\0""8Cdzzod\0"
-    "MOV\0%d16,SS\0""8Cdzozd\0"
-    "MOV\0%d16,DS\0""8Cdzood\0"
-    "LEA\0%r16,%d16\0""8Ddrd\0"
-    "MOV\0ES,%d16\0""8Edzzzd\0"
-    "MOV\0CS,%d16\0""8Edzzod\0"
-    "MOV\0SS,%d16\0""8Edzozd\0"
-    "MOV\0DS,%d16\0""8Edzood\0"
-    "POP\0%d16\0""8Fdzzzd\0"
-    "NOP\0\0""90\0"
-    "XCHG\0AX,%r16\0""ozzozr\0"
-    "XCHG\0%r16,AX\0""ozzozr\0"
-    "XCHG\0%d8,%r8\0""86drd\0"
-    "XCHG\0%r8,%d8\0""86drd\0"
-    "XCHG\0%d16,%r16\0""87drd\0"
-    "XCHG\0%r16,%d16\0""87drd\0"
-    "CBW\0\0""98\0"
-    "CWD\0\0""99\0"
-    "WAIT\0\0""9B\0"
-    "PUSHF\0\0""9C\0"
-    "POPF\0\0""9D\0"
-    "SAHF\0\0""9E\0"
-    "LAHF\0\0""9F\0"
     "MOVSB\0\0""A4\0"
+
     "MOVSW\0\0""A5\0"
-    "CMPSB\0\0""A6\0"
-    "CMPSW\0\0""A7\0"
-    "TEST\0AL,%i8\0""A8i\0"
-    "TEST\0AX,%i16\0""A9j\0"
-    "STOSB\0\0""AA\0"
-    "STOSW\0\0""AB\0"
-    "LODSB\0\0""AC\0"
-    "LODSW\0\0""AD\0"
-    "SCASB\0\0""AE\0"
-    "SCASW\0\0""AF\0"
-    "MOV\0%r8,%i8\0""ozoozri\0"
-    "MOV\0%r16,%i16\0""ozooorj\0"
-    "RET\0%i16\0""C2j\0"
-    "RET\0\0""C3\0"
-    "LES\0%r16,%d16\0""oozzzozzdrd\0"
-    "LDS\0%r16,%d16\0""oozzzozodrd\0"
-    "MOV\0%db8,%i8\0""oozzzoozdzzzdi\0"
-    "MOV\0%dw16,%i16\0""oozzzooodzzzdj\0"
-    "RETF\0%i16\0""CAj\0"
-    "RETF\0\0""CB\0"
-    "INT3\0\0""CC\0"
-    "INT\0%i8\0""CDi\0"
-    "INTO\0\0""CE\0"
-    "IRET\0\0""CF\0"
-    "ROL\0%d8,1\0""D0dzzzd\0"
-    "ROR\0%d8,1\0""D0dzzod\0"
-    "RCL\0%d8,1\0""D0dzozd\0"
-    "RCR\0%d8,1\0""D0dzood\0"
-    "SHL\0%d8,1\0""D0dozzd\0"
-    "SHR\0%d8,1\0""D0dozod\0"
-    "SAR\0%d8,1\0""D0doood\0"
-    "ROL\0%d16,1\0""D1dzzzd\0"
-    "ROR\0%d16,1\0""D1dzzod\0"
-    "RCL\0%d16,1\0""D1dzozd\0"
-    "RCR\0%d16,1\0""D1dzood\0"
-    "SHL\0%d16,1\0""D1dozzd\0"
-    "SHR\0%d16,1\0""D1dozod\0"
-    "SAR\0%d16,1\0""D1doood\0"
-    "ROL\0%d8,CL\0""D2dzzzd\0"
-    "ROR\0%d8,CL\0""D2dzzod\0"
-    "RCL\0%d8,CL\0""D2dzozd\0"
-    "RCR\0%d8,CL\0""D2dzood\0"
-    "SHL\0%d8,CL\0""D2dozzd\0"
-    "SHR\0%d8,CL\0""D2dozod\0"
-    "SAR\0%d8,CL\0""D2doood\0"
-    "ROL\0%d16,CL\0""D3dzzzd\0"
-    "ROR\0%d16,CL\0""D3dzzod\0"
-    "RCL\0%d16,CL\0""D3dzozd\0"
-    "RCR\0%d16,CL\0""D3dzood\0"
-    "SHL\0%d16,CL\0""D3dozzd\0"
-    "SHR\0%d16,CL\0""D3dozod\0"
-    "SAR\0%d16,CL\0""D3doood\0"
-    "AAM\0\0""D40A\0"
-    "AAD\0\0""D50A\0"
-    "XLAT\0\0""D7\0"
-    "LOOPNZ\0%a8\0""E0a\0"
-    "LOOPNE\0%a8\0""E0a\0"
-    "LOOPZ\0%a8\0""E1a\0"
-    "LOOPE\0%a8\0""E1a\0"
-    "LOOP\0%a8\0""E2a\0"
-    "JCXZ\0%a8\0""E3a\0"
-    "IN\0AL,DX\0""EC\0"
-    "IN\0AX,DX\0""ED\0"
-    "OUT\0DX,AL\0""EE\0"
-    "OUT\0DX,AX\0""EF\0"
-    "IN\0AL,%i8\0""E4i\0"
-    "IN\0AX,%i8\0""E5i\0"
-    "OUT\0%i8,AL\0""E6i\0"
-    "OUT\0%i8,AX\0""E7i\0"
-    "CALL\0FAR %d16\0""FFdzood\0"
-    "JMP\0FAR %d16\0""FFdozod\0"
-    "CALL\0%f32\0""9Af\0"
-    "JMP\0%f32\0""EAf\0"
-    "CALL\0%d16\0""FFdzozd\0"
-    "JMP\0%d16\0""FFdozzd\0"
-    "JMP\0%a8\0""EBa\0"
-    "JMP\0%a16\0""E9b\0"
-    "CALL\0%a16\0""E8b\0"
-    "LOCK\0\0""F0\0"
-    "REPNZ\0\0""F2\0"
-    "REPNE\0\0""F2\0"
-    "REPZ\0\0""F3\0"
-    "REPE\0\0""F3\0"
-    "REP\0\0""F3\0"
-    "HLT\0\0""F4\0"
-    "CMC\0\0""F5\0"
-    "TEST\0%db8,%i8\0""F6dzzzdi\0"
-    "NOT\0%db8\0""F6dzozd\0"
-    "NEG\0%db8\0""F6dzood\0"
+
     "MUL\0%db8\0""F6dozzd\0"
-    "IMUL\0%db8\0""F6dozod\0"
-    "DIV\0%db8\0""F6doozd\0"
-    "IDIV\0%db8\0""F6doood\0"
-    "TEST\0%dw16,%i16\0""F7dzzzdj\0"
-    "NOT\0%dw16\0""F7dzozd\0"
-    "NEG\0%dw16\0""F7dzood\0"
-    "MUL\0%dw16\0""F7dozzd\0"
-    "IMUL\0%dw16\0""F7dozod\0"
-    "DIV\0%dw16\0""F7doozd\0"
-    "IDIV\0%dw16\0""F7doood\0"
-    "CLC\0\0""F8\0"
+    "-%dw16\0""F7dozzd\0"
+
+    "NEG\0%db8\0""F6dzood\0"
+    "-%dw16\0""F7dzood\0"
+
+    "NOP\0\0""90\0"
+
+    "NOT\0%db8\0""F6dzozd\0"
+    "-%dw16\0""F7dzozd\0"
+
+    "OR\0%d8,%r8\0""08drd\0"
+    "-%d16,%r16\0""09drd\0"
+    "-%r8,%d8\0""0Adrd\0"
+    "-%r16,%d16\0""0Bdrd\0"
+    "-AL,%i8\0""0Ci\0"
+    "-AX,%i16\0""0Dj\0"
+    "-%d16,%s8\0""83dzzodi\0"
+    "-%d8,%i8\0""80dzzodi\0"
+    "-%d16,%i16\0""81dzzodj\0"
+
+    "OUT\0DX,AL\0""EE\0"
+    "-DX,AX\0""EF\0"
+    "-%i8,AL\0""E6i\0"
+    "-%i8,AX\0""E7i\0"
+
+    "POP\0ES\0""07\0"
+    "-SS\0""17\0"
+    "-DS\0""1F\0"
+    "-%r16\0""zozoor\0"
+    "-%d16\0""8Fdzzzd\0"
+
+    "POPF\0\0""9D\0"
+
+    "PUSH\0ES\0""06\0"
+    "-CS\0""0E\0"
+    "-SS\0""16\0"
+    "-DS\0""1E\0"
+    "-%r16\0""zozozr\0"
+    "-%d16\0""FFdoozd\0"
+
+    "PUSHF\0\0""9C\0"
+
+    "RCL\0%d8,1\0""D0dzozd\0"
+    "-%d16,1\0""D1dzozd\0"
+    "-%d8,CL\0""D2dzozd\0"
+    "-%d16,CL\0""D3dzozd\0"
+
+    "RCR\0%d8,1\0""D0dzood\0"
+    "-%d16,1\0""D1dzood\0"
+    "-%d8,CL\0""D2dzood\0"
+    "-%d16,CL\0""D3dzood\0"
+
+    "REP\0\0""F3\0"
+
+    "REPE\0\0""F3\0"
+
+    "REPNE\0\0""F2\0"
+
+    "REPNZ\0\0""F2\0"
+
+    "REPZ\0\0""F3\0"
+
+    "RET\0%i16\0""C2j\0"
+    "-\0""C3\0"
+
+    "RETF\0%i16\0""CAj\0"
+    "-\0""CB\0"
+
+    "ROL\0%d8,1\0""D0dzzzd\0"
+    "-%d16,1\0""D1dzzzd\0"
+    "-%d8,CL\0""D2dzzzd\0"
+    "-%d16,CL\0""D3dzzzd\0"
+
+    "ROR\0%d8,1\0""D0dzzod\0"
+    "-%d16,1\0""D1dzzod\0"
+    "-%d8,CL\0""D2dzzod\0"
+    "-%d16,CL\0""D3dzzod\0"
+
+    "SAHF\0\0""9E\0"
+
+    "SAR\0%d8,1\0""D0doood\0"
+    "-%d16,1\0""D1doood\0"
+    "-%d8,CL\0""D2doood\0"
+    "-%d16,CL\0""D3doood\0"
+
+    "SBB\0%d8,%r8\0""18drd\0"
+    "-%d16,%r16\0""19drd\0"
+    "-%r8,%d8\0""1Adrd\0"
+    "-%r16,%d16\0""1Bdrd\0"
+    "-AL,%i8\0""1Ci\0"
+    "-AX,%i16\0""1Dj\0"
+    "-%d16,%s8\0""83dzoodi\0"
+    "-%d8,%i8\0""80dzoodi\0"
+    "-%d16,%i16\0""81dzoodj\0"
+
+    "SCASB\0\0""AE\0"
+
+    "SCASW\0\0""AF\0"
+
+    "SHL\0%d8,1\0""D0dozzd\0"
+    "-%d16,1\0""D1dozzd\0"
+    "-%d8,CL\0""D2dozzd\0"
+    "-%d16,CL\0""D3dozzd\0"
+
+    "SHR\0%d8,1\0""D0dozod\0"
+    "-%d16,1\0""D1dozod\0"
+    "-%d8,CL\0""D2dozod\0"
+    "-%d16,CL\0""D3dozod\0"
+
+    "SS\0\0""36\0"
+
     "STC\0\0""F9\0"
-    "CLI\0\0""FA\0"
-    "STI\0\0""FB\0"
-    "CLD\0\0""FC\0"
+
     "STD\0\0""FD\0"
-    "INC\0%db8\0""FEdzzzd\0"
-    "DEC\0%db8\0""FEdzzod\0"
-    "INC\0%dw16\0""FFdzzzd\0"
-    "DEC\0%dw16\0""FFdzzod\0"
-    "PUSH\0%d16\0""FFdoozd\0"
+
+    "STI\0\0""FB\0"
+
+    "STOSB\0\0""AA\0"
+
+    "STOSW\0\0""AB\0"
+
+    "SUB\0%d8,%r8\0""28drd\0"
+    "-%d16,%r16\0""29drd\0"
+    "-%r8,%d8\0""2Adrd\0"
+    "-%r16,%d16\0""2Bdrd\0"
+    "-AL,%i8\0""2Ci\0"
+    "-AX,%i16\0""2Dj\0"
+    "-%d16,%s8\0""83dozodi\0"
+    "-%d8,%i8\0""80dozodi\0"
+    "-%d16,%i16\0""81dozodj\0"
+
+    "TEST\0%d8,%r8\0""84drd\0"
+    "-%r8,%d8\0""84drd\0"
+    "-%d16,%r16\0""85drd\0"
+    "-%r16,%d16\0""85drd\0"
+    "-AL,%i8\0""A8i\0"
+    "-AX,%i16\0""A9j\0"
+    "-%db8,%i8\0""F6dzzzdi\0"
+    "-%dw16,%i16\0""F7dzzzdj\0"
+
+    "WAIT\0\0""9B\0"
+
+    "XCHG\0AX,%r16\0""ozzozr\0"
+    "-%r16,AX\0""ozzozr\0"
+    "-%d8,%r8\0""86drd\0"
+    "-%r8,%d8\0""86drd\0"
+    "-%d16,%r16\0""87drd\0"
+    "-%r16,%d16\0""87drd\0"
+
+    "XLAT\0\0""D7\0"
+
+    "XOR\0%d8,%r8\0""30drd\0"
+    "-%d16,%r16\0""31drd\0"
+    "-%r8,%d8\0""32drd\0"
+    "-%r16,%d16\0""33drd\0"
+    "-AL,%i8\0""34i\0"
+    "-AX,%i16\0""35j\0"
+    "-%d16,%s8\0""83doozdi\0"
+    "-%d8,%i8\0""80doozdi\0"
+    "-%d16,%i16\0""81doozdj\0"
 ;
