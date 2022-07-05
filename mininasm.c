@@ -1154,7 +1154,6 @@ void emit_byte(int byte) {
  ** Search for a match with instruction
  */
 const char *match(const char *p, const char *pattern, const char *decode) {
-    const char *p2;
     int c;
     int bit;
     int qualifier;
@@ -1165,157 +1164,95 @@ const char *match(const char *p, const char *pattern, const char *decode) {
 
     undefined = 0;
     for (error_base = pattern; (dc = *pattern++) != '\0';) {
-        if (dc == '%') {  /* Special */
-            dc = *pattern++;
-            if (dc == 'd') {  /* Addressing */
-                qualifier = 0;
-                if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
-                    p = avoid_spaces(p + 4);
-                    if (*p != '[')
-                        return NULL;
-                    qualifier = 16;
-                } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
-                    p = avoid_spaces(p + 4);
-                    if (*p != '[')
-                        return NULL;
-                    qualifier = 8;
-                }
-                if (*pattern == 'w') {
-                    pattern++;
-                    if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0)
-                        return NULL;
-                } else if (*pattern == 'b') {
-                    pattern++;
-                    if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0)
-                        return NULL;
-                } else {
-                    if (qualifier == 8 && *pattern != '8')
-                        return NULL;
-                    if (qualifier == 16 && *pattern != '1')
-                        return NULL;
-                }
-                if (*pattern == '8') {
-                    pattern++;
-                    /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
-                    p2 = match_addressing(p, 8);
-                    if (p2 == NULL)
-                        return NULL;
-                    p = p2;
-                } else if (*pattern == '1' && pattern[1] == '6') {
-                    pattern += 2;
-                    /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
-                    p2 = match_addressing(p, 16);
-                    if (p2 == NULL)
-                        return NULL;
-                    p = p2;
-                } else {
+        if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
+            qualifier = 0;
+            if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
+                p = avoid_spaces(p + 4);
+                if (*p != '[')
                     return NULL;
-                }
-            } else if (dc == 'r') {   /* Register */
-                if (*pattern == '8') {
-                    pattern++;
-                    p2 = match_register(p, 8, &instruction_register);
-                    if (p2 == NULL)
-                        return NULL;
-                    p = p2;
-                } else if (*pattern == '1' && pattern[1] == '6') {
-                    pattern += 2;
-                    p2 = match_register(p, 16, &instruction_register);
-                    if (p2 == NULL)
-                        return NULL;
-                    p = p2;
-                } else {
+                qualifier = 16;
+            } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
+                p = avoid_spaces(p + 4);
+                if (*p != '[')
                     return NULL;
-                }
-            } else if (dc == 'i') {   /* Unsigned immediate */
-                if (*pattern == '8') {
-                    pattern++;
-                    p = match_expression(p);
-                    if (p == NULL)
-                        return NULL;
-                } else if (*pattern == '1' && pattern[1] == '6') {
-                    pattern += 2;
-                    p = match_expression(p);
-                    if (p == NULL)
-                        return NULL;
-                } else {
-                    return NULL;
-                }
-            } else if (dc == 'a') {   /* Address for jump */
-                if (*pattern == '8') {
-                    pattern++;
-                    p = avoid_spaces(p);
-                    qualifier = 0;
-                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
-                        p += 5;
-                        qualifier = 1;
-                    }
-                    p = match_expression(p);
-                    if (p == NULL)
-                        return NULL;
-                    if (qualifier == 0) {
-                        c = instruction_value - (address + 2);
-                        if (undefined == 0 && (c < -128 || c > 127) && decode[0] == 'E' && decode[1] == 'B')  /* memcmp(decode, "EB", 2) == 0 */
-                            return NULL;
-                    }
-                } else if (*pattern == '1' && pattern[1] == '6') {
-                    pattern += 2;
-                    p = avoid_spaces(p);
-                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
-                        p = NULL;
-                    } else {
-                        p = match_expression(p);
-                    }
-                    if (p == NULL)
-                        return NULL;
-                } else {
-                    return NULL;
-                }
-            } else if (dc == 's') {   /* Signed immediate */
-                if (*pattern == '8') {
-                    pattern++;
-                    p = avoid_spaces(p);
-                    qualifier = 0;
-                    if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
-                        p += 4;
-                        qualifier = 1;
-                    }
-                    p = match_expression(p);
-                    if (qualifier == 0) {
-                        c = instruction_value;
-                        if (undefined != 0)
-                            return NULL;
-                        if (undefined == 0 && (c < -128 || c > 127))
-                            return NULL;
-                    }
-                } else {
-                    return NULL;
-                }
-            } else if (dc == 'f') {   /* FAR pointer */
-                if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
-                    return NULL;
-                } else if (*pattern == '3' && pattern[1] == '2') {
-                    pattern += 2;
-                    p = match_expression(p);
-                    if (p == NULL)
-                        return NULL;
-                    segment_value = instruction_value;
-                    if (*p != ':')
-                        return NULL;
-                    p = match_expression(p + 1);
-                    if (p == NULL)
-                        return NULL;
-                } else {
-                    return NULL;
-                }
-            } else {
-                goto decode_internal_error;
+                qualifier = 8;
             }
+            if (dc == 'j') {
+                if (qualifier == 16) return NULL;
+              match_addressing_8:
+                /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
+                p = match_addressing(p, 8);
+            } else if (dc == 'k') {
+                if (qualifier == 8) return NULL;
+              match_addressing_16:
+                /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
+                p = match_addressing(p, 16);
+            } else if (dc == 'l') {
+                if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0) return NULL;
+                goto match_addressing_8;
+            } else /*if (dc == 'm')*/ {
+                if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0) return NULL;
+                goto match_addressing_16;
+            }
+        } else if (dc == 'q' || dc == 'r') {  /* Register, 8-bit (q) or 16-bit (r). */
+            p = match_register(p, dc == 'q' ? 0 : 16, &instruction_register);  /* 0: anything without the 16 bit set. */
+        } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
+            p = match_expression(p);
+        } else if (dc == 'a') {  /* Address for jump, 8-bit. */
+            p = avoid_spaces(p);
+            qualifier = 0;
+            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                p += 5;
+                qualifier = 1;
+            }
+            p = match_expression(p);
+            if (p != NULL && qualifier == 0) {
+                c = instruction_value - (address + 2);
+                if (undefined == 0 && (c < -128 || c > 127) && decode[0] == 'E' && decode[1] == 'B')  /* memcmp(decode, "EB", 2) == 0 */
+                    return NULL;
+            }
+        } else if (dc == 'b') {  /* Address for jump, 16-bit. */
+            p = avoid_spaces(p);
+            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                p = NULL;
+            } else {
+                p = match_expression(p);
+            }
+        } else if (dc == 's') {  /* Signed immediate, 8-bit. */
+            p = avoid_spaces(p);
+            qualifier = 0;
+            if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
+                p += 4;
+                qualifier = 1;
+            }
+            p = match_expression(p);
+            if (p != NULL && qualifier == 0) {
+                c = instruction_value;
+                if (undefined != 0)
+                    return NULL;
+                if (undefined == 0 && (c < -128 || c > 127))
+                    return NULL;
+            }
+        } else if (dc == 'f') {  /* FAR pointer. */
+            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                return NULL;
+            }
+            p = match_expression(p);
+            if (p == NULL)
+                return NULL;
+            segment_value = instruction_value;
+            if (*p != ':')
+                return NULL;
+            p = match_expression(p + 1);
+        } else if (dc - 'a' + 0U <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
+            goto decode_internal_error;
         } else {
             if (*p != dc) return NULL;
             p++;
             if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
+            continue;
         }
+        if (p == NULL) return NULL;
     }
 
     /*
@@ -1337,11 +1274,11 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             c = instruction_value;
             instruction_offset = instruction_value >> 8;
             dw = 1;
-        } else if (dc == 'a') {
+        } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             c = instruction_value - (address + 1);
             if (assembler_step == 2 && (c < -128 || c > 127))
                 message(1, "short jump too long");
-        } else if (dc == 'b') {
+        } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             c = instruction_value - (address + 2);
             instruction_offset = c >> 8;
             dw = 1;
@@ -2366,48 +2303,48 @@ int main(int argc, char **argv) {
 const char instruction_set[] =
     "AAA\0\0""37\0"
 
-    "AAD\0%i8\0""D5i\0"
+    "AAD\0i\0""D5i\0"
     "-\0""D50A\0"
 
-    "AAM\0%i8\0""D4i\0"
+    "AAM\0i\0""D4i\0"
     "-\0""D40A\0"
 
     "AAS\0\0""3F\0"
 
-    "ADC\0%d8,%r8\0""10drd\0"
-    "-%d16,%r16\0""11drd\0"
-    "-%r8,%d8\0""12drd\0"
-    "-%r16,%d16\0""13drd\0"
-    "-AL,%i8\0""14i\0"
-    "-AX,%i16\0""15j\0"
-    "-%d16,%s8\0""83dzozdi\0"
-    "-%d8,%i8\0""80dzozdi\0"
-    "-%d16,%i16\0""81dzozdj\0"
+    "ADC\0j,q\0""10drd\0"
+    "-k,r\0""11drd\0"
+    "-q,j\0""12drd\0"
+    "-r,k\0""13drd\0"
+    "-AL,i\0""14i\0"
+    "-AX,i\0""15j\0"
+    "-k,s\0""83dzozdi\0"
+    "-j,i\0""80dzozdi\0"
+    "-k,i\0""81dzozdj\0"
 
-    "ADD\0%d8,%r8\0""00drd\0"
-    "-%d16,%r16\0""01drd\0"
-    "-%r8,%d8\0""02drd\0"
-    "-%r16,%d16\0""03drd\0"
-    "-AL,%i8\0""04i\0"
-    "-AX,%i16\0""05j\0"
-    "-%d16,%s8\0""83dzzzdi\0"
-    "-%d8,%i8\0""80dzzzdi\0"
-    "-%d16,%i16\0""81dzzzdj\0"
+    "ADD\0j,q\0""00drd\0"
+    "-k,r\0""01drd\0"
+    "-q,j\0""02drd\0"
+    "-r,k\0""03drd\0"
+    "-AL,i\0""04i\0"
+    "-AX,i\0""05j\0"
+    "-k,s\0""83dzzzdi\0"
+    "-j,i\0""80dzzzdi\0"
+    "-k,i\0""81dzzzdj\0"
 
-    "AND\0%d8,%r8\0""20drd\0"
-    "-%d16,%r16\0""21drd\0"
-    "-%r8,%d8\0""22drd\0"
-    "-%r16,%d16\0""23drd\0"
-    "-AL,%i8\0""24i\0"
-    "-AX,%i16\0""25j\0"
-    "-%d16,%s8\0""83dozzdi\0"
-    "-%d8,%i8\0""80dozzdi\0"
-    "-%d16,%i16\0""81dozzdj\0"
+    "AND\0j,q\0""20drd\0"
+    "-k,r\0""21drd\0"
+    "-q,j\0""22drd\0"
+    "-r,k\0""23drd\0"
+    "-AL,i\0""24i\0"
+    "-AX,i\0""25j\0"
+    "-k,s\0""83dozzdi\0"
+    "-j,i\0""80dozzdi\0"
+    "-k,i\0""81dozzdj\0"
 
-    "CALL\0FAR %d16\0""FFdzood\0"
-    "-%f32\0""9Af\0"
-    "-%d16\0""FFdzozd\0"
-    "-%a16\0""E8b\0"
+    "CALL\0FAR k\0""FFdzood\0"
+    "-f\0""9Af\0"
+    "-k\0""FFdzozd\0"
+    "-b\0""E8b\0"
 
     "CBW\0\0""98\0"
 
@@ -2419,15 +2356,15 @@ const char instruction_set[] =
 
     "CMC\0\0""F5\0"
 
-    "CMP\0%d8,%r8\0""38drd\0"
-    "-%d16,%r16\0""39drd\0"
-    "-%r8,%d8\0""3Adrd\0"
-    "-%r16,%d16\0""3Bdrd\0"
-    "-AL,%i8\0""3Ci\0"
-    "-AX,%i16\0""3Dj\0"
-    "-%d16,%s8\0""83dooodi\0"
-    "-%d8,%i8\0""80dooodi\0"
-    "-%d16,%i16\0""81dooodj\0"
+    "CMP\0j,q\0""38drd\0"
+    "-k,r\0""39drd\0"
+    "-q,j\0""3Adrd\0"
+    "-r,k\0""3Bdrd\0"
+    "-AL,i\0""3Ci\0"
+    "-AX,i\0""3Dj\0"
+    "-k,s\0""83dooodi\0"
+    "-j,i\0""80dooodi\0"
+    "-k,i\0""81dooodj\0"
 
     "CMPSB\0\0""A6\0"
 
@@ -2441,12 +2378,12 @@ const char instruction_set[] =
 
     "DAS\0\0""2F\0"
 
-    "DEC\0%r16\0""zozzor\0"
-    "-%db8\0""FEdzzod\0"
-    "-%dw16\0""FFdzzod\0"
+    "DEC\0r\0""zozzor\0"
+    "-l\0""FEdzzod\0"
+    "-m\0""FFdzzod\0"
 
-    "DIV\0%db8\0""F6doozd\0"
-    "-%dw16\0""F7doozd\0"
+    "DIV\0l\0""F6doozd\0"
+    "-m\0""F7doozd\0"
 
     "DS\0\0""3E+\0"
 
@@ -2454,22 +2391,22 @@ const char instruction_set[] =
 
     "HLT\0\0""F4\0"
 
-    "IDIV\0%db8\0""F6doood\0"
-    "-%dw16\0""F7doood\0"
+    "IDIV\0l\0""F6doood\0"
+    "-m\0""F7doood\0"
 
-    "IMUL\0%db8\0""F6dozod\0"
-    "-%dw16\0""F7dozod\0"
+    "IMUL\0l\0""F6dozod\0"
+    "-m\0""F7dozod\0"
 
     "IN\0AL,DX\0""EC\0"
     "-AX,DX\0""ED\0"
-    "-AL,%i8\0""E4i\0"
-    "-AX,%i8\0""E5i\0"
+    "-AL,i\0""E4i\0"
+    "-AX,i\0""E5i\0"
 
-    "INC\0%r16\0""zozzzr\0"
-    "-%db8\0""FEdzzzd\0"
-    "-%dw16\0""FFdzzzd\0"
+    "INC\0r\0""zozzzr\0"
+    "-l\0""FEdzzzd\0"
+    "-m\0""FFdzzzd\0"
 
-    "INT\0%i8\0""CDi\0"
+    "INT\0i\0""CDi\0"
 
     "INT3\0\0""CC\0"
 
@@ -2477,61 +2414,61 @@ const char instruction_set[] =
 
     "IRET\0\0""CF\0"
 
-    "JA\0%a8\0""77a\0"
+    "JA\0a\0""77a\0"
 
-    "JB\0%a8\0""72a\0"
+    "JB\0a\0""72a\0"
 
-    "JBE\0%a8\0""76a\0"
+    "JBE\0a\0""76a\0"
 
-    "JC\0%a8\0""72a\0"
+    "JC\0a\0""72a\0"
 
-    "JCXZ\0%a8\0""E3a\0"
+    "JCXZ\0a\0""E3a\0"
 
-    "JE\0%a8\0""74a\0"
+    "JE\0a\0""74a\0"
 
-    "JG\0%a8\0""7Fa\0"
+    "JG\0a\0""7Fa\0"
 
-    "JGE\0%a8\0""7Da\0"
+    "JGE\0a\0""7Da\0"
 
-    "JL\0%a8\0""7Ca\0"
+    "JL\0a\0""7Ca\0"
 
-    "JLE\0%a8\0""7Ea\0"
+    "JLE\0a\0""7Ea\0"
 
-    "JMP\0FAR %d16\0""FFdozod\0"
-    "-%f32\0""EAf\0"
-    "-%d16\0""FFdozzd\0"
-    "-%a8\0""EBa\0"
-    "-%a16\0""E9b\0"
+    "JMP\0FAR k\0""FFdozod\0"
+    "-f\0""EAf\0"
+    "-k\0""FFdozzd\0"
+    "-a\0""EBa\0"
+    "-b\0""E9b\0"
 
-    "JNB\0%a8\0""73a\0"
+    "JNB\0a\0""73a\0"
 
-    "JNC\0%a8\0""73a\0"
+    "JNC\0a\0""73a\0"
 
-    "JNE\0%a8\0""75a\0"
+    "JNE\0a\0""75a\0"
 
-    "JNO\0%a8\0""71a\0"
+    "JNO\0a\0""71a\0"
 
-    "JNS\0%a8\0""79a\0"
+    "JNS\0a\0""79a\0"
 
-    "JNZ\0%a8\0""75a\0"
+    "JNZ\0a\0""75a\0"
 
-    "JO\0%a8\0""70a\0"
+    "JO\0a\0""70a\0"
 
-    "JPE\0%a8\0""7Aa\0"
+    "JPE\0a\0""7Aa\0"
 
-    "JPO\0%a8\0""7Ba\0"
+    "JPO\0a\0""7Ba\0"
 
-    "JS\0%a8\0""78a\0"
+    "JS\0a\0""78a\0"
 
-    "JZ\0%a8\0""74a\0"
+    "JZ\0a\0""74a\0"
 
     "LAHF\0\0""9F\0"
 
-    "LDS\0%r16,%d16\0""oozzzozodrd\0"
+    "LDS\0r,k\0""oozzzozodrd\0"
 
-    "LEA\0%r16,%d16\0""8Ddrd\0"
+    "LEA\0r,k\0""8Ddrd\0"
 
-    "LES\0%r16,%d16\0""oozzzozzdrd\0"
+    "LES\0r,k\0""oozzzozzdrd\0"
 
     "LOCK\0\0""F0+\0"
 
@@ -2539,74 +2476,74 @@ const char instruction_set[] =
 
     "LODSW\0\0""AD\0"
 
-    "LOOP\0%a8\0""E2a\0"
+    "LOOP\0a\0""E2a\0"
 
-    "LOOPE\0%a8\0""E1a\0"
+    "LOOPE\0a\0""E1a\0"
 
-    "LOOPNE\0%a8\0""E0a\0"
+    "LOOPNE\0a\0""E0a\0"
 
-    "LOOPNZ\0%a8\0""E0a\0"
+    "LOOPNZ\0a\0""E0a\0"
 
-    "LOOPZ\0%a8\0""E1a\0"
+    "LOOPZ\0a\0""E1a\0"
 
-    "MOV\0AL,[%i16]\0""A0j\0"
-    "-AX,[%i16]\0""A1j\0"
-    "-[%i16],AL\0""A2j\0"
-    "-[%i16],AX\0""A3j\0"
-    "-%d8,%r8\0""88drd\0"
-    "-%d16,%r16\0""89drd\0"
-    "-%r8,%d8\0""8Adrd\0"
-    "-%r16,%d16\0""8Bdrd\0"
-    "-%d16,ES\0""8Cdzzzd\0"
-    "-%d16,CS\0""8Cdzzod\0"
-    "-%d16,SS\0""8Cdzozd\0"
-    "-%d16,DS\0""8Cdzood\0"
-    "-ES,%d16\0""8Edzzzd\0"
-    "-CS,%d16\0""8Edzzod\0"
-    "-SS,%d16\0""8Edzozd\0"
-    "-DS,%d16\0""8Edzood\0"
-    "-%r8,%i8\0""ozoozri\0"
-    "-%r16,%i16\0""ozooorj\0"
-    "-%db8,%i8\0""oozzzoozdzzzdi\0"
-    "-%dw16,%i16\0""oozzzooodzzzdj\0"
+    "MOV\0AL,[i]\0""A0j\0"
+    "-AX,[i]\0""A1j\0"
+    "-[i],AL\0""A2j\0"
+    "-[i],AX\0""A3j\0"
+    "-j,q\0""88drd\0"
+    "-k,r\0""89drd\0"
+    "-q,j\0""8Adrd\0"
+    "-r,k\0""8Bdrd\0"
+    "-k,ES\0""8Cdzzzd\0"
+    "-k,CS\0""8Cdzzod\0"
+    "-k,SS\0""8Cdzozd\0"
+    "-k,DS\0""8Cdzood\0"
+    "-ES,k\0""8Edzzzd\0"
+    "-CS,k\0""8Edzzod\0"
+    "-SS,k\0""8Edzozd\0"
+    "-DS,k\0""8Edzood\0"
+    "-q,i\0""ozoozri\0"
+    "-r,i\0""ozooorj\0"
+    "-l,i\0""oozzzoozdzzzdi\0"
+    "-m,i\0""oozzzooodzzzdj\0"
 
     "MOVSB\0\0""A4\0"
 
     "MOVSW\0\0""A5\0"
 
-    "MUL\0%db8\0""F6dozzd\0"
-    "-%dw16\0""F7dozzd\0"
+    "MUL\0l\0""F6dozzd\0"
+    "-m\0""F7dozzd\0"
 
-    "NEG\0%db8\0""F6dzood\0"
-    "-%dw16\0""F7dzood\0"
+    "NEG\0l\0""F6dzood\0"
+    "-m\0""F7dzood\0"
 
     "NOP\0\0""90\0"
 
-    "NOT\0%db8\0""F6dzozd\0"
-    "-%dw16\0""F7dzozd\0"
+    "NOT\0l\0""F6dzozd\0"
+    "-m\0""F7dzozd\0"
 
-    "OR\0%d8,%r8\0""08drd\0"
-    "-%d16,%r16\0""09drd\0"
-    "-%r8,%d8\0""0Adrd\0"
-    "-%r16,%d16\0""0Bdrd\0"
-    "-AL,%i8\0""0Ci\0"
-    "-AX,%i16\0""0Dj\0"
-    "-%d16,%s8\0""83dzzodi\0"
-    "-%d8,%i8\0""80dzzodi\0"
-    "-%d16,%i16\0""81dzzodj\0"
+    "OR\0j,q\0""08drd\0"
+    "-k,r\0""09drd\0"
+    "-q,j\0""0Adrd\0"
+    "-r,k\0""0Bdrd\0"
+    "-AL,i\0""0Ci\0"
+    "-AX,i\0""0Dj\0"
+    "-k,s\0""83dzzodi\0"
+    "-j,i\0""80dzzodi\0"
+    "-k,i\0""81dzzodj\0"
 
     "OUT\0DX,AL\0""EE\0"
     "-DX,AX\0""EF\0"
-    "-%i8,AL\0""E6i\0"
-    "-%i8,AX\0""E7i\0"
+    "-i,AL\0""E6i\0"
+    "-i,AX\0""E7i\0"
 
     "PAUSE\0\0""F390\0"
 
     "POP\0ES\0""07\0"
     "-SS\0""17\0"
     "-DS\0""1F\0"
-    "-%r16\0""zozoor\0"
-    "-%d16\0""8Fdzzzd\0"
+    "-r\0""zozoor\0"
+    "-k\0""8Fdzzzd\0"
 
     "POPF\0\0""9D\0"
 
@@ -2614,20 +2551,20 @@ const char instruction_set[] =
     "-CS\0""0E\0"
     "-SS\0""16\0"
     "-DS\0""1E\0"
-    "-%r16\0""zozozr\0"
-    "-%d16\0""FFdoozd\0"
+    "-r\0""zozozr\0"
+    "-k\0""FFdoozd\0"
 
     "PUSHF\0\0""9C\0"
 
-    "RCL\0%d8,1\0""D0dzozd\0"
-    "-%d16,1\0""D1dzozd\0"
-    "-%d8,CL\0""D2dzozd\0"
-    "-%d16,CL\0""D3dzozd\0"
+    "RCL\0j,1\0""D0dzozd\0"
+    "-k,1\0""D1dzozd\0"
+    "-j,CL\0""D2dzozd\0"
+    "-k,CL\0""D3dzozd\0"
 
-    "RCR\0%d8,1\0""D0dzood\0"
-    "-%d16,1\0""D1dzood\0"
-    "-%d8,CL\0""D2dzood\0"
-    "-%d16,CL\0""D3dzood\0"
+    "RCR\0j,1\0""D0dzood\0"
+    "-k,1\0""D1dzood\0"
+    "-j,CL\0""D2dzood\0"
+    "-k,CL\0""D3dzood\0"
 
     "REP\0\0""F3+\0"
 
@@ -2639,52 +2576,52 @@ const char instruction_set[] =
 
     "REPZ\0\0""F3+\0"
 
-    "RET\0%i16\0""C2j\0"
+    "RET\0i\0""C2j\0"
     "-\0""C3\0"
 
-    "RETF\0%i16\0""CAj\0"
+    "RETF\0i\0""CAj\0"
     "-\0""CB\0"
 
-    "ROL\0%d8,1\0""D0dzzzd\0"
-    "-%d16,1\0""D1dzzzd\0"
-    "-%d8,CL\0""D2dzzzd\0"
-    "-%d16,CL\0""D3dzzzd\0"
+    "ROL\0j,1\0""D0dzzzd\0"
+    "-k,1\0""D1dzzzd\0"
+    "-j,CL\0""D2dzzzd\0"
+    "-k,CL\0""D3dzzzd\0"
 
-    "ROR\0%d8,1\0""D0dzzod\0"
-    "-%d16,1\0""D1dzzod\0"
-    "-%d8,CL\0""D2dzzod\0"
-    "-%d16,CL\0""D3dzzod\0"
+    "ROR\0j,1\0""D0dzzod\0"
+    "-k,1\0""D1dzzod\0"
+    "-j,CL\0""D2dzzod\0"
+    "-k,CL\0""D3dzzod\0"
 
     "SAHF\0\0""9E\0"
 
-    "SAR\0%d8,1\0""D0doood\0"
-    "-%d16,1\0""D1doood\0"
-    "-%d8,CL\0""D2doood\0"
-    "-%d16,CL\0""D3doood\0"
+    "SAR\0j,1\0""D0doood\0"
+    "-k,1\0""D1doood\0"
+    "-j,CL\0""D2doood\0"
+    "-k,CL\0""D3doood\0"
 
-    "SBB\0%d8,%r8\0""18drd\0"
-    "-%d16,%r16\0""19drd\0"
-    "-%r8,%d8\0""1Adrd\0"
-    "-%r16,%d16\0""1Bdrd\0"
-    "-AL,%i8\0""1Ci\0"
-    "-AX,%i16\0""1Dj\0"
-    "-%d16,%s8\0""83dzoodi\0"
-    "-%d8,%i8\0""80dzoodi\0"
-    "-%d16,%i16\0""81dzoodj\0"
+    "SBB\0j,q\0""18drd\0"
+    "-k,r\0""19drd\0"
+    "-q,j\0""1Adrd\0"
+    "-r,k\0""1Bdrd\0"
+    "-AL,i\0""1Ci\0"
+    "-AX,i\0""1Dj\0"
+    "-k,s\0""83dzoodi\0"
+    "-j,i\0""80dzoodi\0"
+    "-k,i\0""81dzoodj\0"
 
     "SCASB\0\0""AE\0"
 
     "SCASW\0\0""AF\0"
 
-    "SHL\0%d8,1\0""D0dozzd\0"
-    "-%d16,1\0""D1dozzd\0"
-    "-%d8,CL\0""D2dozzd\0"
-    "-%d16,CL\0""D3dozzd\0"
+    "SHL\0j,1\0""D0dozzd\0"
+    "-k,1\0""D1dozzd\0"
+    "-j,CL\0""D2dozzd\0"
+    "-k,CL\0""D3dozzd\0"
 
-    "SHR\0%d8,1\0""D0dozod\0"
-    "-%d16,1\0""D1dozod\0"
-    "-%d8,CL\0""D2dozod\0"
-    "-%d16,CL\0""D3dozod\0"
+    "SHR\0j,1\0""D0dozod\0"
+    "-k,1\0""D1dozod\0"
+    "-j,CL\0""D2dozod\0"
+    "-k,CL\0""D3dozod\0"
 
     "SS\0\0""36+\0"
 
@@ -2698,43 +2635,43 @@ const char instruction_set[] =
 
     "STOSW\0\0""AB\0"
 
-    "SUB\0%d8,%r8\0""28drd\0"
-    "-%d16,%r16\0""29drd\0"
-    "-%r8,%d8\0""2Adrd\0"
-    "-%r16,%d16\0""2Bdrd\0"
-    "-AL,%i8\0""2Ci\0"
-    "-AX,%i16\0""2Dj\0"
-    "-%d16,%s8\0""83dozodi\0"
-    "-%d8,%i8\0""80dozodi\0"
-    "-%d16,%i16\0""81dozodj\0"
+    "SUB\0j,q\0""28drd\0"
+    "-k,r\0""29drd\0"
+    "-q,j\0""2Adrd\0"
+    "-r,k\0""2Bdrd\0"
+    "-AL,i\0""2Ci\0"
+    "-AX,i\0""2Dj\0"
+    "-k,s\0""83dozodi\0"
+    "-j,i\0""80dozodi\0"
+    "-k,i\0""81dozodj\0"
 
-    "TEST\0%d8,%r8\0""84drd\0"
-    "-%r8,%d8\0""84drd\0"
-    "-%d16,%r16\0""85drd\0"
-    "-%r16,%d16\0""85drd\0"
-    "-AL,%i8\0""A8i\0"
-    "-AX,%i16\0""A9j\0"
-    "-%db8,%i8\0""F6dzzzdi\0"
-    "-%dw16,%i16\0""F7dzzzdj\0"
+    "TEST\0j,q\0""84drd\0"
+    "-q,j\0""84drd\0"
+    "-k,r\0""85drd\0"
+    "-r,k\0""85drd\0"
+    "-AL,i\0""A8i\0"
+    "-AX,i\0""A9j\0"
+    "-l,i\0""F6dzzzdi\0"
+    "-m,i\0""F7dzzzdj\0"
 
     "WAIT\0\0""9B+\0"
 
-    "XCHG\0AX,%r16\0""ozzozr\0"
-    "-%r16,AX\0""ozzozr\0"
-    "-%d8,%r8\0""86drd\0"
-    "-%r8,%d8\0""86drd\0"
-    "-%d16,%r16\0""87drd\0"
-    "-%r16,%d16\0""87drd\0"
+    "XCHG\0AX,r\0""ozzozr\0"
+    "-r,AX\0""ozzozr\0"
+    "-j,q\0""86drd\0"
+    "-q,j\0""86drd\0"
+    "-k,r\0""87drd\0"
+    "-r,k\0""87drd\0"
 
     "XLAT\0\0""D7\0"
 
-    "XOR\0%d8,%r8\0""30drd\0"
-    "-%d16,%r16\0""31drd\0"
-    "-%r8,%d8\0""32drd\0"
-    "-%r16,%d16\0""33drd\0"
-    "-AL,%i8\0""34i\0"
-    "-AX,%i16\0""35j\0"
-    "-%d16,%s8\0""83doozdi\0"
-    "-%d8,%i8\0""80doozdi\0"
-    "-%d16,%i16\0""81doozdj\0"
+    "XOR\0j,q\0""30drd\0"
+    "-k,r\0""31drd\0"
+    "-q,j\0""32drd\0"
+    "-r,k\0""33drd\0"
+    "-AL,i\0""34i\0"
+    "-AX,i\0""35j\0"
+    "-k,s\0""83doozdi\0"
+    "-j,iy\0""80doozdi\0"
+    "-k,i\0""81doozdj\0"
 ;
