@@ -1158,18 +1158,16 @@ const char *match(const char *p, const char *pattern, const char *decode) {
     int c;
     int bit;
     int qualifier;
-    const char *base;
+    const char *error_base;
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
     unsigned char unused_reg;
     char dc, dw;
 
     undefined = 0;
-    while (*pattern) {
-/*        fputc(*pattern, stdout);*/
-        if (*pattern == '%') {  /* Special */
-            pattern++;
-            if (*pattern == 'd') {  /* Addressing */
-                pattern++;
+    for (error_base = pattern; (dc = *pattern++) != '\0';) {
+        if (dc == '%') {  /* Special */
+            dc = *pattern++;
+            if (dc == 'd') {  /* Addressing */
                 qualifier = 0;
                 if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
                     p = avoid_spaces(p + 4);
@@ -1213,8 +1211,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'r') {   /* Register */
-                pattern++;
+            } else if (dc == 'r') {   /* Register */
                 if (*pattern == '8') {
                     pattern++;
                     p2 = match_register(p, 8, &instruction_register);
@@ -1230,8 +1227,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'i') {   /* Immediate */
-                pattern++;
+            } else if (dc == 'i') {   /* Unsigned immediate */
                 if (*pattern == '8') {
                     pattern++;
                     p = match_expression(p);
@@ -1245,8 +1241,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'a') {   /* Address for jump */
-                pattern++;
+            } else if (dc == 'a') {   /* Address for jump */
                 if (*pattern == '8') {
                     pattern++;
                     p = avoid_spaces(p);
@@ -1276,8 +1271,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 's') {   /* Signed immediate */
-                pattern++;
+            } else if (dc == 's') {   /* Signed immediate */
                 if (*pattern == '8') {
                     pattern++;
                     p = avoid_spaces(p);
@@ -1297,8 +1291,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'f') {   /* FAR pointer */
-                pattern++;
+            } else if (dc == 'f') {   /* FAR pointer */
                 if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
                     return NULL;
                 } else if (*pattern == '3' && pattern[1] == '2') {
@@ -1316,21 +1309,19 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                     return NULL;
                 }
             } else {
-                return NULL;
+                goto decode_internal_error;
             }
-            continue;
+        } else {
+            if (*p != dc) return NULL;
+            p++;
+            if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
         }
-        if (*p != *pattern)
-            return NULL;
-        p++;
-        if (*pattern == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
-        pattern++;
     }
 
     /*
      ** Instruction properly matched, now generate binary
      */
-    for (base = decode; (dc = *decode++) != '\0';) {
+    for (error_base = decode; (dc = *decode++) != '\0';) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
             continue;
@@ -1381,9 +1372,9 @@ const char *match(const char *p, const char *pattern, const char *decode) {
                         bit += 3;
                         dw = instruction_offset_width;  /* 1 or 2. */
                     }
-                } else {
+                } else { decode_internal_error:  /* assert(...). */
                     message_start(1);
-                    bbprintf(&message_bbb, "decode: internal error (%s)", base);
+                    bbprintf(&message_bbb, "decode: internal error (%s)", error_base);
                     message_end();
                     exit(2);
                     break;
