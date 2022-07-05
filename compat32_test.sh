@@ -1,6 +1,16 @@
 #!/bin/sh --
 # by pts@fazekas.hu at Sun Jul  3 12:38:36 CEST 2022
 
+if test "$KVIKDOS"; then :
+elif type kvikdos >/dev/null 2>&1; then KVIKDOS=kvikdos
+else KVIKDOS="$HOME/prg/kvikdos/kvikdos"
+fi
+
+if test "$DOSMC"; then :
+elif type dosmc >/dev/null 2>&1; then DOSMC=dosmc
+else DOSMC="$HOME/prg/dosmc/dosmc"
+fi
+
 set -ex
 
 nasm-0.98.39.static -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
@@ -13,7 +23,7 @@ nasm -w-number-overflow -f bin -o compat32.bin compat32.asm && cmp -l compat32.b
 ./mininasm.gcc32 -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 ./mininasm.tcc -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 ./mininasm.tcc64 -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
-"${KVIKDOS:-kvikdos}" mininasm.com -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
-"${KVIKDOS:-kvikdos}" mininasm.exe -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
+"$KVIKDOS" mininasm.com -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
+"$KVIKDOS" mininasm.exe -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 
 : "$0" OK.
