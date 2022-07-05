@@ -1320,7 +1320,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             }
             continue;
         }
-        if (toupper(*p) != *pattern)
+        if (*p != *pattern)
             return NULL;
         p++;
         if (*pattern == ',')    /* Allow spaces after comma !! TODO(pts): Not needed. */
