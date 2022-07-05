@@ -76,3 +76,11 @@ aad 42
 aam
 aam 2*21
 pause
+repe es inc ax  ; NASM 0.99.06 reorders prefixes (NASM 0.98.39 doesn't). This is its order.
+lock ds inc ax
+wait  ; In NASM 0.98.39, `wait' is a regular instruction, not a prefix. But later ndisasm treats it as a prefix.
+nop  ; `wait' above applies to this.
+repne cs inc sp
+repnz ds inc bx
+rep inc cx
+repz ss inc dx

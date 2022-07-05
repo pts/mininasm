@@ -1333,7 +1333,9 @@ const char *match(const char *p, const char *pattern, const char *decode) {
      */
     for (base = decode; (dc = *decode++) != '\0';) {
         dw = 0;
-        if ((unsigned char)dc <= 'F' + 0U) {  /* Byte: uppercase hex. */
+        if (dc == '+') {  /* Instruction is a prefix. */
+            continue;
+        } else if ((unsigned char)dc <= 'F' + 0U) {  /* Byte: uppercase hex. */
             c = dc - '0';
             if (c > 9) c -= 7;
             dc = *decode++ - '0';
@@ -1510,7 +1512,7 @@ void process_instruction(void) {
     if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
         while (1) {
             p = avoid_spaces(p);
-            if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. " */
+            if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
                 c = *p++;
                 for (p2 = p; *p2 != '\0' && *p2 != c; ++p2) {}
                 p3 = p2;
@@ -1572,8 +1574,14 @@ void process_instruction(void) {
     }
     while (part[0]) {   /* Match against instruction set */
         pi = instruction_set;
-        pinst = pi;  /* Pacify compilers. */
-        while (*pi != '\0') {
+        pinst = p3 = pi;  /* Pacify compilers. */
+        for (;;) {
+            if (*pi == '\0') {
+                message_start(1);
+                bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
+                message_end();
+                goto after_matches;
+            }
             if (*pi == '-') {
                 p2 = pi + 1;
             } else {
@@ -1581,6 +1589,7 @@ void process_instruction(void) {
                 for (p2 = pi; *p2++ != '\0';) {}
             }
             for (p3 = p2; *p3++ != '\0';) {}
+            for (pi = p3; *pi++ != '\0';) {}
             if (strcmp(part, pinst) == 0) {
                 p2 = match(p, p2, p3);
                 if (p2 != NULL) {
@@ -1588,18 +1597,14 @@ void process_instruction(void) {
                     break;
                 }
             }
-            for (pi = p3; *pi++ != '\0';) {}
         }
-        if (*pi == '\0') {
-            message_start(1);
-            bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
-            message_end();
+        if (pi[-2] != '+') {  /* If pinst is not a prefix, then don't allow another instruction in the same line. */
+            check_end(p);
             break;
-        } else {
-            p = p2;
-            separate();
         }
+        separate();
     }
+  after_matches: ;
 }
 
 /*
@@ -2438,7 +2443,7 @@ const char instruction_set[] =
 
     "CMPSW\0\0""A7\0"
 
-    "CS\0\0""2E\0"
+    "CS\0\0""2E+\0"
 
     "CWD\0\0""99\0"
 
@@ -2453,9 +2458,9 @@ const char instruction_set[] =
     "DIV\0%db8\0""F6doozd\0"
     "-%dw16\0""F7doozd\0"
 
-    "DS\0\0""3E\0"
+    "DS\0\0""3E+\0"
 
-    "ES\0\0""26\0"
+    "ES\0\0""26+\0"
 
     "HLT\0\0""F4\0"
 
@@ -2538,7 +2543,7 @@ const char instruction_set[] =
 
     "LES\0%r16,%d16\0""oozzzozzdrd\0"
 
-    "LOCK\0\0""F0\0"
+    "LOCK\0\0""F0+\0"
 
     "LODSB\0\0""AC\0"
 
@@ -2634,15 +2639,15 @@ const char instruction_set[] =
     "-%d8,CL\0""D2dzood\0"
     "-%d16,CL\0""D3dzood\0"
 
-    "REP\0\0""F3\0"
+    "REP\0\0""F3+\0"
 
-    "REPE\0\0""F3\0"
+    "REPE\0\0""F3+\0"
 
-    "REPNE\0\0""F2\0"
+    "REPNE\0\0""F2+\0"
 
-    "REPNZ\0\0""F2\0"
+    "REPNZ\0\0""F2+\0"
 
-    "REPZ\0\0""F3\0"
+    "REPZ\0\0""F3+\0"
 
     "RET\0%i16\0""C2j\0"
     "-\0""C3\0"
@@ -2691,7 +2696,7 @@ const char instruction_set[] =
     "-%d8,CL\0""D2dozod\0"
     "-%d16,CL\0""D3dozod\0"
 
-    "SS\0\0""36\0"
+    "SS\0\0""36+\0"
 
     "STC\0\0""F9\0"
 
@@ -2722,7 +2727,7 @@ const char instruction_set[] =
     "-%db8,%i8\0""F6dzzzdi\0"
     "-%dw16,%i16\0""F7dzzzdj\0"
 
-    "WAIT\0\0""9B\0"
+    "WAIT\0\0""9B+\0"
 
     "XCHG\0AX,%r16\0""ozzozr\0"
     "-%r16,AX\0""ozzozr\0"
