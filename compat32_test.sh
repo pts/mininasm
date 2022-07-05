@@ -27,7 +27,7 @@ nasm-0.99.06.static -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.g
 # Yasm is usually incompatible.
 #yasm-1.2.0 -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 #yasm-1.3.0 -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
-nasm -w-number-overflow -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
+nasm -w-number-overflow -w-lock -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 ./mininasm -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 ./mininasm.gcc32 -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
 ./mininasm.tcc -f bin -o compat32.bin compat32.asm && cmp -l compat32.bin.good compat32.bin || exit "$?"
