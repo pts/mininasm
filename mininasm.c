@@ -1323,8 +1323,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
         if (*p != *pattern)
             return NULL;
         p++;
-        if (*pattern == ',')    /* Allow spaces after comma !! TODO(pts): Not needed. */
-            p = avoid_spaces(p);
+        if (*pattern == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
         pattern++;
     }
 
