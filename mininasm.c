@@ -2371,9 +2371,11 @@ int main(int argc, char **argv) {
 const char instruction_set[] =
     "AAA\0\0""37\0"
 
-    "AAD\0\0""D50A\0"
+    "AAD\0%i8\0""D5i\0"
+    "-\0""D50A\0"
 
-    "AAM\0\0""D40A\0"
+    "AAM\0%i8\0""D4i\0"
+    "-\0""D40A\0"
 
     "AAS\0\0""3F\0"
 

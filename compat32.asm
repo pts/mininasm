@@ -70,3 +70,8 @@ db 'A'
 %else
 db 'B'
 %endif
+
+aad
+aad 42
+aam
+aam 2*21
