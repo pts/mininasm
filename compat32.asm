@@ -75,3 +75,4 @@ aad
 aad 42
 aam
 aam 2*21
+pause

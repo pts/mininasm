@@ -2605,6 +2605,8 @@ const char instruction_set[] =
     "-%i8,AL\0""E6i\0"
     "-%i8,AX\0""E7i\0"
 
+    "PAUSE\0\0""F390\0"
+
     "POP\0ES\0""07\0"
     "-SS\0""17\0"
     "-DS\0""1F\0"
