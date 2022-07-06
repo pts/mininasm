@@ -834,7 +834,7 @@ const char *match_expression(const char *match_p) {
         if (level <= 5) {
             while (1) {
                 match_p = avoid_spaces(match_p);
-                if ((c = match_p[0]) == '*') {  /* Multiply operator. */  
+                if ((c = match_p[0]) == '*') {  /* Multiply operator. */
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(10, 6);
                     value1 *= value2;
@@ -916,7 +916,6 @@ const char *match_expression(const char *match_p) {
 #else
                         value1 = c ? GET_UVALUE(value1) << GET_UVALUE(value2) : GET_UVALUE(value1) >> GET_UVALUE(value2);  /* Zero-extend value1 to CONFIG_VALUE_BITS. */
 #endif
-                            
                     }
                 } else {
                     break;
@@ -1151,54 +1150,69 @@ void emit_byte(int byte) {
 }
 
 /*
+ ** Check for end of line
+ */
+const char *check_end(const char *p) {
+    p = avoid_spaces(p);
+    if (*p && *p != ';') {
+        message(1, "extra characters at end of line");
+        return NULL;
+    }
+    return p;
+}
+
+/*
  ** Search for a match with instruction
  */
-const char *match(const char *p, const char *pattern, const char *decode) {
+const char *match(const char *p, const char *pattern_and_encode) {
     int c;
     int bit;
     int qualifier;
+    const char *p0;
     const char *error_base;
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
     unsigned char unused_reg;
     char dc, dw;
 
+    p0 = p;
+  next_pattern:
     undefined = 0;
-    for (error_base = pattern; (dc = *pattern++) != '\0';) {
+    for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
             if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
-                    return NULL;
+                    goto mismatch;
                 qualifier = 16;
             } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
-                    return NULL;
+                    goto mismatch;
                 qualifier = 8;
             }
             if (dc == 'j') {
-                if (qualifier == 16) return NULL;
+                if (qualifier == 16) goto mismatch;
               match_addressing_8:
                 /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                 p = match_addressing(p, 8);
             } else if (dc == 'k') {
-                if (qualifier == 8) return NULL;
+                if (qualifier == 8) goto mismatch;
               match_addressing_16:
                 /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                 p = match_addressing(p, 16);
             } else if (dc == 'l') {
-                if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0) return NULL;
+                if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0) goto mismatch;
                 goto match_addressing_8;
             } else /*if (dc == 'm')*/ {
-                if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0) return NULL;
+                if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0) goto mismatch;
                 goto match_addressing_16;
             }
         } else if (dc == 'q' || dc == 'r') {  /* Register, 8-bit (q) or 16-bit (r). */
             p = match_register(p, dc == 'q' ? 0 : 16, &instruction_register);  /* 0: anything without the 16 bit set. */
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
             p = match_expression(p);
-        } else if (dc == 'a') {  /* Address for jump, 8-bit. */
+        } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
             if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
@@ -1208,8 +1222,8 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             p = match_expression(p);
             if (p != NULL && qualifier == 0) {
                 c = instruction_value - (address + 2);
-                if (undefined == 0 && (c < -128 || c > 127) && decode[0] == 'E' && decode[1] == 'B')  /* memcmp(decode, "EB", 2) == 0 */
-                    return NULL;
+                if (dc == 'c' && undefined == 0 && (c < -128 || c > 127))
+                    goto mismatch;
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             p = avoid_spaces(p);
@@ -1229,43 +1243,50 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             if (p != NULL && qualifier == 0) {
                 c = instruction_value;
                 if (undefined != 0)
-                    return NULL;
+                    goto mismatch;
                 if (undefined == 0 && (c < -128 || c > 127))
-                    return NULL;
+                    goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
             if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
-                return NULL;
+                goto mismatch;
             }
             p = match_expression(p);
             if (p == NULL)
-                return NULL;
+                goto mismatch;
             segment_value = instruction_value;
             if (*p != ':')
-                return NULL;
+                goto mismatch;
             p = match_expression(p + 1);
         } else if (dc - 'a' + 0U <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else {
-            if (*p != dc) return NULL;
+            if (*p != dc) goto mismatch;
             p++;
             if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
             continue;
         }
-        if (p == NULL) return NULL;
+        if (p == NULL) goto mismatch;
     }
+    goto do_encode;
+  mismatch:
+    while ((dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */) {}
+    if (dc == '\0') return NULL;
+    p = p0;
+    goto next_pattern;
 
+  do_encode:
     /*
      ** Instruction properly matched, now generate binary
      */
-    for (error_base = decode; (dc = *decode++) != '\0';) {
+    for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
-            continue;
+            return p;  /* Don't call check_end(p). */
         } else if ((unsigned char)dc <= 'F' + 0U) {  /* Byte: uppercase hex. */
             c = dc - '0';
             if (c > 9) c -= 7;
-            dc = *decode++ - '0';
+            dc = *pattern_and_encode++ - '0';
             if (dc > 9) dc -= 7;
             c = (c << 4) | dc;
         } else if (dc == 'i') {
@@ -1289,9 +1310,9 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             dw = 2;
         } else {  /* Binary. */
             c = 0;
-            --decode;
+            --pattern_and_encode;
             for (bit = 0; bit < 8;) {
-                dc = *decode++;
+                dc = *pattern_and_encode++;
                 if (dc == 'z') {  /* Zero. */
                     bit++;
                 } else if (dc == 'o') {  /* One. */
@@ -1324,7 +1345,7 @@ const char *match(const char *p, const char *pattern, const char *decode) {
             if (dw > 1) emit_byte(instruction_offset >> 8);
         }
     }
-    return p;
+    return check_end(p);
 }
 
 /*
@@ -1355,16 +1376,6 @@ void separate(void) {
     *p2 = '\0';
     while (*p && isspace(*p))
         p++;
-}
-
-/*
- ** Check for end of line
- */
-void check_end(const char *p) {
-    p = avoid_spaces(p);
-    if (*p && *p != ';') {
-        message(1, "extra characters at end of line");
-    }
 }
 
 char message_buf[512];
@@ -1430,10 +1441,7 @@ void message(int error, const char *message) {
  ** Process an instruction
  */
 void process_instruction(void) {
-    const char *p2 = NULL;
-    const char *p3;
-    const char *pi;
-    const char *pinst;
+    const char *p2 = NULL, *p3;
     char c;
 
     if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
@@ -1500,33 +1508,25 @@ void process_instruction(void) {
         return;
     }
     while (part[0]) {   /* Match against instruction set */
-        pi = instruction_set;
-        pinst = p3 = pi;  /* Pacify compilers. */
+        p2 = instruction_set;
         for (;;) {
-            if (*pi == '\0') {
+            if (*p2 == '\0') {
                 message_start(1);
-                bbprintf(&message_bbb, "Undefined instruction '%s %s'", part, p);
+                bbprintf(&message_bbb, "Unknown instruction '%s'", part);
                 message_end();
                 goto after_matches;
             }
-            if (*pi == '-') {
-                p2 = pi + 1;
-            } else {
-                pinst = pi;  /* Different instructions than before. */
-                for (p2 = pi; *p2++ != '\0';) {}
-            }
-            for (p3 = p2; *p3++ != '\0';) {}
-            for (pi = p3; *pi++ != '\0';) {}
-            if (strcmp(part, pinst) == 0) {
-                p2 = match(p, p2, p3);
-                if (p2 != NULL) {
-                    p = p2;
-                    break;
-                }
-            }
+            if (strcmp(part, p2) == 0) break;
+            while (*p2++ != '\0') {}  /* Skip over instruction name. !!! TODO(pts): Remove duplication. */
+            while (*p2++ != '\0') {}  /* Skip over pattern_and_encode. */
         }
-        if (pi[-2] != '+') {  /* If pinst is not a prefix, then don't allow another instruction in the same line. */
-            check_end(p);
+        while (*p2++ != '\0') {}  /* Skip over instruction name. */
+        p3 = p;
+        p = match(p, p2);
+        if (p == NULL) {
+            message_start(1);
+            bbprintf(&message_bbb, "Error in instruction '%s %s'", part, p3);
+            message_end();
             break;
         }
         separate();
@@ -2300,378 +2300,117 @@ int main(int argc, char **argv) {
 /*
  ** Notice some instructions are sorted by less byte usage first.
  */
+#define ALSO "-"
 const char instruction_set[] =
-    "AAA\0\0""37\0"
-
-    "AAD\0i\0""D5i\0"
-    "-\0""D50A\0"
-
-    "AAM\0i\0""D4i\0"
-    "-\0""D40A\0"
-
-    "AAS\0\0""3F\0"
-
-    "ADC\0j,q\0""10drd\0"
-    "-k,r\0""11drd\0"
-    "-q,j\0""12drd\0"
-    "-r,k\0""13drd\0"
-    "-AL,i\0""14i\0"
-    "-AX,i\0""15j\0"
-    "-k,s\0""83dzozdi\0"
-    "-j,i\0""80dzozdi\0"
-    "-k,i\0""81dzozdj\0"
-
-    "ADD\0j,q\0""00drd\0"
-    "-k,r\0""01drd\0"
-    "-q,j\0""02drd\0"
-    "-r,k\0""03drd\0"
-    "-AL,i\0""04i\0"
-    "-AX,i\0""05j\0"
-    "-k,s\0""83dzzzdi\0"
-    "-j,i\0""80dzzzdi\0"
-    "-k,i\0""81dzzzdj\0"
-
-    "AND\0j,q\0""20drd\0"
-    "-k,r\0""21drd\0"
-    "-q,j\0""22drd\0"
-    "-r,k\0""23drd\0"
-    "-AL,i\0""24i\0"
-    "-AX,i\0""25j\0"
-    "-k,s\0""83dozzdi\0"
-    "-j,i\0""80dozzdi\0"
-    "-k,i\0""81dozzdj\0"
-
-    "CALL\0FAR k\0""FFdzood\0"
-    "-f\0""9Af\0"
-    "-k\0""FFdzozd\0"
-    "-b\0""E8b\0"
-
-    "CBW\0\0""98\0"
-
-    "CLC\0\0""F8\0"
-
-    "CLD\0\0""FC\0"
-
-    "CLI\0\0""FA\0"
-
-    "CMC\0\0""F5\0"
-
-    "CMP\0j,q\0""38drd\0"
-    "-k,r\0""39drd\0"
-    "-q,j\0""3Adrd\0"
-    "-r,k\0""3Bdrd\0"
-    "-AL,i\0""3Ci\0"
-    "-AX,i\0""3Dj\0"
-    "-k,s\0""83dooodi\0"
-    "-j,i\0""80dooodi\0"
-    "-k,i\0""81dooodj\0"
-
-    "CMPSB\0\0""A6\0"
-
-    "CMPSW\0\0""A7\0"
-
-    "CS\0\0""2E+\0"
-
-    "CWD\0\0""99\0"
-
-    "DAA\0\0""27\0"
-
-    "DAS\0\0""2F\0"
-
-    "DEC\0r\0""zozzor\0"
-    "-l\0""FEdzzod\0"
-    "-m\0""FFdzzod\0"
-
-    "DIV\0l\0""F6doozd\0"
-    "-m\0""F7doozd\0"
-
-    "DS\0\0""3E+\0"
-
-    "ES\0\0""26+\0"
-
-    "HLT\0\0""F4\0"
-
-    "IDIV\0l\0""F6doood\0"
-    "-m\0""F7doood\0"
-
-    "IMUL\0l\0""F6dozod\0"
-    "-m\0""F7dozod\0"
-
-    "IN\0AL,DX\0""EC\0"
-    "-AX,DX\0""ED\0"
-    "-AL,i\0""E4i\0"
-    "-AX,i\0""E5i\0"
-
-    "INC\0r\0""zozzzr\0"
-    "-l\0""FEdzzzd\0"
-    "-m\0""FFdzzzd\0"
-
-    "INT\0i\0""CDi\0"
-
-    "INT3\0\0""CC\0"
-
-    "INTO\0\0""CE\0"
-
-    "IRET\0\0""CF\0"
-
-    "JA\0a\0""77a\0"
-
-    "JB\0a\0""72a\0"
-
-    "JBE\0a\0""76a\0"
-
-    "JC\0a\0""72a\0"
-
-    "JCXZ\0a\0""E3a\0"
-
-    "JE\0a\0""74a\0"
-
-    "JG\0a\0""7Fa\0"
-
-    "JGE\0a\0""7Da\0"
-
-    "JL\0a\0""7Ca\0"
-
-    "JLE\0a\0""7Ea\0"
-
-    "JMP\0FAR k\0""FFdozod\0"
-    "-f\0""EAf\0"
-    "-k\0""FFdozzd\0"
-    "-a\0""EBa\0"
-    "-b\0""E9b\0"
-
-    "JNB\0a\0""73a\0"
-
-    "JNC\0a\0""73a\0"
-
-    "JNE\0a\0""75a\0"
-
-    "JNO\0a\0""71a\0"
-
-    "JNS\0a\0""79a\0"
-
-    "JNZ\0a\0""75a\0"
-
-    "JO\0a\0""70a\0"
-
-    "JPE\0a\0""7Aa\0"
-
-    "JPO\0a\0""7Ba\0"
-
-    "JS\0a\0""78a\0"
-
-    "JZ\0a\0""74a\0"
-
-    "LAHF\0\0""9F\0"
-
-    "LDS\0r,k\0""oozzzozodrd\0"
-
-    "LEA\0r,k\0""8Ddrd\0"
-
-    "LES\0r,k\0""oozzzozzdrd\0"
-
-    "LOCK\0\0""F0+\0"
-
-    "LODSB\0\0""AC\0"
-
-    "LODSW\0\0""AD\0"
-
-    "LOOP\0a\0""E2a\0"
-
-    "LOOPE\0a\0""E1a\0"
-
-    "LOOPNE\0a\0""E0a\0"
-
-    "LOOPNZ\0a\0""E0a\0"
-
-    "LOOPZ\0a\0""E1a\0"
-
-    "MOV\0AL,[i]\0""A0j\0"
-    "-AX,[i]\0""A1j\0"
-    "-[i],AL\0""A2j\0"
-    "-[i],AX\0""A3j\0"
-    "-j,q\0""88drd\0"
-    "-k,r\0""89drd\0"
-    "-q,j\0""8Adrd\0"
-    "-r,k\0""8Bdrd\0"
-    "-k,ES\0""8Cdzzzd\0"
-    "-k,CS\0""8Cdzzod\0"
-    "-k,SS\0""8Cdzozd\0"
-    "-k,DS\0""8Cdzood\0"
-    "-ES,k\0""8Edzzzd\0"
-    "-CS,k\0""8Edzzod\0"
-    "-SS,k\0""8Edzozd\0"
-    "-DS,k\0""8Edzood\0"
-    "-q,i\0""ozoozri\0"
-    "-r,i\0""ozooorj\0"
-    "-l,i\0""oozzzoozdzzzdi\0"
-    "-m,i\0""oozzzooodzzzdj\0"
-
-    "MOVSB\0\0""A4\0"
-
-    "MOVSW\0\0""A5\0"
-
-    "MUL\0l\0""F6dozzd\0"
-    "-m\0""F7dozzd\0"
-
-    "NEG\0l\0""F6dzood\0"
-    "-m\0""F7dzood\0"
-
-    "NOP\0\0""90\0"
-
-    "NOT\0l\0""F6dzozd\0"
-    "-m\0""F7dzozd\0"
-
-    "OR\0j,q\0""08drd\0"
-    "-k,r\0""09drd\0"
-    "-q,j\0""0Adrd\0"
-    "-r,k\0""0Bdrd\0"
-    "-AL,i\0""0Ci\0"
-    "-AX,i\0""0Dj\0"
-    "-k,s\0""83dzzodi\0"
-    "-j,i\0""80dzzodi\0"
-    "-k,i\0""81dzzodj\0"
-
-    "OUT\0DX,AL\0""EE\0"
-    "-DX,AX\0""EF\0"
-    "-i,AL\0""E6i\0"
-    "-i,AX\0""E7i\0"
-
-    "PAUSE\0\0""F390\0"
-
-    "POP\0ES\0""07\0"
-    "-SS\0""17\0"
-    "-DS\0""1F\0"
-    "-r\0""zozoor\0"
-    "-k\0""8Fdzzzd\0"
-
-    "POPF\0\0""9D\0"
-
-    "PUSH\0ES\0""06\0"
-    "-CS\0""0E\0"
-    "-SS\0""16\0"
-    "-DS\0""1E\0"
-    "-r\0""zozozr\0"
-    "-k\0""FFdoozd\0"
-
-    "PUSHF\0\0""9C\0"
-
-    "RCL\0j,1\0""D0dzozd\0"
-    "-k,1\0""D1dzozd\0"
-    "-j,CL\0""D2dzozd\0"
-    "-k,CL\0""D3dzozd\0"
-
-    "RCR\0j,1\0""D0dzood\0"
-    "-k,1\0""D1dzood\0"
-    "-j,CL\0""D2dzood\0"
-    "-k,CL\0""D3dzood\0"
-
-    "REP\0\0""F3+\0"
-
-    "REPE\0\0""F3+\0"
-
-    "REPNE\0\0""F2+\0"
-
-    "REPNZ\0\0""F2+\0"
-
-    "REPZ\0\0""F3+\0"
-
-    "RET\0i\0""C2j\0"
-    "-\0""C3\0"
-
-    "RETF\0i\0""CAj\0"
-    "-\0""CB\0"
-
-    "ROL\0j,1\0""D0dzzzd\0"
-    "-k,1\0""D1dzzzd\0"
-    "-j,CL\0""D2dzzzd\0"
-    "-k,CL\0""D3dzzzd\0"
-
-    "ROR\0j,1\0""D0dzzod\0"
-    "-k,1\0""D1dzzod\0"
-    "-j,CL\0""D2dzzod\0"
-    "-k,CL\0""D3dzzod\0"
-
-    "SAHF\0\0""9E\0"
-
-    "SAR\0j,1\0""D0doood\0"
-    "-k,1\0""D1doood\0"
-    "-j,CL\0""D2doood\0"
-    "-k,CL\0""D3doood\0"
-
-    "SBB\0j,q\0""18drd\0"
-    "-k,r\0""19drd\0"
-    "-q,j\0""1Adrd\0"
-    "-r,k\0""1Bdrd\0"
-    "-AL,i\0""1Ci\0"
-    "-AX,i\0""1Dj\0"
-    "-k,s\0""83dzoodi\0"
-    "-j,i\0""80dzoodi\0"
-    "-k,i\0""81dzoodj\0"
-
-    "SCASB\0\0""AE\0"
-
-    "SCASW\0\0""AF\0"
-
-    "SHL\0j,1\0""D0dozzd\0"
-    "-k,1\0""D1dozzd\0"
-    "-j,CL\0""D2dozzd\0"
-    "-k,CL\0""D3dozzd\0"
-
-    "SHR\0j,1\0""D0dozod\0"
-    "-k,1\0""D1dozod\0"
-    "-j,CL\0""D2dozod\0"
-    "-k,CL\0""D3dozod\0"
-
-    "SS\0\0""36+\0"
-
-    "STC\0\0""F9\0"
-
-    "STD\0\0""FD\0"
-
-    "STI\0\0""FB\0"
-
-    "STOSB\0\0""AA\0"
-
-    "STOSW\0\0""AB\0"
-
-    "SUB\0j,q\0""28drd\0"
-    "-k,r\0""29drd\0"
-    "-q,j\0""2Adrd\0"
-    "-r,k\0""2Bdrd\0"
-    "-AL,i\0""2Ci\0"
-    "-AX,i\0""2Dj\0"
-    "-k,s\0""83dozodi\0"
-    "-j,i\0""80dozodi\0"
-    "-k,i\0""81dozodj\0"
-
-    "TEST\0j,q\0""84drd\0"
-    "-q,j\0""84drd\0"
-    "-k,r\0""85drd\0"
-    "-r,k\0""85drd\0"
-    "-AL,i\0""A8i\0"
-    "-AX,i\0""A9j\0"
-    "-l,i\0""F6dzzzdi\0"
-    "-m,i\0""F7dzzzdj\0"
-
-    "WAIT\0\0""9B+\0"
-
-    "XCHG\0AX,r\0""ozzozr\0"
-    "-r,AX\0""ozzozr\0"
-    "-j,q\0""86drd\0"
-    "-q,j\0""86drd\0"
-    "-k,r\0""87drd\0"
-    "-r,k\0""87drd\0"
-
-    "XLAT\0\0""D7\0"
-
-    "XOR\0j,q\0""30drd\0"
-    "-k,r\0""31drd\0"
-    "-q,j\0""32drd\0"
-    "-r,k\0""33drd\0"
-    "-AL,i\0""34i\0"
-    "-AX,i\0""35j\0"
-    "-k,s\0""83doozdi\0"
-    "-j,iy\0""80doozdi\0"
-    "-k,i\0""81doozdj\0"
+    "AAA\0" " 37\0"
+    "AAD\0" "i D5i" ALSO " D50A\0"
+    "AAM\0" "i D4i" ALSO " D40A\0"
+    "AAS\0" " 3F\0"
+    "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "AL,i 14i" ALSO "AX,i 15j" ALSO "k,s 83dzozdi" ALSO "j,i 80dzozdi" ALSO "k,i 81dzozdj\0"
+    "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "AL,i 04i" ALSO "AX,i 05j" ALSO "k,s 83dzzzdi" ALSO "j,i 80dzzzdi" ALSO "k,i 81dzzzdj\0"
+    "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "AL,i 24i" ALSO "AX,i 25j" ALSO "k,s 83dozzdi" ALSO "j,i 80dozzdi" ALSO "k,i 81dozzdj\0"
+    "CALL\0" "FAR k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
+    "CBW\0" " 98\0"
+    "CLC\0" " F8\0"
+    "CLD\0" " FC\0"
+    "CLI\0" " FA\0"
+    "CMC\0" " F5\0"
+    "CMP\0" "j,q 38drd" ALSO "k,r 39drd" ALSO "q,j 3Adrd" ALSO "r,k 3Bdrd" ALSO "AL,i 3Ci" ALSO "AX,i 3Dj" ALSO "k,s 83dooodi" ALSO "j,i 80dooodi" ALSO "k,i 81dooodj\0"
+    "CMPSB\0" " A6\0"
+    "CMPSW\0" " A7\0"
+    "CS\0" " 2E+\0"
+    "CWD\0" " 99\0"
+    "DAA\0" " 27\0"
+    "DAS\0" " 2F\0"
+    "DEC\0" "r zozzor" ALSO "l FEdzzod" ALSO "m FFdzzod\0"
+    "DIV\0" "l F6doozd" ALSO "m F7doozd\0"
+    "DS\0" " 3E+\0"
+    "ES\0" " 26+\0"
+    "HLT\0" " F4\0"
+    "IDIV\0" "l F6doood" ALSO "m F7doood\0"
+    "IMUL\0" "l F6dozod" ALSO "m F7dozod\0"
+    "IN\0" "AL,DX EC" ALSO "AX,DX ED" ALSO "AL,i E4i" ALSO "AX,i E5i\0"
+    "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
+    "INT\0" "i CDi\0"
+    "INT3\0" " CC\0"
+    "INTO\0" " CE\0"
+    "IRET\0" " CF\0"
+    "JA\0" "a 77a\0"
+    "JB\0" "a 72a\0"
+    "JBE\0" "a 76a\0"
+    "JC\0" "a 72a\0"
+    "JCXZ\0" "a E3a\0"
+    "JE\0" "a 74a\0"
+    "JG\0" "a 7Fa\0"
+    "JGE\0" "a 7Da\0"
+    "JL\0" "a 7Ca\0"
+    "JLE\0" "a 7Ea\0"
+    "JMP\0" "FAR k FFdozod" ALSO "f EAf" ALSO "k FFdozzd" ALSO "c EBa" ALSO "b E9b\0"
+    "JNB\0" "a 73a\0"
+    "JNC\0" "a 73a\0"
+    "JNE\0" "a 75a\0"
+    "JNO\0" "a 71a\0"
+    "JNS\0" "a 79a\0"
+    "JNZ\0" "a 75a\0"
+    "JO\0" "a 70a\0"
+    "JPE\0" "a 7Aa\0"
+    "JPO\0" "a 7Ba\0"
+    "JS\0" "a 78a\0"
+    "JZ\0" "a 74a\0"
+    "LAHF\0" " 9F\0"
+    "LDS\0" "r,k oozzzozodrd\0"
+    "LEA\0" "r,k 8Ddrd\0"
+    "LES\0" "r,k oozzzozzdrd\0"
+    "LOCK\0" " F0+\0"
+    "LODSB\0" " AC\0"
+    "LODSW\0" " AD\0"
+    "LOOP\0" "a E2a\0"
+    "LOOPE\0" "a E1a\0"
+    "LOOPNE\0" "a E0a\0"
+    "LOOPNZ\0" "a E0a\0"
+    "LOOPZ\0" "a E1a\0"
+    "MOV\0" "AL,[i] A0j" ALSO "AX,[i] A1j" ALSO "[i],AL A2j" ALSO "[i],AX A3j" ALSO "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,i ozoozri" ALSO "r,i ozooorj" ALSO "l,i oozzzoozdzzzdi" ALSO "m,i oozzzooodzzzdj\0"
+    "MOVSB\0" " A4\0"
+    "MOVSW\0" " A5\0"
+    "MUL\0" "l F6dozzd" ALSO "m F7dozzd\0"
+    "NEG\0" "l F6dzood" ALSO "m F7dzood\0"
+    "NOP\0" " 90\0"
+    "NOT\0" "l F6dzozd" ALSO "m F7dzozd\0"
+    "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "AL,i 0Ci" ALSO "AX,i 0Dj" ALSO "k,s 83dzzodi" ALSO "j,i 80dzzodi" ALSO "k,i 81dzzodj\0"
+    "OUT\0" "DX,AL EE" ALSO "DX,AX EF" ALSO "i,AL E6i" ALSO "i,AX E7i\0"
+    "PAUSE\0" " F390\0"
+    "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
+    "POPF\0" " 9D\0"
+    "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "k FFdoozd\0"
+    "PUSHF\0" " 9C\0"
+    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd\0"
+    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood\0"
+    "REP\0" " F3+\0"
+    "REPE\0" " F3+\0"
+    "REPNE\0" " F2+\0"
+    "REPNZ\0" " F2+\0"
+    "REPZ\0" " F3+\0"
+    "RET\0" "i C2j" ALSO " C3\0"
+    "RETF\0" "i CAj" ALSO " CB\0"
+    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd\0"
+    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
+    "SAHF\0" " 9E\0"
+    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
+    "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "AL,i 1Ci" ALSO "AX,i 1Dj" ALSO "k,s 83dzoodi" ALSO "j,i 80dzoodi" ALSO "k,i 81dzoodj\0"
+    "SCASB\0" " AE\0"
+    "SCASW\0" " AF\0"
+    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod\0"
+    "SS\0" " 36+\0"
+    "STC\0" " F9\0"
+    "STD\0" " FD\0"
+    "STI\0" " FB\0"
+    "STOSB\0" " AA\0"
+    "STOSW\0" " AB\0"
+    "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "AL,i 2Ci" ALSO "AX,i 2Dj" ALSO "k,s 83dozodi" ALSO "j,i 80dozodi" ALSO "k,i 81dozodj\0"
+    "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "AL,i A8i" ALSO "AX,i A9j" ALSO "l,i F6dzzzdi" ALSO "m,i F7dzzzdj\0"
+    "WAIT\0" " 9B+\0"
+    "XCHG\0" "AX,r ozzozr" ALSO "r,AX ozzozr" ALSO "j,q 86drd" ALSO "q,j 86drd" ALSO "k,r 87drd" ALSO "r,k 87drd\0"
+    "XLAT\0" " D7\0"
+    "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "AL,i 34i" ALSO "AX,i 35j" ALSO "k,s 83doozdi" ALSO "j,iy 80doozdi" ALSO "k,i 81doozdj\0"
 ;
