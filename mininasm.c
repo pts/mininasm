@@ -809,8 +809,10 @@ const char *match_expression(const char *match_p) {
             while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
                 *p2++ = *match_p++;
             *p2 = '\0';
-            for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
-                if (expr_name[0] == p2[0] && expr_name[1] == p2[1]) goto match_error;  /* Using a register name as a label is an error. */
+            if (p2 == expr_name + 2) {
+                for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
+                    if (expr_name[0] == p2[0] && expr_name[1] == p2[1]) goto match_error;  /* Using a register name as a label is an error. */
+                }
             }
             label = find_label(expr_name);
             if (label == NULL) {
