@@ -18,7 +18,7 @@
 ;
 ;   $ nasm -f bin -O0 -o minnnasm.com minnnasm.nasm
 ;   $ mininasm -f bin -o minnnasm.com minnnasm.nasm
-;   $ kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.nasm
+;   $ kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.nas
 ;
 ; The resulting .com executable program can be run on DOS or in a DOS
 ; emulator (e.g. DOSBox, emu2, kvikdos). The target architecture is 8086
@@ -34,12 +34,11 @@
 ;
 ; !!! doc: incompatibility: `db 01h' is NASM-only; use 'db 0x1' for both
 ; !!! doc: incompatibility: `answer equ 42' is NASM-only; use `answer: equ 42' for both
-; !!! doc: incompatibility: `$' and `@' in label name is NASM-only; use `..' etc. for both
+; !!! doc: incompatibility: `$' and `@' in label name is NASM-only; use `..' etc. for both -- or !!! allow $ and @ in labels
 ; !!! doc: incompatibility: es: before the instruction
 ; !!! doc: incompatibility: `jmp near' to `jmp'
 ; !!! doc: incompatibility: `call near' to `call'
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
-; !!! nasm warnings: warning: signed byte value exceeds bounds; change to negative
 ; !!! Does `CALL FAR' and `JMP FAR' still work?
 ; !!! `jmp <label>' should be `jmp near <label>' by default (just like in `nasm -O0')
 ; !!! fix `xchg reg, reg' register order
@@ -53,6 +52,9 @@
 ; !!! add short form: A3DC48  mov word [0x48dc],ax
 ; !!! add short form: A08F46  mov al, byte [0x468f]
 ; !!! add short form: A2....  mov byte [0x468f], al
+; !!! allow and ignore the -O0 command-line flag
+; !!! predefine some __?NASM_MAJOR?__ or __MININASM__ etc.
+
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c
 ; implemented in C), compiled with the OpenWatcom C compiler, then
@@ -1503,12 +1505,13 @@ _..39:
 		db 0x83, 0xF8, 0xffff  ; !!! cmp ax, BYTE 0xffff
 		jg _..40
 		jne _..45
-		cmp word [bp-0x10], BYTE 0xff81
+		; `| -0x1000' to prevent NASM warning: signed byte value exceeds bounds
+		cmp word [bp-0x10], BYTE 0xff81 | -0x10000
 		jbe _..45
 _..40:
 		lea si, [bx+1]
-		add word [bp-0x10], BYTE 0xffff
-		adc word [bp-0xe], BYTE 0xffff
+		add word [bp-0x10], BYTE -1
+		adc word [bp-0xe], BYTE -1
 		jmp SHORT _..39
 _..41:
 		jmp _..64
@@ -1699,8 +1702,8 @@ _..65:
 		cmp byte [bp-4], 0x7e
 		jne _..66
 		mov byte [bp-4], 0x2d
-		add word [bp-0x10], BYTE 0xffff
-		adc word [bp-0xe], BYTE 0xffff
+		add word [bp-0x10], BYTE -1
+		adc word [bp-0xe], BYTE -1
 
 ;             for (;;) {  /* Shortcut to squeeze multiple unary - and + operators to a single match_stack_item. */
 ;                 match_p = avoid_spaces(match_p + 1);
@@ -1723,8 +1726,8 @@ _..66:
 		mov al, byte [bp-4]
 		xor ah, ah
 		xor dx, dx
-		db 0x83, 0xC0, 0xffd4  ; !!! add ax, BYTE 0xffd4
-		adc dx, BYTE 0xffff
+		db 0x83, 0xC0, 0xffd4  ; !!! add ax, BYTE 0xffd4 | -0x10000
+		adc dx, BYTE -1
 		add word [bp-0x10], ax
 		adc word [bp-0xe], dx
 
@@ -3031,7 +3034,7 @@ _..181:
 		db 0x83, 0xF8, 0xffff  ; !!! cmp ax, BYTE 0xffff
 		jg _..182
 		jne _..184
-		cmp word [_instruction_offset], BYTE 0xff80
+		cmp word [_instruction_offset], BYTE 0xff80 | -0x10000
 		jb _..184
 _..182:
 		test ax, ax
@@ -3675,7 +3678,7 @@ _..228:
 		jne _..230
 		cmp word [_undefined], BYTE 0
 		jne _..230
-		cmp dx, BYTE 0xff80
+		cmp dx, BYTE 0xff80 | -0x10000
 		jl _..234
 		cmp dx, BYTE 0x7f
 _..229:
@@ -4016,7 +4019,7 @@ _..259:
 ;             if (assembler_step == 2 && (c < -128 || c > 127))
 		cmp word [_assembler_step], BYTE 2
 		jne _..264
-		cmp dx, BYTE 0xff80
+		cmp dx, BYTE 0xff80 | -0x10000
 		jl _..260
 		cmp dx, BYTE 0x7f
 		jle _..264
@@ -4442,8 +4445,8 @@ message_start_:
 		mov ax, [_errors+2]  ; !!! no word [...]
 		or ax, word [_errors]
 		jne _..293
-		add word [_errors], BYTE 0xffff
-		adc word [_errors+2], BYTE 0xffff
+		add word [_errors], BYTE -1
+		adc word [_errors+2], BYTE -1
 		jmp SHORT _..293
 
 ;     } else {
@@ -4457,8 +4460,8 @@ _..292:
 		mov ax, [_warnings+2]  ; !!! no word [...]
 		or ax, word [_warnings]
 		jne _..293
-		add word [_warnings], BYTE 0xffff
-		adc word [_warnings+2], BYTE 0xffff
+		add word [_warnings], BYTE -1
+		adc word [_warnings+2], BYTE -1
 
 ;     }
 ;     if (!message_bbb.data) {
@@ -5558,8 +5561,8 @@ _..356:
 		mov ax, [_line_number+2]  ; !!! no word [...]
 		or ax, word [_line_number]
 		jne _..357
-		add word [_line_number], BYTE 0xffff
-		adc word [_line_number+2], BYTE 0xffff
+		add word [_line_number], BYTE -1
+		adc word [_line_number+2], BYTE -1
 
 ;         p = line;
 _..357:
@@ -6325,8 +6328,8 @@ _..420:
 
 ;                 if (--level == 0) {
 _..421:
-		add word [bp-6], BYTE 0xffff
-		adc word [bp-2], BYTE 0xffff
+		add word [bp-6], BYTE -1
+		adc word [bp-2], BYTE -1
 		mov ax, word [bp-2]
 		or ax, word [bp-6]
 		je _..422
@@ -8424,7 +8427,7 @@ ___2850:
 strcat_:	push di
 		push ds
 		pop es
-		db 0x87, 0xD6		; WASM-compatible: xchg si, dx
+		db 0x87, 0xF2  ; !!! xchg si, dx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 		dec di
@@ -8436,7 +8439,8 @@ strcat_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		db 0x87, 0xD6		; WASM-compatible: xchg si, dx. Restore SI.
+		;xchg si, dx		; Restore SI.
+		db 0x87, 0xF2  ; !!! xchg si, dx
 		pop di
 		ret
 
@@ -8464,17 +8468,17 @@ __U4M:
 __I4M:		xchg ax,bx
 		push ax
 		xchg ax,dx
-		db 0x0B, 0xC0		; WASM-compatible: or ax, ax
+		or ax, ax
 		je .1
 		mul dx
 .1:		xchg ax,cx
-		db 0x0B, 0xC0		; WASM-compatible: or ax, ax
+		or ax, ax
 		je .2
 		mul bx
-		db 0x03, 0xC8		; WASM-compatible: add cx, ax
+		add cx, ax
 .2:		pop ax
 		mul bx
-		db 0x03, 0xD1		; WASM-compatible: add dx, cx
+		add dx, cx
 		ret
 
 ; int toupper(int c);
@@ -8518,7 +8522,7 @@ ___28AF:
 strcpy_:	push di
 		push ds
 		pop es
-		db 0x87, 0xD6		; WASM-compatible: xchg si, dx
+		db 0x87, 0xF2  ; !!! xchg si, dx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 .again:		lodsb
@@ -8526,7 +8530,8 @@ strcpy_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		db 0x87, 0xD6		; WASM-compatible: xchg si, dx. Restore SI.
+		;xchg si, dx		; Restore SI.
+		db 0x87, 0xF2  ; !!! xchg si, dx
 		pop di
 		ret
 
@@ -8536,77 +8541,77 @@ strcpy_:	push di
 ; Implementation copied from
 ; open-watcom-2_0-c-linux-x86-2022-05-01/lib286/dos/clibs.lib:i4d.o
 ___28C1:
-__U4D:		db 0x0B, 0xC9		; WASM-compatible: or cx, cx
+__U4D:		or cx, cx
 		jne .5
 		dec bx
 		je .4
 		inc bx
-		db 0x3B, 0xDA		; WASM-compatible: cmp bx, dx
+		cmp bx, dx
 		ja .3
-		db 0x8B, 0xC8		; WASM-compatible: mov cx, ax
-		db 0x8B, 0xC2		; WASM-compatible: mov ax, dx
-		db 0x2B, 0xD2		; WASM-compatible: sub dx, dx
+		mov cx, ax
+		mov ax, dx
+		sub dx, dx
 		div bx
 		xchg ax,cx
 .3:		div bx
-		db 0x8B, 0xDA		; WASM-compatible: mov bx, dx
-		db 0x8B, 0xD1		; WASM-compatible: mov dx, cx
-		db 0x2B, 0xC9		; WASM-compatible: sub cx, cx
+		mov bx, dx
+		mov dx, cx
+		sub cx, cx
 .4:		ret
-.5:		db 0x3B, 0xCA		; WASM-compatible: cmp cx, dx
+.5:		cmp cx, dx
 		jb .7
 		jne .6
-		db 0x3B, 0xD8		; WASM-compatible: cmp bx, ax
+		cmp bx, ax
 		ja .6
-		db 0x2B, 0xC3		; WASM-compatible: sub ax, bx
-		db 0x8B, 0xD8		; WASM-compatible: mov bx, ax
-		db 0x2B, 0xC9		; WASM-compatible: sub cx, cx
-		db 0x2B, 0xD2		; WASM-compatible: sub dx, dx
+		sub ax, bx
+		mov bx, ax
+		sub cx, cx
+		sub dx, dx
 		mov ax,1
 		ret
-.6:		db 0x2B, 0xC9		; WASM-compatible: sub cx, cx
-		db 0x2B, 0xDB		; WASM-compatible: sub bx, bx
+.6:		sub cx, cx
+		sub bx, bx
 		xchg ax,bx
-		db 0x87, 0xCA		; WASM-compatible: xchg dx, cx
+		db 0x87, 0xD1  ; !!! xchg dx, cx
 		ret
 .7:		push bp
 		push si
-		db 0x2B, 0xF6		; WASM-compatible: sub si, si
-		db 0x8B, 0xEE		; WASM-compatible: mov bp, si
-.8:		db 0x03, 0xDB		; WASM-compatible: add bx, bx
-		db 0x13, 0xC9		; WASM-compatible: adc cx, cx
+		sub si, si
+		mov bp, si
+.8:		add bx, bx
+		adc cx, cx
 		jb .11
 		inc bp
-		db 0x3B, 0xCA		; WASM-compatible: cmp cx, dx
+		cmp cx, dx
 		jb .8
 		ja .9
-		db 0x3B, 0xD8		; WASM-compatible: cmp bx, ax
+		cmp bx, ax
 		jbe .8
 .9:		clc
-.10:		db 0x13, 0xF6		; WASM-compatible: adc si, si
+.10:		adc si, si
 		dec bp
 		js .14
 .11:		rcr cx,1
 		rcr bx,1
-		db 0x2B, 0xC3		; WASM-compatible: sub ax, bx
+		sub ax, bx
 		sbb dx,cx
 		cmc
 		jb .10
-.12:		db 0x03, 0xF6		; WASM-compatible: add si, si
+.12:		add si, si
 		dec bp
 		js .13
 		shr cx,1
 		rcr bx,1
-		db 0x03, 0xC3		; WASM-compatible: add ax, bx
-		db 0x13, 0xD1		; WASM-compatible: adc dx, cx
+		add ax, bx
+		adc dx, cx
 		jnb .12
 		jmp short .10
-.13:		db 0x03, 0xC3		; WASM-compatible: add ax, bx
-		db 0x13, 0xD1		; WASM-compatible: adc dx, cx
-.14:		db 0x8B, 0xD8		; WASM-compatible: mov bx, ax
-		db 0x8B, 0xCA		; WASM-compatible: mov cx, dx
-		db 0x8B, 0xC6		; WASM-compatible: mov ax, si
-		db 0x33, 0xD2		; WASM-compatible: xor dx,dx
+.13:		add ax, bx
+		adc dx, cx
+.14:		mov bx, ax
+		mov cx, dx
+		mov ax, si
+		xor dx,dx
 		pop si
 		pop bp
 		ret
@@ -8617,9 +8622,9 @@ __U4D:		db 0x0B, 0xC9		; WASM-compatible: or cx, cx
 ; Implementation copied from
 ; open-watcom-2_0-c-linux-x86-2022-05-01/lib286/dos/clibs.lib:i4d.o
 ___2945:
-__I4D:		db 0x0B, 0xD2		; WASM-compatible: or dx, dx
+__I4D:		or dx, dx
 		js .1
-		db 0x0B, 0xC9		; WASM-compatible: or cx, cx
+		or cx, cx
 		js .0
 		jmp __U4D
 .0:		neg cx
@@ -8633,7 +8638,7 @@ __I4D:		db 0x0B, 0xD2		; WASM-compatible: or dx, dx
 .1:		neg dx
 		neg ax
 		sbb dx, byte 0
-		db 0x0B, 0xC9		; WASM-compatible: or cx, cx
+		or cx, cx
 		jns .2
 		neg cx
 		neg bx
@@ -8660,7 +8665,7 @@ __I4D:		db 0x0B, 0xD2		; WASM-compatible: or dx, dx
 ___2991:
 creat_:		push cx
 		xchg ax, dx		; DX := pathname; AX := mode.
-		db 0x33, 0xc9		; WASM-compatible: xor cx, cx
+		xor cx, cx
 		test ah, 1
 		jz .1
 		inc cx			; CX := 1 means read-only.
@@ -8692,8 +8697,8 @@ strcmp_:	push si
 		push ds
 		pop es
 		xchg si, ax		; SI := s1, AX := junk.
-		db 0x33, 0xc0		; WASM-compatible: xor ax, ax
-		db 0x87, 0xd7		; WASM-compatible: xchg di, dx
+		xor ax, ax
+		db 0x87, 0xFA  ; !!! xchg di, dx
 .next:		lodsb
 		scasb
 		jne .diff
@@ -8703,7 +8708,8 @@ strcmp_:	push si
 .diff:		mov al, 1
 		jnc .done
 		neg ax
-.done:		db 0x87, 0xd7		; WASM-comaptible: xchg di, dx. Restore original DI.
+.done:		;xchg di, dx		; Restore original DI.
+		db 0x87, 0xFA  ; !!! xchg di, dx
 		pop si
 		ret
 
@@ -8726,17 +8732,19 @@ memcmp_:	push si
 		push ds
 		pop es
 		xchg si, ax		; SI := s1, AX := junk.
-		db 0x33, 0xc0		; WASM-compatible: xor ax, ax
-		db 0x87, 0xd7		; WASM-compatible: xchg di, dx
-		db 0x87, 0xd9		; WASM-compatible: xchg cx, bx
+		xor ax, ax
+		db 0x87, 0xFA  ; !!! xchg di, dx
+		db 0x87, 0xCB  ; !!! xchg cx, bx
 		jcxz .done
 		repz cmpsb		; Continue while equal.
 		je .done
 		inc ax
 		jnc .done
 		neg ax
-.done:		db 0x87, 0xd9		; WASM-compatible: xchg cx, bx. Restore original CX.
-		db 0x87, 0xd7		; WASM-compatible: xchg di, dx. Restore original DI.
+.done:		;xchg cx, bx		; Restore original CX.
+		db 0x87, 0xCB  ; !!! xchg cx, bx
+		;xchg di, dx		; Restore original DI.
+		db 0x87, 0xFA  ; !!! xchg di, dx
 		pop si
 		ret
 
@@ -8769,8 +8777,8 @@ strcmp_far_:	push si
 		mov ds, dx
 		mov es, cx
 		xchg si, ax		; SI := s1, AX := junk.
-		db 0x33, 0xc0		; WASM-compatible: xor ax, ax
-		db 0x87, 0xdf		; WASM-compatible: xchg di, bx
+		xor ax, ax
+		db 0x87, 0xFB  ; !!! xchg di, bx
 .next:		lodsb
 		scasb
 		jne .diff
@@ -8780,7 +8788,8 @@ strcmp_far_:	push si
 .diff:		mov al, 1
 		jnc .done
 		neg ax
-.done:		db 0x87, 0xdf		; WASM-compatible: xchg di, bx Restore original DI.
+.done:		;xchg di, bx		; Restore original DI.
+		db 0x87, 0xFB  ; !!! xchg di, bx
 		pop ds
 		pop si
 		ret
@@ -8806,7 +8815,7 @@ strcpy_far_:	push di
 		push ds
 		mov es, dx
 		mov ds, cx
-		db 0x87, 0xde 		; WASM-compatible: xchg si, bx
+		db 0x87, 0xF3  ; !!! xchg si, bx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 .again:		lodsb
@@ -8814,7 +8823,8 @@ strcpy_far_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		db 0x87, 0xde		; WASM-compatible: xchg si, bx. Restore SI.
+		;xchg si, bx		; Restore SI.
+		db 0x87, 0xF3  ; !!! xchg si, bx
 		pop ds
 		pop di
 		ret
