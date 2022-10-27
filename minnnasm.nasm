@@ -9,8 +9,8 @@
 ; to what is produced by NASM (>= 0.98.39) and mininasm
 ; (https://github.com/pts/mininasm).
 ;
-; This version of minnnasm.com (15239 bytes) is equivalent to mininasm.com in
-; https://github.com/pts/mininasm/blob/77ea503744c65d16dc2ba21c70f16f937ac198cb/mininasm.c
+; This version of minnnasm.com (15342 bytes) is equivalent to mininasm.com in
+; https://github.com/pts/mininasm/blob/33117267efcc7eaf6c92c972a08c6a6680abe5cb/mininasm.c
 ; It's not bit-by-bit identical, because the OpenWatcom C compiler, WASM and
 ; NASM generate different but equivalent machine code.
 ;
@@ -41,16 +41,15 @@
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
 ; !!! Does `CALL FAR' and `JMP FAR' still work?
 ; !!! `jmp <label>' should be `jmp near <label>' by default (just like in `nasm -O0')
-; !!! add it: `jae' is NASM-only; use `jnb' for both
 ; !!! add it: ADD AX, BYTE ...
 ; !!! add it: AND AX, BYTE ...
 ; !!! add it: CMP AX, BYTE ...
 ; !!! add it: SUB AX, BYTE ...
 ; !!! add it: call word [...]
-; !!! add short form: A19748  mov ax, word [0x4897]
-; !!! add short form: A3DC48  mov word [0x48dc],ax
-; !!! add short form: A08F46  mov al, byte [0x468f]
-; !!! add short form: A2....  mov byte [0x468f], al
+; !!! add short form: A19748 with WORD:  mov ax, word [0x4897]
+; !!! add short form: A3DC48 with WORD:  mov word [0x48dc],ax
+; !!! add short form: A08F46 with BYTE:  mov al, byte [0x468f]
+; !!! add short form: A2.... with BYTE:  mov byte [0x468f], al
 ; !!! allow and ignore the -O0 command-line flag
 ; !!! predefine some __?NASM_MAJOR?__ or __MININASM__ etc.
 
@@ -1895,7 +1894,7 @@ _..83:
 		sub al, 0x30
 		mov byte [bp-4], al
 		cmp al, 8
-		jnb _..76
+		jae _..76
 
 ;                 value1 = (value1 << 3) | c;
 		mov ax, word [bp-0x10]
@@ -1952,7 +1951,7 @@ _..88:
 
 ;                 if (shift < sizeof(value_t) * 8) {
 		cmp bx, BYTE 0x20
-		jnb _..88
+		jae _..88
 
 ;                     value1 |= (unsigned char)match_p[0] << shift;
 		xor ah, ah
@@ -5789,7 +5788,7 @@ _..374:
 		jne _..372
 		mov ax, word [bp-6]
 		cmp ax, word [bp-4]
-		jnb _..372
+		jae _..372
 
 ;                     if (strcmp(part, "EQU") == 0) {
 _..375:
@@ -6083,7 +6082,7 @@ _..396:
 		jne _..397
 		mov ax, dx
 		cmp ax, word [bp-4]
-		jnb _..406
+		jae _..406
 
 ;                     break;
 ;                 undefined = 0;
@@ -6168,7 +6167,7 @@ _..407:
 		jne _..408
 		mov ax, word [bp-0xc]
 		cmp ax, word [bp-4]
-		jnb _..406
+		jae _..406
 
 ;                     break;
 ;                 separate();
@@ -6217,7 +6216,7 @@ _..410:
 		jne _..411
 		mov ax, word [bp-0xc]
 		cmp ax, word [bp-4]
-		jnb _..406
+		jae _..406
 
 ;                     break;
 ;                 separate();
@@ -6357,7 +6356,7 @@ _..424:
 		jne _..425
 		mov ax, word [bp-6]
 		cmp ax, word [bp-4]
-		jnb _..423
+		jae _..423
 
 ; #ifdef DEBUG
 ;                 /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
@@ -6613,7 +6612,7 @@ _..444:
 		jl _..445
 		jne _..447
 		cmp dx, word [_address]
-		jnb _..447
+		jae _..447
 
 ;                             message(1, "Backward address");
 _..445:
@@ -6637,7 +6636,7 @@ _..448:
 		jmp _..404
 _..449:
 		cmp dx, word [_instruction_value]
-		jnb _..448
+		jae _..448
 
 ;                                 emit_byte(0);
 _..450:
@@ -6862,7 +6861,7 @@ _..466:
 _..467:
 		mov bx, word [_p]
 		cmp bx, word [_g]
-		jnb _..469
+		jae _..469
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
 		lea ax, [bx+1]
@@ -6885,7 +6884,7 @@ _..468:
 ;             while (p < generated + sizeof(generated)) {
 _..469:
 		cmp word [_p], _generated+8
-		jnb _..470
+		jae _..470
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "  ");
 		mov ax, _..592
@@ -8601,7 +8600,7 @@ __U4D:		or cx, cx
 		rcr bx,1
 		add ax, bx
 		adc dx, cx
-		jnb .12
+		jae .12
 		jmp short .10
 .13:		add ax, bx
 		adc dx, cx
@@ -9015,6 +9014,7 @@ _..616: db 'Typical usage:', 0xd, 0xa, 'mininasm -f bin input.asm -o input.bin',
 ;     "INTO\0" " CE\0"
 ;     "IRET\0" " CF\0"
 ;     "JA\0" "a 77a\0"
+;     "JAE\0" "a 73a\0"
 ;     "JB\0" "a 72a\0"
 ;     "JBE\0" "a 76a\0"
 ;     "JC\0" "a 72a\0"
@@ -9025,13 +9025,22 @@ _..616: db 'Typical usage:', 0xd, 0xa, 'mininasm -f bin input.asm -o input.bin',
 ;     "JL\0" "a 7Ca\0"
 ;     "JLE\0" "a 7Ea\0"
 ;     "JMP\0" "FAR k FFdozod" ALSO "f EAf" ALSO "k FFdozzd" ALSO "c EBa" ALSO "b E9b\0"
+;     "JNA\0" "a 76a\0"
+;     "JNAE\0" "a 72a\0"
 ;     "JNB\0" "a 73a\0"
+;     "JNBE\0" "a 77a\0"
 ;     "JNC\0" "a 73a\0"
 ;     "JNE\0" "a 75a\0"
+;     "JNG\0" "a 7Ea\0"
+;     "JNGE\0" "a 7Ca\0"
+;     "JNL\0" "a 7Da\0"
+;     "JNLE\0" "a 7Fa\0"
 ;     "JNO\0" "a 71a\0"
+;     "JNP\0" "a 7Ba\0"
 ;     "JNS\0" "a 79a\0"
 ;     "JNZ\0" "a 75a\0"
 ;     "JO\0" "a 70a\0"
+;     "JP\0" "a 7Aa\0"
 ;     "JPE\0" "a 7Aa\0"
 ;     "JPO\0" "a 7Ba\0"
 ;     "JS\0" "a 78a\0"
@@ -9131,6 +9140,7 @@ ALSO:		equ '-'
 		db 'INTO', 0, ' CE', 0
 		db 'IRET', 0, ' CF', 0
 		db 'JA', 0, 'a 77a', 0
+		db 'JAE', 0, 'a 73a', 0
 		db 'JB', 0, 'a 72a', 0
 		db 'JBE', 0, 'a 76a', 0
 		db 'JC', 0, 'a 72a', 0
@@ -9141,13 +9151,22 @@ ALSO:		equ '-'
 		db 'JL', 0, 'a 7Ca', 0
 		db 'JLE', 0, 'a 7Ea', 0
 		db 'JMP', 0, 'FAR k FFdozod', ALSO, 'f EAf', ALSO, 'k FFdozzd', ALSO, 'c EBa', ALSO, 'b E9b', 0
+		db 'JNA', 0, 'a 76a', 0
+		db 'JNAE', 0, 'a 72a', 0
 		db 'JNB', 0, 'a 73a', 0
+		db 'JNBE', 0, 'a 77a', 0
 		db 'JNC', 0, 'a 73a', 0
 		db 'JNE', 0, 'a 75a', 0
+		db 'JNG', 0, 'a 7Ea', 0
+		db 'JNGE', 0, 'a 7Ca', 0
+		db 'JNL', 0, 'a 7Da', 0
+		db 'JNLE', 0, 'a 7Fa', 0
 		db 'JNO', 0, 'a 71a', 0
+		db 'JNP', 0, 'a 7Ba', 0
 		db 'JNS', 0, 'a 79a', 0
 		db 'JNZ', 0, 'a 75a', 0
 		db 'JO', 0, 'a 70a', 0
+		db 'JP', 0, 'a 7Aa', 0
 		db 'JPE', 0, 'a 7Aa', 0
 		db 'JPO', 0, 'a 7Ba', 0
 		db 'JS', 0, 'a 78a', 0
