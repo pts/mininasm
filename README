@@ -34,7 +34,7 @@ following improvements:
 * Its behavior is adjusted for better compatibility with NASM 0.98.39.
   The most important difference is that it supports 16-bit numbers, but
   NASM 0.98.39 supports 32-bit numbers. See more differences between
-  Tinyasm and NASM below.
+  mininasm and NASM below.
 * Its stack use has a constant upper bound (e.g. no recursive function
   calls), it never crashes because of large input.
 * It has some new (NASM-compatible) features such as 'multicharacter' string
@@ -71,9 +71,9 @@ Differences between mininasm and NASM:
 	dw
 	align
 
-The segment prefix must be the first word in the instructions, e.g.
-`es cmp al, [di]' works in both NASM and Tinyasm, but `cmp al, [es:di]'
-doesn't work in Tinyasm.
+* The segment prefix must be the first word in the instructions, e.g.
+  `es cmp al, [di]' works in both NASM and mininasm, but `cmp al, [es:di]'
+  doesn't work in mininasm.
 
 Similarities with NASM:
 
@@ -81,7 +81,6 @@ Similarities with NASM:
   The local labels final name is derived from concatenation
   of the last global label (not starting with period) and
   the local label.
-
 
 The following operators are implemented:
 
@@ -104,12 +103,33 @@ The following numbers are implemented:
 
 	0b0000_0100	Binary, you can use underscore (it will be ignored)
 	0xabcd		Hexadecimal.
+	0o123		Octal.
 	$0abcd		Hexadecimal (after $ the first digit must be a number)
 	'a'		Character constant.
 	10		Decimal.
 	$$		Start address.
 	$		Current address.
 
+For compatibility, the mininasm repository also contains tinasm (source
+code: tinasm.c), which aims to be compatible with Tinyasm, with the
+following changes:
+
+* Critical bugfixes: tinasm works when Tinyasm crashes or generates
+  incorrect code.
+* Portability improvements (to more systems and C and C++ compilers).
+* Deterministic cross-compilation using dosmc.
+* Its stack use has a constant upper bound (e.g. no recursive function
+  calls), it never crashes because of large input.
+* Numbers are always 16-bit, no matter the host system.
+* Its output (stderr, output file, listing file) doesn't depend on the host,
+  not even for integer overflow (e.g. number of bytes reported), this it's a
+  true cross-assembler.
+* On DOS, it can use more than ~20 KiB memory (up to ~595 KiB) for labels,
+  when compiled with the OpenWatcom C compilar with the compact memory
+  model.
+* The `%' and `/' operators treat their inputs as unsigned integers
+  consistently. (In Tinyasm, only `%' is signed.)
+* (Otherwise, tinasm should behave identically to Tinyasm.)
 
 Below is a copy of the README of Tinyasm.
 

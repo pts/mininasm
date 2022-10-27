@@ -10,7 +10,7 @@
  ** The goal of tinasm is to provide critical bugfixes, portability
  ** improvements (to more systems and C and C++ compilers) and deterministic
  ** cross-compilation over Tinyasm. For NASM compatibility improvements,
- ** memory usage optimizations, stack safety fixes, see mininasm.c in
+ ** memory usage optimizations, see mininasm.c in
  ** https://github.com/pts/mininasm instead.
  **
  ** Compilation instructions (pick any one):
