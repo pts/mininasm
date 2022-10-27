@@ -9,8 +9,8 @@
 ; to what is produced by NASM (>= 0.98.39) and mininasm
 ; (https://github.com/pts/mininasm).
 ;
-; This version of minnnasm.com (15342 bytes) is equivalent to mininasm.com in
-; https://github.com/pts/mininasm/blob/33117267efcc7eaf6c92c972a08c6a6680abe5cb/mininasm.c
+; This version of minnnasm.com (15341 bytes) is equivalent to mininasm.com in
+; https://github.com/pts/mininasm/blob/2ea02b8b7dd1c1d451a0ee8bc691170825794ef9/mininasm.c
 ; It's not bit-by-bit identical, because the OpenWatcom C compiler, WASM and
 ; NASM generate different but equivalent machine code.
 ;
@@ -52,7 +52,6 @@
 ; !!! add short form: A2.... with BYTE:  mov byte [0x468f], al
 ; !!! allow and ignore the -O0 command-line flag
 ; !!! predefine some __?NASM_MAJOR?__ or __MININASM__ etc.
-
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c
 ; implemented in C), compiled with the OpenWatcom C compiler, then
@@ -1731,7 +1730,7 @@ _..66:
 
 ;                 else if (match_p[0] == '~') { value1 += (value_t)c - ('-' - 1); goto do_switch_pm; }  /* Either ++value1 or --value1. */
 _..67:
-		db 0x80, 0x76, -4, 6  ; !!! xor byte [bp-4], 6. mininasm: Error: decode: internal error (j,iy 80doozdi-k,i 81doozdj) at line 1708
+		xor byte [bp-4], 6
 		jmp SHORT _..66
 
 ;                 else { break; }
@@ -9101,7 +9100,7 @@ _..616: db 'Typical usage:', 0xd, 0xa, 'mininasm -f bin input.asm -o input.bin',
 ;     "WAIT\0" " 9B+\0"
 ;     "XCHG\0" "AX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
 ;     "XLAT\0" " D7\0"
-;     "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "AL,i 34i" ALSO "AX,i 35j" ALSO "k,s 83doozdi" ALSO "j,iy 80doozdi" ALSO "k,i 81doozdj\0"
+;     "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "AL,i 34i" ALSO "AX,i 35j" ALSO "k,s 83doozdi" ALSO "j,i 80doozdi" ALSO "k,i 81doozdj\0"
 ; ;
 ___3143:
 _instruction_set:
@@ -9227,7 +9226,7 @@ ALSO:		equ '-'
 		db 'WAIT', 0, ' 9B+', 0
 		db 'XCHG', 0, 'AX,r ozzozr', ALSO, 'r,AX ozzozr', ALSO, 'q,j 86drd', ALSO, 'j,q 86drd', ALSO, 'r,k 87drd', ALSO, 'k,r 87drd', 0
 		db 'XLAT', 0, ' D7', 0
-		db 'XOR', 0, 'j,q 30drd', ALSO, 'k,r 31drd', ALSO, 'q,j 32drd', ALSO, 'r,k 33drd', ALSO, 'AL,i 34i', ALSO, 'AX,i 35j', ALSO, 'k,s 83doozdi', ALSO, 'j,iy 80doozdi', ALSO, 'k,i 81doozdj', 0
+		db 'XOR', 0, 'j,q 30drd', ALSO, 'k,r 31drd', ALSO, 'q,j 32drd', ALSO, 'r,k 33drd', ALSO, 'AL,i 34i', ALSO, 'AX,i 35j', ALSO, 'k,s 83doozdi', ALSO, 'j,i 80doozdi', ALSO, 'k,i 81doozdj', 0
 		db 0
 
 ___section_mininasm_c_data:
