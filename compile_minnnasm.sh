@@ -35,8 +35,12 @@ ndisasm -b 16 -o 0x100 minnnasm.com | perl -pe 's@^(\S+\s+)([0-9A-F]+)(?=\s+)@ $
 cmp mininasm_debug45.com.good minnnasm.com
 nasm -f bin -O0 -o minnnasm.com minnnasm.nasm
 cmp mininasm_debug45.com.good minnnasm.com
-./mininasm -f bin -o minnnasmm.com minnnasm.nasm
-ndisasm -b 16 -o 0x100 minnnasmm.com >minnnasmm.com.ndisasm
-cmp mininasm_debug45.com.good minnnasmm.com
+./mininasm -f bin -o minnnas1.com minnnasm.nasm
+ndisasm -b 16 -o 0x100 minnnas1.com >minnnas1.com.ndisasm
+cmp mininasm_debug45.com.good minnnas1.com
+cat minnnasm.nasm >minnnasm.na  # DOS 8.3 character limit on filename extension.
+./kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.na
+# Check that it's self-hosting: when it compiles itself, it produces the golden good binary.
+cmp mininasm_debug45.com.good minnnas2.com
 
 : "$0" OK.
