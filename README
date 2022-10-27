@@ -131,6 +131,15 @@ following changes:
   consistently. (In Tinyasm, only `%' is signed.)
 * (Otherwise, tinasm should behave identically to Tinyasm.)
 
+The mininasm repository also contains minnnasm (source code: minnnasm.nasm),
+which is a full-featured self-hosting fork of mininasm for DOS 8086 only,
+implemented in a subset of NASM assembly language, thus it's able to compile
+(assemble) itself on DOS: by doing so it produces a DOS .com executable
+binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and mininasm
+(https://github.com/pts/mininasm). One of the development goals of minnnasm
+is to improve the compatibility of mininasm with NASM: it's source code is
+relatively complex NASM-compatible assembly code.
+
 Below is a copy of the README of Tinyasm.
 
 ,--------.,--.
