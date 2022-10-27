@@ -10,7 +10,7 @@
 ; (https://github.com/pts/mininasm).
 ;
 ; This version of minnnasm.com (15239 bytes) is equivalent to mininasm.com in
-; https://github.com/pts/mininasm/blob/1964b6d1983c513e97a5d818211f2ad82e194cca/mininasm.c
+; https://github.com/pts/mininasm/blob/77ea503744c65d16dc2ba21c70f16f937ac198cb/mininasm.c
 ; It's not bit-by-bit identical, because the OpenWatcom C compiler, WASM and
 ; NASM generate different but equivalent machine code.
 ;
@@ -41,7 +41,6 @@
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
 ; !!! Does `CALL FAR' and `JMP FAR' still work?
 ; !!! `jmp <label>' should be `jmp near <label>' by default (just like in `nasm -O0')
-; !!! fix `xchg reg, reg' register order
 ; !!! add it: `jae' is NASM-only; use `jnb' for both
 ; !!! add it: ADD AX, BYTE ...
 ; !!! add it: AND AX, BYTE ...
@@ -8427,7 +8426,7 @@ ___2850:
 strcat_:	push di
 		push ds
 		pop es
-		db 0x87, 0xF2  ; !!! xchg si, dx
+		xchg si, dx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 		dec di
@@ -8439,8 +8438,7 @@ strcat_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		;xchg si, dx		; Restore SI.
-		db 0x87, 0xF2  ; !!! xchg si, dx
+		xchg si, dx		; Restore SI.
 		pop di
 		ret
 
@@ -8522,7 +8520,7 @@ ___28AF:
 strcpy_:	push di
 		push ds
 		pop es
-		db 0x87, 0xF2  ; !!! xchg si, dx
+		xchg si, dx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 .again:		lodsb
@@ -8530,8 +8528,7 @@ strcpy_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		;xchg si, dx		; Restore SI.
-		db 0x87, 0xF2  ; !!! xchg si, dx
+		xchg si, dx		; Restore SI.
 		pop di
 		ret
 
@@ -8572,7 +8569,7 @@ __U4D:		or cx, cx
 .6:		sub cx, cx
 		sub bx, bx
 		xchg ax,bx
-		db 0x87, 0xD1  ; !!! xchg dx, cx
+		xchg dx, cx
 		ret
 .7:		push bp
 		push si
@@ -8698,7 +8695,7 @@ strcmp_:	push si
 		pop es
 		xchg si, ax		; SI := s1, AX := junk.
 		xor ax, ax
-		db 0x87, 0xFA  ; !!! xchg di, dx
+		xchg di, dx
 .next:		lodsb
 		scasb
 		jne .diff
@@ -8708,8 +8705,7 @@ strcmp_:	push si
 .diff:		mov al, 1
 		jnc .done
 		neg ax
-.done:		;xchg di, dx		; Restore original DI.
-		db 0x87, 0xFA  ; !!! xchg di, dx
+.done:		xchg di, dx		; Restore original DI.
 		pop si
 		ret
 
@@ -8733,18 +8729,16 @@ memcmp_:	push si
 		pop es
 		xchg si, ax		; SI := s1, AX := junk.
 		xor ax, ax
-		db 0x87, 0xFA  ; !!! xchg di, dx
-		db 0x87, 0xCB  ; !!! xchg cx, bx
+		xchg di, dx
+		xchg cx, bx
 		jcxz .done
 		repz cmpsb		; Continue while equal.
 		je .done
 		inc ax
 		jnc .done
 		neg ax
-.done:		;xchg cx, bx		; Restore original CX.
-		db 0x87, 0xCB  ; !!! xchg cx, bx
-		;xchg di, dx		; Restore original DI.
-		db 0x87, 0xFA  ; !!! xchg di, dx
+.done:		xchg cx, bx		; Restore original CX.
+		xchg di, dx		; Restore original DI.
 		pop si
 		ret
 
@@ -8778,7 +8772,7 @@ strcmp_far_:	push si
 		mov es, cx
 		xchg si, ax		; SI := s1, AX := junk.
 		xor ax, ax
-		db 0x87, 0xFB  ; !!! xchg di, bx
+		xchg di, bx
 .next:		lodsb
 		scasb
 		jne .diff
@@ -8788,8 +8782,7 @@ strcmp_far_:	push si
 .diff:		mov al, 1
 		jnc .done
 		neg ax
-.done:		;xchg di, bx		; Restore original DI.
-		db 0x87, 0xFB  ; !!! xchg di, bx
+.done:		xchg di, bx		; Restore original DI.
 		pop ds
 		pop si
 		ret
@@ -8815,7 +8808,7 @@ strcpy_far_:	push di
 		push ds
 		mov es, dx
 		mov ds, cx
-		db 0x87, 0xF3  ; !!! xchg si, bx
+		xchg si, bx
 		xchg di, ax		; DI := dest; AX := junk.
 		push di
 .again:		lodsb
@@ -8823,8 +8816,7 @@ strcpy_far_:	push di
 		cmp al, 0
 		jne .again
 		pop ax			; Will return dest.
-		;xchg si, bx		; Restore SI.
-		db 0x87, 0xF3  ; !!! xchg si, bx
+		xchg si, bx		; Restore SI.
 		pop ds
 		pop di
 		ret
@@ -9098,7 +9090,7 @@ _..616: db 'Typical usage:', 0xd, 0xa, 'mininasm -f bin input.asm -o input.bin',
 ;     "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "AL,i 2Ci" ALSO "AX,i 2Dj" ALSO "k,s 83dozodi" ALSO "j,i 80dozodi" ALSO "k,i 81dozodj\0"
 ;     "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "AL,i A8i" ALSO "AX,i A9j" ALSO "l,i F6dzzzdi" ALSO "m,i F7dzzzdj\0"
 ;     "WAIT\0" " 9B+\0"
-;     "XCHG\0" "AX,r ozzozr" ALSO "r,AX ozzozr" ALSO "j,q 86drd" ALSO "q,j 86drd" ALSO "k,r 87drd" ALSO "r,k 87drd\0"
+;     "XCHG\0" "AX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
 ;     "XLAT\0" " D7\0"
 ;     "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "AL,i 34i" ALSO "AX,i 35j" ALSO "k,s 83doozdi" ALSO "j,iy 80doozdi" ALSO "k,i 81doozdj\0"
 ; ;
@@ -9214,7 +9206,7 @@ ALSO:		equ '-'
 		db 'SUB', 0, 'j,q 28drd', ALSO, 'k,r 29drd', ALSO, 'q,j 2Adrd', ALSO, 'r,k 2Bdrd', ALSO, 'AL,i 2Ci', ALSO, 'AX,i 2Dj', ALSO, 'k,s 83dozodi', ALSO, 'j,i 80dozodi', ALSO, 'k,i 81dozodj', 0
 		db 'TEST', 0, 'j,q 84drd', ALSO, 'q,j 84drd', ALSO, 'k,r 85drd', ALSO, 'r,k 85drd', ALSO, 'AL,i A8i', ALSO, 'AX,i A9j', ALSO, 'l,i F6dzzzdi', ALSO, 'm,i F7dzzzdj', 0
 		db 'WAIT', 0, ' 9B+', 0
-		db 'XCHG', 0, 'AX,r ozzozr', ALSO, 'r,AX ozzozr', ALSO, 'j,q 86drd', ALSO, 'q,j 86drd', ALSO, 'k,r 87drd', ALSO, 'r,k 87drd', 0
+		db 'XCHG', 0, 'AX,r ozzozr', ALSO, 'r,AX ozzozr', ALSO, 'q,j 86drd', ALSO, 'j,q 86drd', ALSO, 'r,k 87drd', ALSO, 'k,r 87drd', 0
 		db 'XLAT', 0, ' D7', 0
 		db 'XOR', 0, 'j,q 30drd', ALSO, 'k,r 31drd', ALSO, 'q,j 32drd', ALSO, 'r,k 33drd', ALSO, 'AL,i 34i', ALSO, 'AX,i 35j', ALSO, 'k,s 83doozdi', ALSO, 'j,iy 80doozdi', ALSO, 'k,i 81doozdj', 0
 		db 0

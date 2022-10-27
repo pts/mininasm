@@ -32,11 +32,11 @@ done
 $NASM -f bin -O0 -o minnnasm.com minnnasm.nasm
 ndisasm -b 16 -o 0x100 minnnasm.com >minnnasm.com.ndisasm
 ndisasm -b 16 -o 0x100 minnnasm.com | perl -pe 's@^(\S+\s+)([0-9A-F]+)(?=\s+)@ $1.("?"x length($2))  @e' >minnnasm.com.nocode.ndisasm
-cmp mininasm_debug44.com.good minnnasm.com
+cmp mininasm_debug45.com.good minnnasm.com
 nasm -f bin -O0 -o minnnasm.com minnnasm.nasm
-cmp mininasm_debug44.com.good minnnasm.com
+cmp mininasm_debug45.com.good minnnasm.com
 ./mininasm -f bin -o minnnasmm.com minnnasm.nasm
 ndisasm -b 16 -o 0x100 minnnasmm.com >minnnasmm.com.ndisasm
-cmp mininasm_debug44.com.good minnnasmm.com
+cmp mininasm_debug45.com.good minnnasmm.com
 
 : "$0" OK.
