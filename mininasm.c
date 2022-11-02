@@ -1580,7 +1580,7 @@ typedef char guess_align_assembly_info[sizeof(struct guess_align_assembly_info_h
 
 struct assembly_info {
     off_t file_offset;  /* Largest alignment first, to save size. */
-    uvalue_t level;
+    uvalue_t level;  /* !! TODO(pts): Is using (forcing) 16 bits only make the code smaller for dosmc? */
     uvalue_t avoid_level;
     uvalue_t line_number;
     char zero;  /* '\0'. Used by assembly_pop(...). */
@@ -1606,13 +1606,14 @@ static struct assembly_info *assembly_push(const char *input_filename) {
 #endif
     struct assembly_info *aip;
     if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
+    /* TODO(pts): In dosmc, can we generate better assembly code for this initialization? The `mov bx, [assembly_p]' instruction is repeated too much. */
     assembly_p->level = 1;
+    assembly_p->line_number = 1;
     assembly_p->avoid_level = 0;
-    assembly_p->line_number = 0;
     assembly_p->file_offset = 0;
-    aip = assembly_p;
     assembly_p->zero = 0;
     strcpy(assembly_p->input_filename, input_filename);
+    aip = assembly_p;
     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
 #if !CONFIG_CPU_UNALIGN
     for (; extra_nul_count > 0; --extra_nul_count, *(char*)assembly_p = '\0', assembly_p = (struct assembly_info*)((char*)(assembly_p) + 1)) {}
@@ -1734,11 +1735,11 @@ void do_assembly(const char *input_filename) {
             for (; p != line_rend && *p != '\n'; ++p) {}
             if (p == line_rend) goto line_too_long;
         }
+        /* Now: *p == '\n'. */
+        if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
         *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
         linep = (char*)p + 1;
        after_line_read:
-
-        if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
         p = line;
         while (*p) {
             if (*p == '\'' && *(p - 1) != '\\') {
