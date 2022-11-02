@@ -33,7 +33,7 @@ $NASM -f bin -O0 -o minnnasm.com minnnasm.nasm
 ndisasm -b 16 -o 0x100 minnnasm.com >minnnasm.com.ndisasm
 ndisasm -b 16 -o 0x100 minnnasm.com | perl -pe 's@^(\S+\s+)([0-9A-F]+)(?=\s+)@ $1.("?"x length($2))  @e' >minnnasm.com.nocode.ndisasm
 cmp mininasm_debug47.com.good minnnasm.com
-nasm -f bin -O0 -o minnnasm.com minnnasm.nasm
+nasm-2.13.02 -f bin -O0 -o minnnasm.com minnnasm.nasm
 cmp mininasm_debug47.com.good minnnasm.com
 ./mininasm -f bin -o minnnas1.com minnnasm.nasm
 ndisasm -b 16 -o 0x100 minnnas1.com >minnnas1.com.ndisasm
