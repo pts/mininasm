@@ -1714,6 +1714,7 @@ void do_assembly(const char *input_filename) {
         for (p = line = linep; p != line_rend && *p != '\n'; ++p) {}
         if (p == line_rend) {
             if (line != line_buf) {
+                /* !! Comment the check out from the production code. */
                 if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;  /* Too much copy per line (thus too slow). This won't be triggered, because the `>= MAX_SIZE' check triggers first. */
                 for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
                 p = line_rend = liner;
@@ -1748,7 +1749,7 @@ void do_assembly(const char *input_filename) {
                 p++;
                 while (*p && *p != '"' && *(p - 1) != '\\')
                     p++;
-            } else if (*p == ';') {
+            } else if (*p == ';') {  /* !! TODO(pts): Allow comments longer than MAX_SIZE and sizeof(line_buf). */
                 while (*p)
                     p++;
                 break;
