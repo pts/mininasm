@@ -1608,7 +1608,7 @@ static struct assembly_info *assembly_push(const char *input_filename) {
     if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
     /* TODO(pts): In dosmc, can we generate better assembly code for this initialization? The `mov bx, [assembly_p]' instruction is repeated too much. */
     assembly_p->level = 1;
-    assembly_p->line_number = 1;
+    assembly_p->line_number = 0;
     assembly_p->avoid_level = 0;
     assembly_p->file_offset = 0;
     assembly_p->zero = 0;
@@ -1680,6 +1680,7 @@ void do_assembly(const char *input_filename) {
     int align;
     int got;
     int input_fd;
+    char pc;
 
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
 
@@ -1711,57 +1712,80 @@ void do_assembly(const char *input_filename) {
     global_label[0] = '\0';
     base = 0;
     linep = line_rend = line_buf;
-    while (linep) {  /* Read and process next line from input. */
-        for (p = line = linep; p != line_rend && *p != '\n'; ++p) {}
+    for (;;) {  /* Read and process next line from input. */
+        if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
+        line = linep;
+       find_eol:
+        /* linep can be used as scratch from now on */
+        for (p = line; p != line_rend && *p != '\n'; ++p) {}
         if (p == line_rend) {
             if (line != line_buf) {
-                /* !! Comment the check out from the production code. */
-                if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;  /* Too much copy per line (thus too slow). This won't be triggered, because the `>= MAX_SIZE' check triggers first. */
+                if (line_rend - line >= MAX_SIZE) goto line_too_long;
+                /*if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;*/  /* Too much copy per line (thus too slow). This won't be triggered, because the `line_rend - line >= MAX_SIZE' check above triggers first. */
                 for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
                 p = line_rend = liner;
-                line = linep = line_buf;
+                line = line_buf;
             }
-            if ((got = read(input_fd, line_rend, line_buf + sizeof(line_buf) - line_rend)) < 0) {
+           read_more:
+            /* Now: p == line_rend. */
+            if ((got = line_buf + sizeof(line_buf) - line_rend) <= 0) goto line_too_long;
+            if ((got = read(input_fd, line_rend, got)) < 0) {
                 message(1, "error reading assembly file");
-                break;
-            }
-            if (got == 0) {  /* End of file (EOF). */
-              if (line_rend == line_buf) break;
-              *line_rend = '\0';
-              linep = NULL;
-              goto after_line_read;
+                goto close_return;
             }
             line_rend += got;
-            for (; p != line_rend && *p != '\n'; ++p) {}
-            if (p == line_rend) goto line_too_long;
+            if (got == 0) {
+                if (p == line_rend) break;  /* EOF. */
+                *line_rend++ = '\n';  /* Add sentinel. This is valid memory access in line_buf, because got > 0 in the read(...) call above. */
+            } else if (line_rend != line_buf + sizeof(line_buf)) {
+                goto read_more;
+            }
+            /* We may process the last partial line here again later, but that performance degradation is fine. TODO(pts): Keep some state (comment, quote) to avoid this. */
+            for (p = linep = line; p != line_rend; ) {
+                pc = *p;
+                if (pc == '\'' || pc == '"') {
+                    ++p;
+                    do {
+                        if (p == line_rend) break;  /* This quote may be closed later, after a read(...). */
+                        if (*p == '\n') goto newline;  /* This unclosed quote will be reported as a syntax error later. */
+                        if (*p == '\0') {
+                            message(1, "quoted NUL found");
+                            *(char*)p = ' ';
+                        }
+                    } while (*p++ != pc);
+                } else if (pc == ';') {
+                    for (liner = (char*)p; p != line_rend; *(char*)p++ = ' ') {
+                        if (*p == '\n') goto newline;
+                    }
+                    for (; liner != line && liner[-1] != '\n' && isspace(liner[-1]); --liner) {}  /* Remove whitespace preceding the comment. */
+                    *liner = ';';  /* Process this comment again later. */
+                    p = line_rend = liner + 1;
+                    if (linep == line) { /* Reached end of the read buffer before the end of the single-line comment. Read more bytes of this comment. */
+                        if (line_rend - linep >= MAX_SIZE) goto line_too_long;
+                        goto read_more;
+                    }
+                } else if (pc == '\n') { newline:
+                    linep = (char*)++p;
+                } else if (pc == '\0' || isspace(pc)) {
+                    *(char*)p++ = ' ';
+                    for (liner = (char*)p; liner != line_rend && ((pc = *liner) == '\0' || (pc != '\n' && isspace(pc))); *liner++ = ' ') {}
+                    if (liner == line_rend) line_rend = (char*)p;  /* Compress trailing whitespace bytes to a single space at the end of the buffer, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
+                } else {
+                    /* !! TODO(pts): Experiment with converting runs of whitespace to a single space, simplifying code. */
+                    /* !! TODO(pts): nasm labels are case sensitive, but mininasm labels aren't; make $labels case sensitive in mininasm */
+                    *(char*)p++ = toupper(pc);
+                }
+            }
+            goto find_eol;
         }
         /* Now: *p == '\n'. */
-        if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
-        *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
         linep = (char*)p + 1;
-       after_line_read:
-        p = line;
-        while (*p) {  /* Convert letters to uppercase and remove comment (`;'). */
-            if (*p == '\'' && *(p - 1) != '\\') {
-                p++;
-                while (*p && *p != '\'' && *(p - 1) != '\\')
-                    p++;
-            } else if (*p == '"' && *(p - 1) != '\\') {
-                p++;
-                while (*p && *p != '"' && *(p - 1) != '\\')
-                    p++;
-            } else if (*p == ';') {  /* !! TODO(pts): Allow comments longer than MAX_SIZE and sizeof(line_buf). */
-                *(char*)p = '\0';
-                break;
-            }
-            *(char*)p = toupper(*p);
-            p++;
-        }
-        if (p != line && *(p - 1) == '\r')
-            *(char*)--p = '\0';
+        for (; p != line && p[-1] == ' '; --p) {}  /* Removes trailing \r and spaces. */
+        *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
+        /* fprintf(stderr, "line=(%s)\n", line); */
         if (p - line >= MAX_SIZE) { line_too_long:
             message(1, "assembly line too long");
-            break;
+            goto close_return;
         }
 
         base = address;
