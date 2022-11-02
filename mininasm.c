@@ -1156,7 +1156,7 @@ void emit_byte(int byte) {
  */
 const char *check_end(const char *p) {
     p = avoid_spaces(p);
-    if (*p && *p != ';') {
+    if (*p) {
         message(1, "extra characters at end of line");
         return NULL;
     }
@@ -1373,7 +1373,7 @@ void separate(void) {
         p++;
     prev_p = p;
     p2 = part;
-    while (*p && !isspace(*p) && *p != ';')
+    while (*p && !isspace(*p))
         *p2++ = *p++;
     *p2 = '\0';
     while (*p && isspace(*p))
@@ -1741,7 +1741,7 @@ void do_assembly(const char *input_filename) {
         linep = (char*)p + 1;
        after_line_read:
         p = line;
-        while (*p) {
+        while (*p) {  /* Convert letters to uppercase and remove comment (`;'). */
             if (*p == '\'' && *(p - 1) != '\\') {
                 p++;
                 while (*p && *p != '\'' && *(p - 1) != '\\')
@@ -1751,8 +1751,7 @@ void do_assembly(const char *input_filename) {
                 while (*p && *p != '"' && *(p - 1) != '\\')
                     p++;
             } else if (*p == ';') {  /* !! TODO(pts): Allow comments longer than MAX_SIZE and sizeof(line_buf). */
-                while (*p)
-                    p++;
+                *(char*)p = '\0';
                 break;
             }
             *(char*)p = toupper(*p);
@@ -1772,9 +1771,8 @@ void do_assembly(const char *input_filename) {
         while (1) {
             p = line;
             separate();
-            if (part[0] == '\0' && (*p == '\0' || *p == ';'))    /* Empty line */
-                break;
-            if (part[0] != '\0' && part[strlen(part) - 1] == ':') {  /* Label */
+            if (part[0] == '\0') break;  /* Empty line */
+            if (part[strlen(part) - 1] == ':') {  /* Label */
                 part[strlen(part) - 1] = '\0';
                 if (part[0] == '.') {
                     strcpy(name, global_label);
