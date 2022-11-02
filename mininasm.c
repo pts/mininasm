@@ -1519,7 +1519,7 @@ void process_instruction(void) {
                 goto after_matches;
             }
             if (strcmp(part, p2) == 0) break;
-            while (*p2++ != '\0') {}  /* Skip over instruction name. !!! TODO(pts): Remove duplication. */
+            while (*p2++ != '\0') {}  /* Skip over instruction name. !! TODO(pts): Remove duplication. */
             while (*p2++ != '\0') {}  /* Skip over pattern_and_encode. */
         }
         while (*p2++ != '\0') {}  /* Skip over instruction name. */
