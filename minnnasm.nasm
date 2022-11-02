@@ -1499,7 +1499,7 @@ _..39:
 		cmp al, 0x28
 		jne _..45
 		mov ax, word [bp-0xe]
-		db 0x83, 0xF8, 0xffff  ; !!! cmp ax, BYTE 0xffff
+		db 0x83, 0xF8, 0xff  ; !!! cmp ax, BYTE 0xffff
 		jg _..40
 		jne _..45
 		; `| -0x1000' to prevent NASM warning: signed byte value exceeds bounds
@@ -1723,7 +1723,7 @@ _..66:
 		mov al, byte [bp-4]
 		xor ah, ah
 		xor dx, dx
-		db 0x83, 0xC0, 0xffd4  ; !!! add ax, BYTE 0xffd4 | -0x10000
+		db 0x83, 0xC0, 0xd4  ; !!! add ax, BYTE 0xffd4 | -0x10000
 		adc dx, BYTE -1
 		add word [bp-0x10], ax
 		adc word [bp-0xe], dx
@@ -3028,7 +3028,7 @@ _..181:
 
 ;                         if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
 		mov ax, [_instruction_offset+2]  ; !!! no word [...]
-		db 0x83, 0xF8, 0xffff  ; !!! cmp ax, BYTE 0xffff
+		db 0x83, 0xF8, 0xff  ; !!! cmp ax, BYTE 0xffff
 		jg _..182
 		jne _..184
 		cmp word [_instruction_offset], BYTE 0xff80 | -0x10000
@@ -3776,7 +3776,7 @@ _..236:
 ;                     goto mismatch;
 ;                 if (undefined == 0 && (c < -128 || c > 127))
 		jne _..230
-		db 0x83, 0xF8, 0xff80  ; !!! cmp ax, BYTE 0xff80
+		db 0x83, 0xF8, 0x80  ; !!! cmp ax, BYTE 0xff80
 		jl _..234
 		db 0x83, 0xF8, 0x7f  ; !!! cmp ax, BYTE 0x7f
 		jmp _..229
