@@ -44,7 +44,11 @@ Differences between mininasm and NASM:
 
 * mininasm won't insert long jumps for miscalculated conditional jumps.
 
-* Labels are started with letter, underscore or period. Case is insensitive.
+* Labels are started with letter, underscore (_), at-sign (@) or period (.).
+  Subsequent characters can be letter, digit, underscore, at-sign, period or
+  dollar ($).
+
+* Labels are case insensitive.
 
 * There is only support for 8086/8088 processors (cpu 8086).
 

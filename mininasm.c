@@ -486,7 +486,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 /*
  ** Define a new label
  */
-struct label MY_FAR *define_label(char *name, value_t value) {
+struct label MY_FAR *define_label(const char *name, value_t value) {
     struct label MY_FAR *label;
 
     /* Allocate label */
@@ -618,6 +618,11 @@ struct label MY_FAR *find_label(const char *name) {
     return NULL;
 }
 
+struct label MY_FAR *find_dollar_label(const char *name) {
+    if (name[0] == '$') ++name;
+    return find_label(name);
+}
+
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
@@ -663,6 +668,13 @@ const char *avoid_spaces(const char *p) {
 #ifndef CONFIG_MATCH_STACK_DEPTH
 #define CONFIG_MATCH_STACK_DEPTH 100
 #endif
+
+/*
+ ** Check for a label character
+ */
+int islabel(int c) {
+    return isalpha(c) || isdigit(c) || c == '_' || c == '.' || c == '$' || c == '@';
+}
 
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
@@ -787,32 +799,41 @@ const char *match_expression(const char *match_p) {
             } else {
                 ++match_p;
             }
-        } else if (isdigit(c)) {   /* Decimal */
+        } else if (isdigit(c)) {  /* Decimal */
             /*value1 = 0;*/
             for (; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
                 value1 = value1 * 10 + c;
             }
-        } else if (c == '$' && match_p[1] == '$') { /* Start address */
-            match_p += 2;
-            value1 = start_address;
-        } else if (c == '$') { /* Current address */
-            match_p++;
-            value1 = address;
-        } else if (isalpha(c) || c == '_' || c == '.') {  /* Start of label. */
+        } else if (c == '$') {
+            c = *++match_p;
+            if (c == '$') {  /* Start address ($$). */
+                ++match_p;
+                if (islabel(match_p[0])) {
+                    message(1, "bad label");
+                }
+                value1 = start_address;
+            } else if (isdigit(c)) {
+                goto parse_hex;
+            } else if (islabel(c)) {
+                goto label_expr;
+            } else {  /* Current address ($). */
+                value1 = address;
+            }
+        } else if (islabel(c) /* && c != '$' && !isdigit(c) */) {  /* Start of label. Incorrectly matches c == '$' and isdigit(c) as well, but we've checked those above. */
+            if (isalpha(match_p[1]) && !islabel(match_p[2])) {
+                for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
+                    if (c == p2[0] && match_p[1] == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
+                }
+            }
+           label_expr:
             p2 = expr_name;
             if (c == '.') {
                 strcpy(expr_name, global_label);
                 while (*p2 != '\0')
                     p2++;
             }
-            while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
-                *p2++ = *match_p++;
+            for (; islabel(match_p[0]); *p2++ = *match_p++) {}
             *p2 = '\0';
-            if (p2 == expr_name + 2) {
-                for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
-                    if (expr_name[0] == p2[0] && expr_name[1] == p2[1]) goto match_error;  /* Using a register name as a label is an error. */
-                }
-            }
             label = find_label(expr_name);
             if (label == NULL) {
                 /*value1 = 0;*/
@@ -963,13 +984,6 @@ const char *match_expression(const char *match_p) {
     if (msp != match_stack) goto do_pop;
     instruction_value = value1;
     return avoid_spaces(match_p);
-}
-
-/*
- ** Check for a label character
- */
-int islabel(int c) {
-    return isalpha(c) || isdigit(c) || c == '_' || c == '.';
 }
 
 /*
@@ -1797,8 +1811,17 @@ void do_assembly(const char *input_filename) {
                 if (part[0] == '.') {
                     strcpy(name, global_label);
                     strcat(name, part);
+                } else if (part[0] == '$') {
+                    if (part[1] == '.') {
+                        strcpy(name, global_label);
+                        strcat(name, part + 1);
+                    } else {
+                       strcpy(name, part + 1);
+                       goto set_global_label;
+                    }
                 } else {
                     strcpy(name, part);
+                   set_global_label:
                     strcpy(global_label, name);
                 }
                 separate();
@@ -1897,7 +1920,7 @@ void do_assembly(const char *input_filename) {
                 if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
-                if (find_label(part) != NULL) {
+                if (find_dollar_label(part) != NULL) {
                     ;
                 } else {
                     avoid_level = level;
@@ -1910,7 +1933,7 @@ void do_assembly(const char *input_filename) {
                 if (avoid_level != 0 && level >= avoid_level)
                     break;
                 separate();
-                if (find_label(part) == NULL) {
+                if (find_dollar_label(part) == NULL) {
                     ;
                 } else {
                     avoid_level = level;
@@ -2212,7 +2235,8 @@ int main(int argc, char **argv) {
                         message(1, "Cannot use undefined labels");
                         return 1;
                     } else {
-                        define_label(argv[c] + 2, instruction_value);
+                        p = argv[c] + 2;
+                        define_label(p + (p[0] == '$'), instruction_value);
                     }
                 }
                 c++;
