@@ -2202,7 +2202,7 @@ int main(int argc, char **argv) {
     c = 1;
     while (c < argc) {
         if (argv[c][0] == '-') {    /* All arguments start with dash */
-            d = argv[c][1] | 32;
+            d = argv[c][1] | 32;  /* Flags characters are case insensitive. */
             if (d == 'd') {  /* Define label */
                 for (p = argv[c] + 2; *p && *p != '='; ++p) {}
                 if (*p == '=') {
@@ -2221,6 +2221,10 @@ int main(int argc, char **argv) {
                     }
                 }
                 c++;
+            } else if (argv[c][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
+                message_start(1);
+                bbprintf(&message_bbb, "flag too long: %s", argv[c]);  /* Example: `-fbin' should be `-f bin'. */
+                goto flag_error;
             } else if (d == 'f') { /* Format */
                 c++;
                 if (c >= argc) {
@@ -2266,6 +2270,7 @@ int main(int argc, char **argv) {
             } else {
                 message_start(1);
                 bbprintf(&message_bbb, "unknown argument %s", argv[c]);
+              flag_error:
                 message_end();
                 return 1;
             }
