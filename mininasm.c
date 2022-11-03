@@ -1439,34 +1439,37 @@ void message_flush(struct bbprintf_buf *bbb) {
 /* data = 0 means write to listing_fd only, = 1 means write to stderr + listing_fd. */
 struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
 
+const char *filename_for_message;
+
 /*
  ** Generate a message
+ ** !! Remove `error' argument, warning not supported yet.
  */
 void message_start(int error) {
     const char *msg_prefix;
-    if (error) {
-        msg_prefix = "Error: ";  /* !! Also display current input_filename. */
-        if (GET_UVALUE(++errors) == 0) --errors;  /* Cappped at max uvalue_t. */
-    } else {
-        msg_prefix = "Warning: ";
-        if (GET_UVALUE(++warnings) == 0) --warnings;  /* Cappped at max uvalue_t. */
-    }
     if (!message_bbb.data) {
         message_flush(NULL);  /* Flush listing_fd. */
         message_bbb.data = (void*)1;
     }
-    bbprintf(&message_bbb, "%s", msg_prefix);
+    if (error) {
+        msg_prefix = "error: ";
+        if (GET_UVALUE(++errors) == 0) --errors;  /* Cappped at max uvalue_t. */
+    } else {
+        msg_prefix = "warning: ";
+        if (GET_UVALUE(++warnings) == 0) --warnings;  /* Cappped at max uvalue_t. */
+    }
+    if (line_number) {
+        bbprintf(&message_bbb, "%s:%u: %s", filename_for_message, (unsigned)line_number, msg_prefix);
+    } else {
+        bbprintf(&message_bbb, msg_prefix);  /* "%s" not needed, no `%' patterns in msg_prefix. */
+    }
 }
 
 void message_end(void) {
-    if (line_number) {
-      /* We must use \r\n, because this will end up on stderr, and on DOS
-       * with O_BINARY, just a \n doesn't break the line properly.
-       */
-      bbprintf(&message_bbb, " at line %u\r\n", line_number);
-    } else {
-      bbprintf(&message_bbb, "\r\n");
-    }
+    /* We must use \r\n, because this will end up on stderr, and on DOS
+     * with O_BINARY, just a \n doesn't break the line properly.
+     */
+    bbprintf(&message_bbb, "\r\n");
     message_flush(NULL);
     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 }
@@ -1731,6 +1734,7 @@ void do_assembly(const char *input_filename) {
 
   do_open_again:
     line_number = 0;  /* Global variable. */
+    filename_for_message = aip->input_filename;
     if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
         message_start(1);
         bbprintf(&message_bbb, "cannot open '%s' for input", aip->input_filename);
@@ -2140,8 +2144,7 @@ void do_assembly(const char *input_filename) {
         if (include == 1) {
             if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
                 message(1, "Cannot seek in source file");
-                close(input_fd);
-                return;
+                goto close_return;
             }
             close(input_fd);
             aip->level = level;
@@ -2161,6 +2164,7 @@ void do_assembly(const char *input_filename) {
   close_return:
     close(input_fd);
     if ((aip = assembly_pop(aip)) != NULL) goto do_open_again;  /* Continue processing the input file which %INCLUDE()d the current input file. */
+    line_number = 0;  /* Global variable. */
 }
 
 /*
