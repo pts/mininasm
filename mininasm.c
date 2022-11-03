@@ -64,8 +64,6 @@ int __cdecl isalpha(int c);
 int __cdecl isspace(int c);
 int __cdecl isdigit(int c);
 int __cdecl isxdigit(int c);
-int __cdecl tolower(int c);
-int __cdecl toupper(int c);
 ssize_t __cdecl read(int fd, void *buf, size_t count);  /* Win32 uses int instead of size_t etc. */
 ssize_t __cdecl write(int fd, const void *buf, size_t count);  /* Win32 uses int instead of size_t etc. */
 #define SEEK_SET 0  /* whence value below. */
@@ -754,7 +752,7 @@ const char *match_expression(const char *match_p) {
               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
               value1 += value2;
             }
-        } else if (c == '0' && tolower(match_p[1]) == 'b') {  /* Binary */
+        } else if (c == '0' && (match_p[1] | 32) == 'b') {  /* Binary */
             match_p += 2;
             /*value1 = 0;*/
             while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
@@ -766,7 +764,7 @@ const char *match_expression(const char *match_p) {
                 match_p++;
             }
             goto check_nolabel;
-        } else if (c == '0' && tolower(match_p[1]) == 'x') {  /* Hexadecimal */
+        } else if (c == '0' && (match_p[1] | 32) == 'x') {  /* Hexadecimal */
             match_p += 2;
           parse_hex0:
             shift = 0;
@@ -777,12 +775,12 @@ const char *match_expression(const char *match_p) {
                 if ((unsigned char)c > 9) c = (c & ~32) - 7;
                 value1 = (value1 << 4) | c;
             }
-            if (shift) {  /* Expect c == 'H'. */
-                if (c != 'H') goto bad_label;
+            if (shift) {  /* Expect c == 'H' || c == 'h'. */
+                if ((c | 32) != 'h') goto bad_label;
                 ++match_p;
             }
             goto check_nolabel;
-        } else if (c == '0' && tolower(match_p[1]) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
+        } else if (c == '0' && (match_p[1] | 32) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
             /*value1 = 0;*/
             for (; (unsigned char)(c = match_p[0] - '0') < 8; ++match_p) {
@@ -838,7 +836,7 @@ const char *match_expression(const char *match_p) {
         } else if (islabel(c) /* && c != '$' && !isdigit(c) */) {  /* Start of label. Incorrectly matches c == '$' and isdigit(c) as well, but we've checked those above. */
             if (isalpha(match_p[1]) && !islabel(match_p[2])) {
                 for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
-                    if (c == p2[0] && match_p[1] == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
+                    if ((c & ~32) == p2[0] && (match_p[1] & ~32) == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
                 }
             }
           label_expr:
@@ -1013,7 +1011,7 @@ const char *match_register(const char *p, int width, unsigned char *reg) {
         return NULL;
     r0 = r = register_names + (width & 16);  /* Works for width == 8 and width == 16. */
     for (r2 = r + 16; r != r2; r += 2) {
-        if (p[0] == r[0] && p[1] == r[1]) {
+        if ((p[0] & ~32) == r[0] && (p[1] & ~32) == r[1]) {
             *reg = (r - r0) >> 1;
             return p + 2;
         }
@@ -1192,6 +1190,30 @@ const char *check_end(const char *p) {
     return p;
 }
 
+/* Returns bool (0 == false or 1 == true) indicating whether the
+ * NUL-terminated string p matches the NUL-terminated pattern.
+ *
+ * The match is performed from left to right, one byte at a time.
+ * A '*' in the pattern matches anything afterwards. An uppercase
+ * letter in the pattern matches itself and the lowercase equivalent.
+ * A '\0' in the pattern matches the '\0', and the matching stops
+ * with true. Every other byte in the pattern matches itself, and the
+ * matching continues.
+ */
+char casematch(const char *p, const char *pattern) {
+    char c;
+    for (; (c = *pattern++) != '*'; ++p) {
+        if (c - 'A' + 0U <= 'Z' - 'A' + 0U) {
+            if ((*p & ~32) != c) return 0;  /* Letters are matched case insensitively. */
+        } else {
+            if (*p != c) return 0;
+            if (c == '\0') break;
+        }
+    }
+    return 1;
+}
+
+
 /*
  ** Search for a match with instruction
  */
@@ -1211,12 +1233,12 @@ const char *match(const char *p, const char *pattern_and_encode) {
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
-            if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
+            if (casematch(p, "WORD*") && !isalpha(p[4])) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
                     goto mismatch;
                 qualifier = 16;
-            } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
+            } else if (casematch(p, "BYTE*") && !isalpha(p[4])) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
                     goto mismatch;
@@ -1246,7 +1268,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (memcmp(p, "SHORT ", 6) == 0) {
+            if (casematch(p, "SHORT *")) {
                 p += 5;
                 qualifier = 1;
             }
@@ -1258,7 +1280,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             p = avoid_spaces(p);
-            if (memcmp(p, "SHORT ", 6) == 0) {
+            if (casematch(p, "SHORT *")) {
                 p = NULL;
             } else {
                 p = match_expression(p);
@@ -1266,7 +1288,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 's') {  /* Signed immediate, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (memcmp(p, "BYTE ", 5) == 0) {
+            if (casematch(p, "BYTE *")) {
                 p += 4;
                 qualifier = 1;
             }
@@ -1279,7 +1301,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
                     goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
-            if (memcmp(p, "SHORT ", 6) == 0) {
+            if (casematch(p, "SHORT *")) {
                 goto mismatch;
             }
             p = match_expression(p);
@@ -1292,7 +1314,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc - 'a' + 0U <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else {
-            if (*p != dc) goto mismatch;
+            if ((dc - 'A' + 0U <= 'Z' - 'A' + 0U ? *p & ~32 : *p) != dc) goto mismatch;  /* Case insensitive match for uppercase letters in pattern. */
             p++;
             if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
             continue;
@@ -1379,16 +1401,6 @@ const char *match(const char *p, const char *pattern_and_encode) {
     return check_end(p);
 }
 
-/*
- ** Make a string lowercase
- */
-void to_lowercase(char *p) {
-    while (*p) {
-        *p = tolower(*p);
-        p++;
-    }
-}
-
 const char *prev_p;
 const char *p;
 
@@ -1472,7 +1484,7 @@ void process_instruction(void) {
     const char *p2 = NULL, *p3;
     char c;
 
-    if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
+    if (casematch(part, "DB")) {  /* Define 8-bit byte. */
         while (1) {
             p = avoid_spaces(p);
             if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
@@ -1505,9 +1517,9 @@ void process_instruction(void) {
             }
         }
         return;
-    } else if ((c = strcmp(part, "DW")) == 0 /* Define 16-bit word. */
+    } else if ((c = casematch(part, "DW")) /* Define 16-bit word. */
 #if CONFIG_VALUE_BITS == 32
-               || strcmp(part, "DD") == 0  /* Define 32-bit quadword. */
+               || casematch(part, "DD")  /* Define 32-bit quadword. */
               ) {
 #endif
         while (1) {
@@ -1519,7 +1531,7 @@ void process_instruction(void) {
             emit_byte(instruction_value);
             emit_byte(instruction_value >> 8);
 #if CONFIG_VALUE_BITS == 32
-            if (c) {
+            if (!c) {
                 emit_byte(instruction_value >> 16);
                 emit_byte(instruction_value >> 24);
             }
@@ -1544,7 +1556,7 @@ void process_instruction(void) {
                 message_end();
                 goto after_matches;
             }
-            if (strcmp(part, p2) == 0) break;
+            if (casematch(part, p2)) break;  /* Match actual instruction mnemonic name (part) against candidate from instruction_set (p2). */
             while (*p2++ != '\0') {}  /* Skip over instruction name. !! TODO(pts): Remove duplication. */
             while (*p2++ != '\0') {}  /* Skip over pattern_and_encode. */
         }
@@ -1799,7 +1811,7 @@ void do_assembly(const char *input_filename) {
                 } else {
                     /* TODO(pts): Experiment with converting runs of space to a single space, simplifying avoid_spaces(...). */
                     /* !! TODO(pts): nasm labels are case sensitive, but mininasm labels aren't; make $labels case sensitive in mininasm */
-                    *(char*)p++ = toupper(pc);
+                    ++p;
                 }
             }
             goto find_eol;
@@ -1842,7 +1854,7 @@ void do_assembly(const char *input_filename) {
                 }
                 separate();
                 if (avoid_level == 0 || level < avoid_level) {
-                    if (strcmp(part, "EQU") == 0) {
+                    if (casematch(part, "EQU")) {
                         p = match_expression(p);
                         if (p == NULL) {
                             message(1, "bad expression");
@@ -1909,7 +1921,7 @@ void do_assembly(const char *input_filename) {
                     }
                 }
             }
-            if (strcmp(part, "%IF") == 0) {
+            if (casematch(part, "%IF")) {
                 if (GET_UVALUE(++level) == 0) { if_too_deep:
                     message(1, "%IF too deep");
                     goto close_return;
@@ -1931,7 +1943,7 @@ void do_assembly(const char *input_filename) {
                 check_end(p);
                 break;
             }
-            if (strcmp(part, "%IFDEF") == 0) {
+            if (casematch(part, "%IFDEF")) {
                 if (GET_UVALUE(++level) == 0) goto if_too_deep;
                 if (avoid_level != 0 && level >= avoid_level)
                     break;
@@ -1944,7 +1956,7 @@ void do_assembly(const char *input_filename) {
                 check_end(p);
                 break;
             }
-            if (strcmp(part, "%IFNDEF") == 0) {
+            if (casematch(part, "%IFNDEF")) {
                 if (GET_UVALUE(++level) == 0) goto if_too_deep;
                 if (avoid_level != 0 && level >= avoid_level)
                     break;
@@ -1957,7 +1969,7 @@ void do_assembly(const char *input_filename) {
                 check_end(p);
                 break;
             }
-            if (strcmp(part, "%ELSE") == 0) {
+            if (casematch(part, "%ELSE")) {
                 if (level == 1) {
                     message(1, "%ELSE without %IF");
                     goto close_return;
@@ -1972,7 +1984,7 @@ void do_assembly(const char *input_filename) {
                 check_end(p);
                 break;
             }
-            if (strcmp(part, "%ENDIF") == 0) {
+            if (casematch(part, "%ENDIF")) {
                 if (avoid_level == level)
                     avoid_level = 0;
                 if (--level == 0) {
@@ -1988,16 +2000,16 @@ void do_assembly(const char *input_filename) {
 #endif
                 break;
             }
-            if (strcmp(part, "USE16") == 0) {
+            if (casematch(part, "USE16")) {
                 break;
             }
-            if (strcmp(part, "CPU") == 0) {
+            if (casematch(part, "CPU")) {
                 p = avoid_spaces(p);
-                if (memcmp(p, "8086", 4) != 0)
+                if (!casematch(p, "8086"))
                     message(1, "Unsupported processor requested");
                 break;
             }
-            if (strcmp(part, "BITS") == 0) {
+            if (casematch(part, "BITS")) {
                 p = avoid_spaces(p);
                 undefined = 0;
                 p = match_expression(p);
@@ -2012,7 +2024,7 @@ void do_assembly(const char *input_filename) {
                 }
                 break;
             }
-            if (strcmp(part, "%INCLUDE") == 0) {
+            if (casematch(part, "%INCLUDE")) {
                 separate();
                 check_end(p);
                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
@@ -2022,7 +2034,7 @@ void do_assembly(const char *input_filename) {
                 include = 1;
                 break;
             }
-            if (strcmp(part, "INCBIN") == 0) {
+            if (casematch(part, "INCBIN")) {
                 separate();
                 check_end(p);
                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
@@ -2032,7 +2044,7 @@ void do_assembly(const char *input_filename) {
                 include = 2;
                 break;
             }
-            if (strcmp(part, "ORG") == 0) {
+            if (casematch(part, "ORG")) {
                 p = avoid_spaces(p);
                 undefined = 0;
                 p = match_expression(p);
@@ -2059,7 +2071,7 @@ void do_assembly(const char *input_filename) {
                 }
                 break;
             }
-            if (strcmp(part, "ALIGN") == 0) {
+            if (casematch(part, "ALIGN")) {
                 p = avoid_spaces(p);
                 undefined = 0;
                 p = match_expression(p);
@@ -2073,7 +2085,7 @@ void do_assembly(const char *input_filename) {
                     align = align + instruction_value;
                     while (address < align)
                         emit_byte(0x90);
-                    check_end(p);
+                    check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
                 }
                 break;
             }
@@ -2085,7 +2097,7 @@ void do_assembly(const char *input_filename) {
                 reset_address();
             }
             times = 1;
-            if (strcmp(part, "TIMES") == 0) {
+            if (casematch(part, "TIMES")) {
                 undefined = 0;
                 p = match_expression(p);
                 if (p == NULL) {
@@ -2190,17 +2202,34 @@ int main(int argc, char **argv) {
     c = 1;
     while (c < argc) {
         if (argv[c][0] == '-') {    /* All arguments start with dash */
-            d = tolower(argv[c][1]);
-            if (d == 'f') { /* Format */
+            d = argv[c][1] | 32;
+            if (d == 'd') {  /* Define label */
+                for (p = argv[c] + 2; *p && *p != '='; ++p) {}
+                if (*p == '=') {
+                    *(char*)p++ = 0;
+                    undefined = 0;
+                    p = match_expression(p);
+                    if (p == NULL) {
+                        message(1, "Bad expression");
+                        return 1;
+                    } else if (undefined) {
+                        message(1, "Cannot use undefined labels");
+                        return 1;
+                    } else {
+                        p = argv[c] + 2;
+                        define_label(p + (p[0] == '$'), instruction_value);
+                    }
+                }
+                c++;
+            } else if (d == 'f') { /* Format */
                 c++;
                 if (c >= argc) {
                     message(1, "no argument for -f");
                     return 1;
                 } else {
-                    to_lowercase(argv[c]);
-                    if (strcmp(argv[c], "bin") == 0) {
+                    if (casematch(argv[c], "BIN")) {
                         default_start_address = 0;
-                    } else if (strcmp(argv[c], "com") == 0) {
+                    } else if (casematch(argv[c], "COM")) {
                         default_start_address = 0x0100;
                     } else {
                         message_start(1);
@@ -2234,28 +2263,6 @@ int main(int argc, char **argv) {
                     listing_filename = argv[c];
                     c++;
                 }
-            } else if (d == 'd') {  /* Define label */
-                p = argv[c] + 2;
-                while (*p && *p != '=') {
-                    *(char*)p = toupper(*p);
-                    p++;
-                }
-                if (*p == '=') {
-                    *(char*)p++ = 0;
-                    undefined = 0;
-                    p = match_expression(p);
-                    if (p == NULL) {
-                        message(1, "Bad expression");
-                        return 1;
-                    } else if (undefined) {
-                        message(1, "Cannot use undefined labels");
-                        return 1;
-                    } else {
-                        p = argv[c] + 2;
-                        define_label(p + (p[0] == '$'), instruction_value);
-                    }
-                }
-                c++;
             } else {
                 message_start(1);
                 bbprintf(&message_bbb, "unknown argument %s", argv[c]);

@@ -8475,6 +8475,7 @@ __I4M:		xchg ax,bx
 		add dx, cx
 		ret
 
+; !!! toupper_ not needed in future versions; what else is not needed from libc?
 ; int toupper(int c);
 ; Optimized for size.
 ___288B:
@@ -8830,6 +8831,7 @@ strlen_:	push si
 		pop si
 		ret
 
+; !!! tolower_ not needed in future versions; what else is not needed from libc?
 ; int tolower(int c);
 ; Optimized for size.
 ___2A5E:
