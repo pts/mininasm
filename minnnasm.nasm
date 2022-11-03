@@ -32,9 +32,7 @@
 ; * add ax, byte 9. wcc: 05 09 00; wasm: 83 C0 09.
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
-; !!! doc: incompatibility: `db 01h' is NASM-only; use 'db 0x1' for both
 ; !!! doc: incompatibility: `answer equ 42' is NASM-only; use `answer: equ 42' for both
-; !!! doc: incompatibility: `$' and `@' in label name is NASM-only; use `..' etc. for both -- or !!! allow $ and @ in labels
 ; !!! doc: incompatibility: es: before the instruction
 ; !!! doc: incompatibility: `jmp near' to `jmp'
 ; !!! doc: incompatibility: `call near' to `call'
