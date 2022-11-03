@@ -656,8 +656,7 @@ void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
  ** Avoid spaces in input
  */
 const char *avoid_spaces(const char *p) {
-    while (isspace(*p))
-        p++;
+    for (; *p == ' '; p++) {}
     return p;
 }
 
@@ -1217,7 +1216,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+            if (memcmp(p, "SHORT ", 6) == 0) {
                 p += 5;
                 qualifier = 1;
             }
@@ -1229,7 +1228,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             p = avoid_spaces(p);
-            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+            if (memcmp(p, "SHORT ", 6) == 0) {
                 p = NULL;
             } else {
                 p = match_expression(p);
@@ -1237,7 +1236,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 's') {  /* Signed immediate, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
+            if (memcmp(p, "BYTE ", 5) == 0) {
                 p += 4;
                 qualifier = 1;
             }
@@ -1250,7 +1249,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
                     goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
-            if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+            if (memcmp(p, "SHORT ", 6) == 0) {
                 goto mismatch;
             }
             p = match_expression(p);
@@ -1369,15 +1368,12 @@ const char *p;
 void separate(void) {
     char *p2;
 
-    while (*p && isspace(*p))
-        p++;
+    for (; *p == ' '; ++p) {}
     prev_p = p;
     p2 = part;
-    while (*p && !isspace(*p))
-        *p2++ = *p++;
+    for (; *p && *p != ' '; *p2++ = *p++) {}
     *p2 = '\0';
-    while (*p && isspace(*p))
-        p++;
+    for (; *p == ' '; ++p) {}
 }
 
 char message_buf[512];
@@ -1771,7 +1767,7 @@ void do_assembly(const char *input_filename) {
                     for (liner = (char*)p; liner != line_rend && ((pc = *liner) == '\0' || (pc != '\n' && isspace(pc))); *liner++ = ' ') {}
                     if (liner == line_rend) line_rend = (char*)p;  /* Compress trailing whitespace bytes to a single space at the end of the buffer, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
                 } else {
-                    /* !! TODO(pts): Experiment with converting runs of whitespace to a single space, simplifying code. */
+                    /* TODO(pts): Experiment with converting runs of space to a single space, simplifying avoid_spaces(...). */
                     /* !! TODO(pts): nasm labels are case sensitive, but mininasm labels aren't; make $labels case sensitive in mininasm */
                     *(char*)p++ = toupper(pc);
                 }
