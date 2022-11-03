@@ -765,8 +765,11 @@ const char *match_expression(const char *match_p) {
                 }
                 match_p++;
             }
+            goto check_nolabel;
         } else if (c == '0' && tolower(match_p[1]) == 'x') {  /* Hexadecimal */
             match_p += 2;
+          parse_hex0:
+            shift = 0;
           parse_hex:
             /*value1 = 0;*/
             for (; c = match_p[0], isxdigit(c); ++match_p) {
@@ -774,17 +777,20 @@ const char *match_expression(const char *match_p) {
                 if ((unsigned char)c > 9) c = (c & ~32) - 7;
                 value1 = (value1 << 4) | c;
             }
+            if (shift) {  /* Expect c == 'H'. */
+                if (c != 'H') goto bad_label;
+                ++match_p;
+            }
+            goto check_nolabel;
         } else if (c == '0' && tolower(match_p[1]) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
             /*value1 = 0;*/
             for (; (unsigned char)(c = match_p[0] - '0') < 8; ++match_p) {
                 value1 = (value1 << 3) | c;
             }
-        } else if (c == '$' && isdigit(match_p[1])) {  /* Hexadecimal */
-            /* This is nasm syntax, notice no letter is allowed after $ */
-            /* So it's preferrable to use prefix 0x for hexadecimal */
-            match_p += 1;
-            goto parse_hex;
+          check_nolabel:
+            c = match_p[0];
+            if (islabel(c)) goto bad_label;
         } else if (c == '\'' || c == '"') {  /* Character constant */
             /*value1 = 0;*/ shift = 0;
             for (++match_p; match_p[0] != '\0' && match_p[0] != c; ++match_p) {
@@ -801,19 +807,29 @@ const char *match_expression(const char *match_p) {
             }
         } else if (isdigit(c)) {  /* Decimal */
             /*value1 = 0;*/
-            for (; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
+            for (p2 = (char*)match_p; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
                 value1 = value1 * 10 + c;
+            }
+            c = match_p[0];
+            if (islabel(c)) {
+                if (!isxdigit(c)) goto bad_label;
+                match_p = p2;
+                shift = 1;
+                goto parse_hex;
             }
         } else if (c == '$') {
             c = *++match_p;
             if (c == '$') {  /* Start address ($$). */
                 ++match_p;
-                if (islabel(match_p[0])) {
+                value1 = start_address;
+                if (islabel(match_p[0])) { bad_label:
                     message(1, "bad label");
                 }
-                value1 = start_address;
             } else if (isdigit(c)) {
-                goto parse_hex;
+                /* This is nasm syntax, notice no letter is allowed after $ */
+                /* So it's preferrable to use prefix 0x for hexadecimal */
+                shift = 0;
+                goto parse_hex0;
             } else if (islabel(c)) {
                 goto label_expr;
             } else {  /* Current address ($). */
@@ -825,7 +841,7 @@ const char *match_expression(const char *match_p) {
                     if (c == p2[0] && match_p[1] == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
                 }
             }
-           label_expr:
+          label_expr:
             p2 = expr_name;
             if (c == '.') {
                 strcpy(expr_name, global_label);
