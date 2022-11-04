@@ -684,6 +684,29 @@ int islabel1(int c) {
 #endif
 
 /*
+ ** Returns NULL if not a label, otherwise after the label.
+ */
+const char *match_label_prefix(const char *p) {
+    const char *p2;
+    char c = *p++;
+    if (c == '$') {
+        c = *p++;
+        if (isalpha(c)) goto goodc;
+    } else if (isalpha(c)) {
+        if (isalpha(p[0]) && !islabel(p[1])) {
+            for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
+                if ((c & ~32) == p2[0] && (p[0] & ~32) == p2[1]) return NULL;  /* A register name is not a valid label name. */
+            }
+        }
+        goto goodc;
+    }
+    if (c != '_' && c != '.' && c != '@' && c != '?') return NULL;
+  goodc:
+    for (; islabel(p[0]); ++p) {}
+    return p;
+}
+
+/*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
  ** Saves the result to `instruction_value'.
@@ -1946,9 +1969,11 @@ void do_assembly(const char *input_filename) {
       not_preproc:
 
         /* Parse and process label, if any. */
-        separate();
-        if (part[strlen(part) - 1] == ':') {  /* Label */
-            part[strlen(part) - 1] = '\0';
+        if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p[0] == '$' && p3[0] == ' '))) {
+            memcpy(part, p, p3 - p);
+            part[p3 - p] = '\0';
+            p = avoid_spaces(p3 + 1);
+            /* !! TODO(pts): reuse part as label_name */
             if (part[0] == '.') {
                 strcpy(label_name, global_label);
                 strcat(label_name, part);
@@ -1965,81 +1990,82 @@ void do_assembly(const char *input_filename) {
                set_global_label:
                 strcpy(global_label, label_name);
             }
-            if (avoid_level == 0 || level < avoid_level) {
-                if (casematch(p, "EQU*") && !islabel(p[3])) {
-                    p = match_expression(p + 3);
-                    if (p == NULL) {
-                        message(1, "bad expression");
-                    } else {
-                        if (assembler_step == 1) {
-                            if (find_label(label_name)) {
-                                message_start(1);
-                                bbprintf(&message_bbb, "Redefined label '%s'", label_name);
-                                message_end();
-                            } else {
-                                last_label = define_label(label_name, instruction_value);
-                            }
+            if (casematch(p, "EQU*") && !islabel(p[3])) {
+                p = match_expression(p + 3);
+                if (p == NULL) {
+                    message(1, "bad expression");
+                } else {
+                    if (assembler_step == 1) {
+                        if (find_label(label_name)) {
+                            message_start(1);
+                            bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                            message_end();
                         } else {
-                            last_label = find_label(label_name);
-                            if (last_label == NULL) {
-                                message_start(1);
-                                bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
-                                message_end();
-                            } else {
-                                if (last_label->value != instruction_value) {
+                            last_label = define_label(label_name, instruction_value);
+                        }
+                    } else {
+                        last_label = find_label(label_name);
+                        if (last_label == NULL) {
+                            message_start(1);
+                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                            message_end();
+                        } else {
+                            if (last_label->value != instruction_value) {
 #ifdef DEBUG
 /*                                        message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
 #endif
-                                    change = 1;
-                                }
-                                last_label->value = instruction_value;
+                                change = 1;
                             }
+                            last_label->value = instruction_value;
                         }
-                        check_end(p);
                     }
-                    goto after_line;
+                    check_end(p);
                 }
-                if (first_time == 1) {
+                goto after_line;
+            }
+            if (first_time == 1) {
 #ifdef DEBUG
-                    /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
+                /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
 #endif
-                    first_time = 0;
-                    reset_address();
-                }
-                if (assembler_step == 1) {
-                    if (find_label(label_name)) {
-                        message_start(1);
-                        bbprintf(&message_bbb, "Redefined label '%s'", label_name);
-                        message_end();
-                    } else {
-                        last_label = define_label(label_name, address);
-                    }
+                first_time = 0;
+                reset_address();
+            }
+            if (assembler_step == 1) {
+                if (find_label(label_name)) {
+                    message_start(1);
+                    bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                    message_end();
                 } else {
-                    last_label = find_label(label_name);
-                    if (last_label == NULL) {
-                        message_start(1);
-                        bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
-                        message_end();
-                    } else {
-                        if (last_label->value != address) {
+                    last_label = define_label(label_name, address);
+                }
+            } else {
+                last_label = find_label(label_name);
+                if (last_label == NULL) {
+                    message_start(1);
+                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                    message_end();
+                } else {
+                    if (last_label->value != address) {
 #ifdef DEBUG
 /*                                message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, address); message_end(); */
 #endif
-                            change = 1;
-                        }
-                        last_label->value = address;
+                        change = 1;
                     }
-
+                    last_label->value = address;
                 }
+
             }
-            separate();
         }
 
         /* Process command (non-preprocessor, non-label). */
-        if (part[0] == '\0') {
-        } else if (!isalpha(part[0])) {
+        if (p[0] == '\0') {
+            goto after_line;
+        } else if (!isalpha(p[0])) {
             message(1, "Instruction expected");
-        } else if (casematch(part, "USE16")) {
+            goto after_line;
+        }
+        separate();
+        if (casematch(part, "USE16")) {
         } else if (casematch(part, "CPU")) {
             p = avoid_spaces(p);
             if (!casematch(p, "8086"))
