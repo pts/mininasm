@@ -38,6 +38,10 @@ cmp mininasm_debug47.com.good minnnasm.com
 ./mininasm -f bin -o minnnas1.com minnnasm.nasm
 ndisasm -b 16 -o 0x100 minnnas1.com >minnnas1.com.ndisasm
 cmp mininasm_debug47.com.good minnnas1.com
+$NASM -f bin -O0 -o minonasm.com minonasm.nasm
+cmp mininasm_debug47.com.good minonasm.com
+./mininasm -f bin -o minonas1.com minonasm.nasm
+cmp mininasm_debug47.com.good minonas1.com
 cat minnnasm.nasm >minnnasm.na  # DOS 8.3 character limit on filename extension.
 ./kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.na
 # Check that it's self-hosting: when it compiles itself, it produces the golden good binary.
