@@ -682,6 +682,53 @@ int islabel1(int c) {
 }
 #endif
 
+/* Returns bool (0 == false or 1 == true) indicating whether the
+ * NUL-terminated string p matches the NUL-terminated pattern.
+ *
+ * The match is performed from left to right, one byte at a time.
+ * A '!' in the pattern matches the end-of-string or a non-islabel(...)
+ * character and anything afterwards.
+ * A '*' in the pattern matches anything afterwards. An uppercase
+ * letter in the pattern matches itself and the lowercase equivalent.
+ * A '\0' in the pattern matches the '\0', and the matching stops
+ * with true. Every other byte in the pattern matches itself, and the
+ * matching continues.
+ */
+char casematch(const char *p, const char *pattern) {
+    char c;
+    for (; (c = *pattern++) != '*'; ++p) {
+        if (c - 'A' + 0U <= 'Z' - 'A' + 0U) {
+            if ((*p & ~32) != c) return 0;  /* Letters are matched case insensitively. */
+        } else if (c == '!') {
+            if (islabel(*p)) return 0;  /* Doesn't return 0 for end-of-string. */
+            break;
+        } else {
+            if (*p != c) return 0;
+            if (c == '\0') break;
+        }
+    }
+    return 1;
+}
+
+/*
+ ** Returns true for prefix EQU, DB, DW and DD.
+ */
+static int is_colonless_instruction(const char *p) {
+    char c = p[0] & ~32;
+    if (c == 'E') {
+        return casematch(p, "EQU!");
+    } else if (c == 'D') {
+        c = p[1] & ~32;
+        return (c == 'B' || c == 'W'
+#if CONFIG_VALUE_BITS == 32   
+            || c == 'D'  /* "DD". */
+#endif
+            ) && !islabel(p[2]);
+    } else {
+        return 0;
+    }
+}
+
 /*
  ** Returns NULL if not a label, otherwise after the label.
  */
@@ -697,6 +744,7 @@ const char *match_label_prefix(const char *p) {
                 if ((c & ~32) == p2[0] && (p[0] & ~32) == p2[1]) return NULL;  /* A register name is not a valid label name. */
             }
         }
+        if (is_colonless_instruction(p - 1)) return NULL;
         goto goodc;
     }
     if (c != '_' && c != '.' && c != '@' && c != '?') return NULL;
@@ -1221,30 +1269,6 @@ const char *check_end(const char *p) {
     return p;
 }
 
-/* Returns bool (0 == false or 1 == true) indicating whether the
- * NUL-terminated string p matches the NUL-terminated pattern.
- *
- * The match is performed from left to right, one byte at a time.
- * A '*' in the pattern matches anything afterwards. An uppercase
- * letter in the pattern matches itself and the lowercase equivalent.
- * A '\0' in the pattern matches the '\0', and the matching stops
- * with true. Every other byte in the pattern matches itself, and the
- * matching continues.
- */
-char casematch(const char *p, const char *pattern) {
-    char c;
-    for (; (c = *pattern++) != '*'; ++p) {
-        if (c - 'A' + 0U <= 'Z' - 'A' + 0U) {
-            if ((*p & ~32) != c) return 0;  /* Letters are matched case insensitively. */
-        } else {
-            if (*p != c) return 0;
-            if (c == '\0') break;
-        }
-    }
-    return 1;
-}
-
-
 /*
  ** Search for a match with instruction
  */
@@ -1264,12 +1288,12 @@ const char *match(const char *p, const char *pattern_and_encode) {
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
-            if (casematch(p, "WORD*") && !isalpha(p[4])) {
+            if (casematch(p, "WORD!")) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
                     goto mismatch;
                 qualifier = 16;
-            } else if (casematch(p, "BYTE*") && !isalpha(p[4])) {
+            } else if (casematch(p, "BYTE!")) {
                 p = avoid_spaces(p + 4);
                 if (*p != '[')
                     goto mismatch;
@@ -1299,7 +1323,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (casematch(p, "SHORT *")) {
+            if (casematch(p, "SHORT!")) {
                 p += 5;
                 qualifier = 1;
             }
@@ -1311,7 +1335,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             p = avoid_spaces(p);
-            if (casematch(p, "SHORT *")) {
+            if (casematch(p, "SHORT!")) {
                 p = NULL;
             } else {
                 p = match_expression(p);
@@ -1319,7 +1343,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 's') {  /* Signed immediate, 8-bit. */
             p = avoid_spaces(p);
             qualifier = 0;
-            if (casematch(p, "BYTE *")) {
+            if (casematch(p, "BYTE!")) {
                 p += 4;
                 qualifier = 1;
             }
@@ -1332,7 +1356,7 @@ const char *match(const char *p, const char *pattern_and_encode) {
                     goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
-            if (casematch(p, "SHORT *")) {
+            if (casematch(p, "SHORT!")) {
                 goto mismatch;
             }
             p = match_expression(p);
@@ -1999,7 +2023,8 @@ void do_assembly(const char *input_filename) {
       not_preproc:
 
         /* Parse and process label, if any. */
-        if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p[0] == '$' && p3[0] == ' '))) {
+        if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(avoid_spaces(p3 + 1))
+            /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
             if (p[0] == '.') {
                 times = strlen(global_label);
@@ -2012,7 +2037,7 @@ void do_assembly(const char *input_filename) {
                 strcpy(global_label, part);
             }
             p = avoid_spaces(p3 + 1);
-            if (casematch(p, "EQU*") && !islabel(p[3])) {
+            if (casematch(p, "EQU!")) {
                 p = match_expression(p + 3);
                 if (p == NULL) {
                     message(1, "bad expression");
