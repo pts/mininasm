@@ -254,7 +254,6 @@ modify [si cl]
 static char *output_filename;
 static int output_fd;
 
-static char *listing_filename;
 static int listing_fd = -1;
 
 #ifndef CONFIG_VALUE_BITS
@@ -289,11 +288,12 @@ typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
 static uvalue_t line_number;
 
-static int assembler_step;  /* !! Change many variables from int to char. */
+static char assembler_step;  /* (0 or) 1 or 2. */ /* !! Change many variables from int to char. */
 static value_t default_start_address;
 static value_t start_address;
 static value_t current_address;
-static int first_time;
+static char is_address_used;
+static char is_start_address_set;
 
 static unsigned char instruction_addressing;
 static unsigned char instruction_offset_width;
@@ -899,6 +899,7 @@ static const char *match_expression(const char *match_p) {
             c = *++match_p;
             if (c == '$') {  /* Start address ($$). */
                 ++match_p;
+                is_address_used = 1;
                 value1 = start_address;
                 if (islabel(match_p[0])) { bad_label:
                     message(1, "bad label");
@@ -911,6 +912,7 @@ static const char *match_expression(const char *match_p) {
             } else if (islabel(c)) {
                 goto label_expr;
             } else {  /* Current address ($). */
+                is_address_used = 1;
                 value1 = current_address;
             }
         } else if (islabel(c) && c != '#' /* && c != '~' && c != '$' && !isdigit(c) */) {  /* Start of label. Naively matches c == '$' and c == '~' and isdigit(c) as well, but we've checked those above. */
@@ -1331,6 +1333,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL && qualifier == 0) {
+                is_address_used = 1;
                 c = instruction_value - (current_address + 2);
                 if (dc == 'c' && undefined == 0 && (c < -128 || c > 127))
                     goto mismatch;
@@ -1406,10 +1409,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             instruction_offset = instruction_value >> 8;
             dw = 1;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
+            is_address_used = 1;
             c = instruction_value - (current_address + 1);
             if (assembler_step == 2 && (c < -128 || c > 127))
                 message(1, "short jump too long");
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
+            is_address_used = 1;
             c = instruction_value - (current_address + 2);
             instruction_offset = c >> 8;
             dw = 1;
@@ -1794,7 +1799,7 @@ static const char *get_fmt_04x_high_value(unsigned u) {
     char *p = buf + sizeof(buf) - 1;
     char c;
     *p = '\0';
-    while (u != 0) {
+    while (u != 0) {  /* TODO(pts): Instead of these workarounds, make bbprintf.c operate on longs, and always pass a (long)... at call time. */
         c = '0' + ((unsigned char)u & 0xf);
         if (c > '9') c += 'A' - ('0' + 10);
         *--p = c;
@@ -1822,7 +1827,7 @@ static void do_assembly(const char *input_filename) {
     uvalue_t level;
     uvalue_t avoid_level;
     int times;
-    int base;
+    value_t line_address;
     int include;
     int align;
     int got;
@@ -1858,7 +1863,6 @@ static void do_assembly(const char *input_filename) {
     line_number = aip->line_number;
 
     global_label[0] = '\0';
-    base = 0;
     linep = line_rend = line_buf;
     for (;;) {  /* Read and process next line from input. */
         if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
@@ -1936,7 +1940,7 @@ static void do_assembly(const char *input_filename) {
             goto close_return;
         }
 
-        base = current_address;
+        line_address = current_address;
         g = generated;
         include = 0;
 
@@ -2066,13 +2070,6 @@ static void do_assembly(const char *input_filename) {
                 }
                 goto after_line;
             }
-            if (first_time == 1) {  /* !! TODO(pts): Why only here? */
-#ifdef DEBUG
-                /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
-#endif
-                first_time = 0;
-                reset_address();
-            }
             instruction_value = current_address;
             create_label();
         }
@@ -2112,29 +2109,28 @@ static void do_assembly(const char *input_filename) {
             }
             include = 2;
         } else if (casematch(part, "ORG")) {
-            p = avoid_spaces(p);
             undefined = 0;
             p = match_expression(p);
+            if (p != NULL) check_end(p);
             if (p == NULL) {
                 message(1, "Bad expression");
             } else if (undefined) {
                 message(1, "Cannot use undefined labels");
+            } else if (is_start_address_set) {
+                if (instruction_value != default_start_address) {
+                    message(1, "program origin redefined");  /* Same error as in NASM. */
+                    goto close_return;  /* TODO(pts): Abort %includers as well. */
+                }
             } else {
-                if (first_time == 1) {
-                    first_time = 0;
-                    current_address = instruction_value;
-                    start_address = instruction_value;
-                    base = current_address;
-                } else {
-                    if (instruction_value < current_address) {
-                        message(1, "Backward address");
+                is_start_address_set = 1;
+                if (instruction_value != default_start_address) {
+                    default_start_address = instruction_value;
+                    if (is_address_used) {
+                        /* change = 1; */  /* The start_address change will take effect in the next pass. Not needed, because we do `assember_step == 2' anyway. */
                     } else {
-                        while (current_address < instruction_value)
-                            emit_byte(0);
-
+                        reset_address();
                     }
                 }
-                check_end(p);
             }
         } else if (casematch(part, "ALIGN")) {
             p = avoid_spaces(p);
@@ -2153,13 +2149,6 @@ static void do_assembly(const char *input_filename) {
                 check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
             }
         } else {
-            if (first_time == 1) {
-#ifdef DEBUG
-                /* message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end(); */
-#endif
-                first_time = 0;
-                reset_address();
-            }
             times = 1;
             if (casematch(part, "TIMES")) {
                 undefined = 0;
@@ -2175,7 +2164,7 @@ static void do_assembly(const char *input_filename) {
                 times = instruction_value;
                 separate();
             }
-            base = current_address;
+            line_address = current_address;
             g = generated;
             p3 = prev_p;
             while (times) {
@@ -2187,10 +2176,7 @@ static void do_assembly(const char *input_filename) {
         }
       after_line:
         if (assembler_step == 2 && listing_fd >= 0) {
-            if (first_time)
-                bbprintf(&message_bbb /* listing_fd */, "      ");
-            else
-                bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(base));
+            bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(line_address));
             p = generated;
             while (p < g) {
                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
@@ -2236,6 +2222,7 @@ int main(int argc, char **argv) {
     int d;
     const char *p;
     char *ifname;
+    char *listing_filename;
 
 #if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
@@ -2261,11 +2248,12 @@ int main(int argc, char **argv) {
      ** Start to collect arguments
      */
     ifname = NULL;
-    output_filename = NULL;
+    /* output_filename = NULL; */  /* Default. */
     listing_filename = NULL;
-    default_start_address = 0;
+    /* default_start_address = 0; */  /* Default. */
+    /* is_start_address_set = 0; */  /* Default. */
     c = 1;
-    while (c < argc) {
+    while (c < argc) {  /* !! TODO(pts): Use ++argv instead of c. */
         if (argv[c][0] == '-') {    /* All arguments start with dash */
             d = argv[c][1] | 32;  /* Flags characters are case insensitive. */
             if (d == 'd') {  /* Define label */
@@ -2298,8 +2286,10 @@ int main(int argc, char **argv) {
                 } else {
                     if (casematch(argv[c], "BIN")) {
                         default_start_address = 0;
+                        is_start_address_set = 0;
                     } else if (casematch(argv[c], "COM")) {
-                        default_start_address = 0x0100;
+                        default_start_address = 0x100;
+                        is_start_address_set = 1;
                     } else {
                         message_start(1);
                         bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[c]);
@@ -2361,7 +2351,7 @@ int main(int argc, char **argv) {
      ** Do first step of assembly
      */
     assembler_step = 1;
-    first_time = 1;
+    reset_address();
     malloc_init();
     do_assembly(ifname);
     message_flush(NULL);
@@ -2395,8 +2385,8 @@ int main(int argc, char **argv) {
                 return 1;
             }
             assembler_step = 2;
-            first_time = 1;
-            current_address = start_address;
+            is_start_address_set = 1;
+            reset_address();
             do_assembly(ifname);
 
             if (listing_fd >= 0 && change == 0) {
