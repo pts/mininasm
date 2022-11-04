@@ -1844,268 +1844,242 @@ void do_assembly(const char *input_filename) {
         g = generated;
         include = 0;
 
-        while (1) {
-            p = line;
+        p = avoid_spaces(line);
+        if (p[0] == '\0') goto after_line;  /* Empty line. */
 
-            /* Parse and process label, if any. */
-            separate();
-            if (part[0] == '\0') break;  /* Empty line */
-            if (part[strlen(part) - 1] == ':') {  /* Label */
-                part[strlen(part) - 1] = '\0';
-                if (part[0] == '.') {
+        /* Parse and process label, if any. */
+        separate();
+        if (part[strlen(part) - 1] == ':') {  /* Label */
+            part[strlen(part) - 1] = '\0';
+            if (part[0] == '.') {
+                strcpy(label_name, global_label);
+                strcat(label_name, part);
+            } else if (part[0] == '$') {
+                if (part[1] == '.') {
                     strcpy(label_name, global_label);
-                    strcat(label_name, part);
-                } else if (part[0] == '$') {
-                    if (part[1] == '.') {
-                        strcpy(label_name, global_label);
-                        strcat(label_name, part + 1);
-                    } else {
-                       strcpy(label_name, part + 1);
-                       goto set_global_label;
-                    }
+                    strcat(label_name, part + 1);
                 } else {
-                    strcpy(label_name, part);
-                   set_global_label:
-                    strcpy(global_label, label_name);
+                   strcpy(label_name, part + 1);
+                   goto set_global_label;
                 }
-                if (avoid_level == 0 || level < avoid_level) {
-                    if (casematch(p, "EQU*") && !islabel(p[3])) {
-                        p = match_expression(p + 3);
-                        if (p == NULL) {
-                            message(1, "bad expression");
-                        } else {
-                            if (assembler_step == 1) {
-                                if (find_label(label_name)) {
-                                    message_start(1);
-                                    bbprintf(&message_bbb, "Redefined label '%s'", label_name);
-                                    message_end();
-                                } else {
-                                    last_label = define_label(label_name, instruction_value);
-                                }
+            } else {
+                strcpy(label_name, part);
+               set_global_label:
+                strcpy(global_label, label_name);
+            }
+            if (avoid_level == 0 || level < avoid_level) {
+                if (casematch(p, "EQU*") && !islabel(p[3])) {
+                    p = match_expression(p + 3);
+                    if (p == NULL) {
+                        message(1, "bad expression");
+                    } else {
+                        if (assembler_step == 1) {
+                            if (find_label(label_name)) {
+                                message_start(1);
+                                bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                                message_end();
                             } else {
-                                last_label = find_label(label_name);
-                                if (last_label == NULL) {
-                                    message_start(1);
-                                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
-                                    message_end();
-                                } else {
-                                    if (last_label->value != instruction_value) {
+                                last_label = define_label(label_name, instruction_value);
+                            }
+                        } else {
+                            last_label = find_label(label_name);
+                            if (last_label == NULL) {
+                                message_start(1);
+                                bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                                message_end();
+                            } else {
+                                if (last_label->value != instruction_value) {
 #ifdef DEBUG
 /*                                        message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
 #endif
-                                        change = 1;
-                                    }
-                                    last_label->value = instruction_value;
+                                    change = 1;
                                 }
+                                last_label->value = instruction_value;
                             }
-                            check_end(p);
                         }
-                        break;
+                        check_end(p);
                     }
-                    if (first_time == 1) {
+                    goto after_line;
+                }
+                if (first_time == 1) {
 #ifdef DEBUG
-                        /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
+                    /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
 #endif
-                        first_time = 0;
-                        reset_address();
-                    }
-                    if (assembler_step == 1) {
-                        if (find_label(label_name)) {
-                            message_start(1);
-                            bbprintf(&message_bbb, "Redefined label '%s'", label_name);
-                            message_end();
-                        } else {
-                            last_label = define_label(label_name, address);
-                        }
+                    first_time = 0;
+                    reset_address();
+                }
+                if (assembler_step == 1) {
+                    if (find_label(label_name)) {
+                        message_start(1);
+                        bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                        message_end();
                     } else {
-                        last_label = find_label(label_name);
-                        if (last_label == NULL) {
-                            message_start(1);
-                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
-                            message_end();
-                        } else {
-                            if (last_label->value != address) {
+                        last_label = define_label(label_name, address);
+                    }
+                } else {
+                    last_label = find_label(label_name);
+                    if (last_label == NULL) {
+                        message_start(1);
+                        bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                        message_end();
+                    } else {
+                        if (last_label->value != address) {
 #ifdef DEBUG
 /*                                message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, address); message_end(); */
 #endif
-                                change = 1;
-                            }
-                            last_label->value = address;
+                            change = 1;
                         }
-
+                        last_label->value = address;
                     }
-                }
-                separate();
-            }
 
-            if (casematch(part, "%IF")) {
-                if (GET_UVALUE(++level) == 0) { if_too_deep:
-                    message(1, "%IF too deep");
-                    goto close_return;
                 }
-                if (avoid_level != 0 && level >= avoid_level)
-                    break;
-                undefined = 0;
-                p = match_expression(p);
-                if (p == NULL) {
-                    message(1, "Bad expression");
-                } else if (undefined) {
-                    message(1, "Cannot use undefined labels");
-                }
-                if (GET_UVALUE(instruction_value) != 0) {
-                    ;
-                } else {
-                    avoid_level = level;
-                }
-                check_end(p);
-                break;
             }
-            if (casematch(part, "%IFDEF")) {
-                if (GET_UVALUE(++level) == 0) goto if_too_deep;
-                if (avoid_level != 0 && level >= avoid_level)
-                    break;
-                separate();
-                if (find_dollar_label(part) != NULL) {
-                    ;
-                } else {
-                    avoid_level = level;
-                }
-                check_end(p);
-                break;
+            separate();
+        }
+
+        if (casematch(part, "%IF")) {
+            if (GET_UVALUE(++level) == 0) { if_too_deep:
+                message(1, "%IF too deep");
+                goto close_return;
             }
-            if (casematch(part, "%IFNDEF")) {
-                if (GET_UVALUE(++level) == 0) goto if_too_deep;
-                if (avoid_level != 0 && level >= avoid_level)
-                    break;
-                separate();
-                if (find_dollar_label(part) == NULL) {
-                    ;
-                } else {
-                    avoid_level = level;
-                }
-                check_end(p);
-                break;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            undefined = 0;
+            p = match_expression(p);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
             }
-            if (casematch(part, "%ELSE")) {
-                if (level == 1) {
-                    message(1, "%ELSE without %IF");
-                    goto close_return;
-                }
-                if (avoid_level != 0 && level > avoid_level)
-                    break;
-                if (avoid_level == level) {
-                    avoid_level = 0;
-                } else if (avoid_level == 0) {
-                    avoid_level = level;
-                }
-                check_end(p);
-                break;
+            if (GET_UVALUE(instruction_value) != 0) {
+                ;
+            } else {
+                avoid_level = level;
             }
-            if (casematch(part, "%ENDIF")) {
-                if (avoid_level == level)
-                    avoid_level = 0;
-                if (--level == 0) {
-                    message(1, "%ENDIF without %IF");
-                    goto close_return;
-                }
-                check_end(p);
-                break;
+            check_end(p);
+        } else if (casematch(part, "%IFDEF")) {
+            if (GET_UVALUE(++level) == 0) goto if_too_deep;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            separate();
+            if (find_dollar_label(part) != NULL) {
+                ;
+            } else {
+                avoid_level = level;
             }
-            if (avoid_level != 0 && level >= avoid_level) {
+            check_end(p);
+        } else if (casematch(part, "%IFNDEF")) {
+            if (GET_UVALUE(++level) == 0) goto if_too_deep;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            separate();
+            if (find_dollar_label(part) == NULL) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+        } else if (casematch(part, "%ELSE")) {
+            if (level == 1) {
+                message(1, "%ELSE without %IF");
+                goto close_return;
+            }
+            if (avoid_level != 0 && level > avoid_level)
+                goto after_line;
+            if (avoid_level == level) {
+                avoid_level = 0;
+            } else if (avoid_level == 0) {
+                avoid_level = level;
+            }
+            check_end(p);
+        } else if (casematch(part, "%ENDIF")) {
+            if (avoid_level == level)
+                avoid_level = 0;
+            if (--level == 0) {
+                message(1, "%ENDIF without %IF");
+                goto close_return;
+            }
+            check_end(p);
+        } else if (avoid_level != 0 && level >= avoid_level) {
 #ifdef DEBUG
-                /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
+            /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
 #endif
-                break;
-            }
-            if (casematch(part, "USE16")) {
-                break;
-            }
-            if (casematch(part, "CPU")) {
-                p = avoid_spaces(p);
-                if (!casematch(p, "8086"))
-                    message(1, "Unsupported processor requested");
-                break;
-            }
-            if (casematch(part, "BITS")) {
-                p = avoid_spaces(p);
-                undefined = 0;
-                p = match_expression(p);
-                if (p == NULL) {
-                    message(1, "Bad expression");
-                } else if (undefined) {
-                    message(1, "Cannot use undefined labels");
-                } else if (GET_UVALUE(instruction_value) != 16) {
-                    message(1, "Unsupported BITS requested");
-                } else {
-                    check_end(p);
-                }
-                break;
-            }
-            if (casematch(part, "%INCLUDE")) {
-                separate();
+        } else if (casematch(part, "USE16")) {
+        } else if (casematch(part, "CPU")) {
+            p = avoid_spaces(p);
+            if (!casematch(p, "8086"))
+                message(1, "Unsupported processor requested");
+        } else if (casematch(part, "BITS")) {
+            p = avoid_spaces(p);
+            undefined = 0;
+            p = match_expression(p);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
+            } else if (GET_UVALUE(instruction_value) != 16) {
+                message(1, "Unsupported BITS requested");
+            } else {
                 check_end(p);
-                if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                    message(1, "Missing quotes on %include");
-                    break;
-                }
-                include = 1;
-                break;
             }
-            if (casematch(part, "INCBIN")) {
-                separate();
-                check_end(p);
-                if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                    message(1, "Missing quotes on incbin");
-                    break;
-                }
-                include = 2;
-                break;
+        } else if (casematch(part, "%INCLUDE")) {
+            separate();
+            check_end(p);
+            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
+                message(1, "Missing quotes on %include");
+                goto after_line;
             }
-            if (casematch(part, "ORG")) {
-                p = avoid_spaces(p);
-                undefined = 0;
-                p = match_expression(p);
-                if (p == NULL) {
-                    message(1, "Bad expression");
-                } else if (undefined) {
-                    message(1, "Cannot use undefined labels");
+            include = 1;
+        } else if (casematch(part, "INCBIN")) {
+            separate();
+            check_end(p);
+            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
+                message(1, "Missing quotes on incbin");
+                goto after_line;
+            }
+            include = 2;
+        } else if (casematch(part, "ORG")) {
+            p = avoid_spaces(p);
+            undefined = 0;
+            p = match_expression(p);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
+            } else {
+                if (first_time == 1) {
+                    first_time = 0;
+                    address = instruction_value;
+                    start_address = instruction_value;
+                    base = address;
                 } else {
-                    if (first_time == 1) {
-                        first_time = 0;
-                        address = instruction_value;
-                        start_address = instruction_value;
-                        base = address;
+                    if (instruction_value < address) {
+                        message(1, "Backward address");
                     } else {
-                        if (instruction_value < address) {
-                            message(1, "Backward address");
-                        } else {
-                            while (address < instruction_value)
-                                emit_byte(0);
+                        while (address < instruction_value)
+                            emit_byte(0);
 
-                        }
                     }
-                    check_end(p);
                 }
-                break;
+                check_end(p);
             }
-            if (casematch(part, "ALIGN")) {
-                p = avoid_spaces(p);
-                undefined = 0;
-                p = match_expression(p);
-                if (p == NULL) {
-                    message(1, "Bad expression");
-                } else if (undefined) {
-                    message(1, "Cannot use undefined labels");
-                } else {
-                    align = address / instruction_value;
-                    align = align * instruction_value;
-                    align = align + instruction_value;
-                    while (address < align)
-                        emit_byte(0x90);
-                    check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
-                }
-                break;
+        } else if (casematch(part, "ALIGN")) {
+            p = avoid_spaces(p);
+            undefined = 0;
+            p = match_expression(p);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
+            } else {
+                align = address / instruction_value;
+                align = align * instruction_value;
+                align = align + instruction_value;
+                while (address < align)
+                    emit_byte(0x90);
+                check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
             }
+        } else {
             if (first_time == 1) {
 #ifdef DEBUG
                 /* message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end(); */
@@ -2119,11 +2093,11 @@ void do_assembly(const char *input_filename) {
                 p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
-                    break;
+                    goto after_line;
                 }
                 if (undefined) {
                     message(1, "Cannot use undefined labels");
-                    break;
+                    goto after_line;
                 }
                 times = instruction_value;
                 separate();
@@ -2137,8 +2111,8 @@ void do_assembly(const char *input_filename) {
                 process_instruction();
                 times--;
             }
-            break;
         }
+      after_line:
         if (assembler_step == 2 && listing_fd >= 0) {
             if (first_time)
                 bbprintf(&message_bbb /* listing_fd */, "      ");
