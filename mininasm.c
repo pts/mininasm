@@ -1325,8 +1325,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
             p = match_expression(p);
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
-            p = avoid_spaces(p);
             qualifier = 0;
+            /* !!! TODO(pts): Disallow these keywords as label (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD */
+            if (casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             if (casematch(p, "SHORT!")) {
                 p += 5;
                 qualifier = 1;
@@ -1339,14 +1340,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     goto mismatch;
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
-            p = avoid_spaces(p);
-            if (casematch(p, "SHORT!")) {
-                p = NULL;
-            } else {
-                p = match_expression(p);
-            }
+            if (casematch(p, "SHORT!")) goto mismatch;
+            if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
+            p = match_expression(p);
         } else if (dc == 's') {  /* Signed immediate, 8-bit. */
-            p = avoid_spaces(p);
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
                 p += 4;
@@ -1361,9 +1358,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
-            if (casematch(p, "SHORT!")) {
-                goto mismatch;
-            }
+            if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             p = match_expression(p);
             if (p == NULL)
                 goto mismatch;

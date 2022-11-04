@@ -718,7 +718,7 @@ define_label_:
 ;
 ;     /* Allocate label */
 ;     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
-		call strlen_
+		call near strlen_
 		db 0x83, 0xC0, 0xa  ; !!! add ax, BYTE 0xa
 		mov cl, 4
 		mov si, ___malloc_struct__+2
@@ -750,7 +750,7 @@ define_label_:
 ;         message(1, "Out of memory for label");
 		mov dx, @$527
 		mov ax, 1
-		call message_
+		call near message_
 
 ;         exit(1);
 		mov ax, 1
@@ -780,7 +780,7 @@ define_label_:
 		lea ax, [si+9]
 		mov bx, di
 		mov dx, es
-		call strcpy_far_
+		call near strcpy_far_
 
 ;
 ;     /* Insert label to binary tree. */
@@ -823,7 +823,7 @@ define_label_:
 		mov ax, word [bp-6]
 		db 0x83, 0xC0, 9  ; !!! add ax, BYTE 9
 		mov dx, word [bp-4]
-		call strcmp_far_
+		call near strcmp_far_
 		test ax, ax
 		jge @$8
 		mov dl, 1
@@ -838,12 +838,12 @@ define_label_:
 		je @$10
 		mov ax, word [si]
 		mov dx, word [si+2]
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 		jmp SHORT @$11
 @$10:
 		mov ax, word [si]
 		mov dx, word [si+2]
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 @$11:
 		mov word [si+6], ax
 		mov word [si+8], dx
@@ -887,7 +887,7 @@ define_label_:
 		mov cx, ax
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_SET_LEFT_
+		call near RBL_SET_LEFT_
 
 ;                 if (RBL_IS_RED(left)) {
 		mov es, word [bp-0xa]
@@ -898,7 +898,7 @@ define_label_:
 ;                     struct label MY_FAR *leftleft = RBL_GET_LEFT(left);
 		mov ax, bx
 		mov dx, es
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 		mov bx, ax
 		mov es, dx
 
@@ -915,24 +915,24 @@ define_label_:
 ;                         tlabel = RBL_GET_LEFT(clabel);
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 		mov word [bp-0x12], ax
 		mov word [bp-0x14], dx
 
 ;                         RBL_SET_LEFT(clabel, RBL_GET_RIGHT(tlabel));
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 		mov bx, ax
 		mov cx, dx
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_SET_LEFT_
+		call near RBL_SET_LEFT_
 
 ;                         RBL_SET_RIGHT(tlabel, clabel);
 		mov bx, di
 		mov cx, word [bp-2]
 		mov ax, word [bp-0x12]
 		mov dx, word [bp-0x14]
-		call RBL_SET_RIGHT_
+		call near RBL_SET_RIGHT_
 
 ;                         clabel = tlabel;
 		mov di, word [bp-0x12]
@@ -960,7 +960,7 @@ define_label_:
 		mov cx, ax
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_SET_RIGHT_
+		call near RBL_SET_RIGHT_
 
 ;                 if (RBL_IS_RED(right)) {
 		mov es, word [bp-8]
@@ -971,7 +971,7 @@ define_label_:
 ;                     struct label MY_FAR *left = RBL_GET_LEFT(clabel);
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 		mov bx, ax
 		mov es, dx
 
@@ -1001,24 +1001,24 @@ define_label_:
 @$18:
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 		mov word [bp-0x14], ax
 		mov word [bp-0x12], dx
 
 ;                          RBL_SET_RIGHT(clabel, RBL_GET_LEFT(tlabel));
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 		mov bx, ax
 		mov cx, dx
 		mov ax, di
 		mov dx, word [bp-2]
-		call RBL_SET_RIGHT_
+		call near RBL_SET_RIGHT_
 
 ;                          RBL_SET_LEFT(tlabel, clabel);
 		mov bx, di
 		mov cx, word [bp-2]
 		mov ax, word [bp-0x14]
 		mov dx, word [bp-0x12]
-		call RBL_SET_LEFT_
+		call near RBL_SET_LEFT_
 
 ;                          RBL_COPY_RED(tlabel, clabel);
 		les bx, [bp-0x14]
@@ -1135,7 +1135,7 @@ find_label_:
 ;             explore = RBL_GET_LEFT(explore);
 		mov ax, di
 		mov dx, si
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 @$24:
 		mov di, ax
 		mov si, dx
@@ -1148,7 +1148,7 @@ find_label_:
 		mov dx, ds
 		mov cx, si
 		mov ax, word [bp-2]
-		call strcmp_far_
+		call near strcmp_far_
 		test ax, ax
 		jne @$23
 		jmp SHORT @$28
@@ -1157,7 +1157,7 @@ find_label_:
 @$26:
 		mov ax, di
 		mov dx, si
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 		jmp SHORT @$24
 
 ;     }
@@ -1216,13 +1216,13 @@ print_labels_sorted_to_listing_fd_:
 ;         for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
 		mov ax, si
 		mov dx, es
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 @$32:
 		mov word [bp-4], ax
 		mov di, dx
 		mov ax, word [bp-4]
 		mov dx, di
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 		mov bx, dx
 		test dx, dx
 		je @$33
@@ -1241,12 +1241,12 @@ print_labels_sorted_to_listing_fd_:
 		mov cx, word [bp-2]
 		mov ax, word [bp-4]
 		mov dx, di
-		call RBL_SET_RIGHT_
+		call near RBL_SET_RIGHT_
 
 ;             node = RBL_GET_LEFT(node);
 		mov ax, si
 		mov dx, word [bp-2]
-		call RBL_GET_LEFT_
+		call near RBL_GET_LEFT_
 
 ;         } else {
 		jmp SHORT @$31
@@ -1257,7 +1257,7 @@ print_labels_sorted_to_listing_fd_:
 		xor cx, cx
 		mov ax, word [bp-4]
 		mov dx, di
-		call RBL_SET_RIGHT_
+		call near RBL_SET_RIGHT_
 
 ;           do_print:
 ;             strcpy_far(global_label, node->name);
@@ -1266,7 +1266,7 @@ print_labels_sorted_to_listing_fd_:
 		mov cx, word [bp-2]
 		mov ax, _global_label
 		mov dx, ds
-		call strcpy_far_
+		call near strcpy_far_
 
 ; #if CONFIG_VALUE_BITS == 32
 ; #if IS_VALUE_LONG
@@ -1282,7 +1282,7 @@ print_labels_sorted_to_listing_fd_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 0xa
 
 ; #else
@@ -1294,7 +1294,7 @@ print_labels_sorted_to_listing_fd_:
 ;             node = RBL_GET_RIGHT(node);
 		mov ax, si
 		mov dx, word [bp-2]
-		call RBL_GET_RIGHT_
+		call near RBL_GET_RIGHT_
 
 ;         }
 		jmp @$31
@@ -1314,7 +1314,7 @@ avoid_spaces_:
 @$36:
 		mov al, byte [bx]
 		xor ah, ah
-		call isspace_
+		call near isspace_
 		test ax, ax
 		je @$37
 
@@ -1336,7 +1336,7 @@ avoid_spaces_:
 ;
 ; /*
 ;  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
-;  ** level == 0 is top tier, that's how callers should call it.
+;  ** level == 0 is top tier, that's how callers should call near it.
 ;  ** Saves the result to `instruction_value'.
 ;  */
 ; const char *match_expression(const char *match_p) {
@@ -1376,7 +1376,7 @@ match_expression_:
 ;     goto do_match;
 @$38:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov dx, ax
 		mov si, ax
 		xor ax, ax
@@ -1389,7 +1389,7 @@ match_expression_:
 		jne @$41
 @$39:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 		mov al, byte [bx]
@@ -1443,7 +1443,7 @@ match_expression_:
 
 ;         match_p = avoid_spaces(match_p);
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;         if (match_p[0] != ')') {
@@ -1454,7 +1454,7 @@ match_expression_:
 		mov dx, @$529
 @$43:
 		mov ax, 1
-		call message_
+		call near message_
 
 ;           match_error:
 ;             instruction_value = 0;
@@ -1466,8 +1466,7 @@ match_expression_:
 ;             return NULL;
 		jmp @$160
 @$45:
-		db 0xE9  ; !!! jmp NEAR @$53
-		dw @$53-$-2
+		jmp near @$53
 
 ;         }
 ;         match_p++;
@@ -1575,8 +1574,7 @@ match_expression_:
 @$61:
 		jmp @$119
 @$62:
-		db 0xE9  ; !!! jmp NEAR @$71
-		dw @$71-$-2
+		jmp near @$71
 @$63:
 		mov word [bp-0x10], dx
 		mov word [bp-0xe], bx
@@ -1604,7 +1602,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p + 1);
 @$66:
 		lea ax, [si+1]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -1668,7 +1666,7 @@ match_expression_:
 		jne @$77
 		mov al, byte [bx+1]
 		xor ah, ah
-		call tolower_
+		call near tolower_
 		db 0x83, 0xF8, 0x62  ; !!! cmp ax, BYTE 0x62
 		jne @$77
 
@@ -1720,7 +1718,7 @@ match_expression_:
 		jne @$82
 		mov al, byte [si+1]
 		xor ah, ah
-		call tolower_
+		call near tolower_
 		db 0x83, 0xF8, 0x78  ; !!! cmp ax, BYTE 0x78
 		jne @$82
 
@@ -1735,7 +1733,7 @@ match_expression_:
 		mov al, byte [si]
 		mov byte [bp-4], al
 		xor ah, ah
-		call isxdigit_
+		call near isxdigit_
 		test ax, ax
 		je @$76
 
@@ -1776,7 +1774,7 @@ match_expression_:
 		jne @$85
 		mov al, byte [si+1]
 		xor ah, ah
-		call tolower_
+		call near tolower_
 		db 0x83, 0xF8, 0x6f  ; !!! cmp ax, BYTE 0x6f
 		jne @$85
 
@@ -1817,7 +1815,7 @@ match_expression_:
 		jne @$86
 		mov al, byte [si+1]
 		xor ah, ah
-		call isdigit_
+		call near isdigit_
 		test ax, ax
 		jne @$81
 
@@ -1886,7 +1884,7 @@ match_expression_:
 		jmp @$108
 @$91:
 		xor ah, ah
-		call isdigit_
+		call near isdigit_
 		test ax, ax
 		je @$93
 
@@ -1904,7 +1902,7 @@ match_expression_:
 		mov dx, word [bp-0xe]
 		mov bx, 0xa
 		xor cx, cx
-		call __I4M
+		call near __I4M
 		mov bx, dx
 		mov dl, byte [bp-4]
 		xor dh, dh
@@ -1955,7 +1953,7 @@ match_expression_:
 ;         } else if (isalpha(c) || c == '_' || c == '.') {  /* Start of label. */
 @$96:
 		xor ah, ah
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		jne @$98
 		mov al, byte [bp-4]
@@ -1977,7 +1975,7 @@ match_expression_:
 ;                 strcpy(expr_name, global_label);
 		mov dx, _global_label
 		mov ax, cx
-		call strcpy_
+		call near strcpy_
 
 ;                 while (*p2 != '\0')
 @$99:
@@ -1994,12 +1992,12 @@ match_expression_:
 @$100:
 		mov al, byte [si]
 		xor ah, ah
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		jne @$101
 		mov al, byte [si]
 		xor ah, ah
-		call isdigit_
+		call near isdigit_
 		test ax, ax
 		jne @$101
 		mov al, byte [si]
@@ -2051,7 +2049,7 @@ match_expression_:
 ;             label = find_label(expr_name);
 @$105:
 		mov ax, _expr_name
-		call find_label_
+		call near find_label_
 		mov bx, ax
 
 ;             if (label == NULL) {
@@ -2070,7 +2068,7 @@ match_expression_:
 
 ;                     message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                     /* This will be printed twice for `jmp', but once for `jc'. */
 ;                     bbprintf(&message_bbb, "Undefined label '%s'", expr_name);
@@ -2080,11 +2078,11 @@ match_expression_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                     message_end();
-		call message_end_
+		call near message_end_
 
 ;                 }
 		jmp SHORT @$108
@@ -2121,7 +2119,7 @@ match_expression_:
 		mov dx, word [bp-0xe]
 		mov bx, cx
 		mov cx, word [bp-6]
-		call __I4M
+		call near __I4M
 @$110:
 		mov word [bp-0x10], ax
 		mov word [bp-0xe], dx
@@ -2131,7 +2129,7 @@ match_expression_:
 ;                 } else if (c == '/') {  /* Division operator. */
 @$111:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 		mov al, byte [bx]
@@ -2154,8 +2152,7 @@ match_expression_:
 		mov byte [di], 0xb
 		jmp SHORT @$112
 @$114:
-		db 0xE9  ; !!! jmp NEAR @$122
-		dw @$122-$-2
+		jmp near @$122
 
 @$115:
 		mov ax, word [bp-6]
@@ -2170,7 +2167,7 @@ match_expression_:
 ;                             message(1, "division by zero");
 		mov dx, @$533
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                         value2 = 1;
 @$116:
@@ -2184,7 +2181,7 @@ match_expression_:
 		mov dx, word [bp-0xe]
 		mov bx, cx
 		mov cx, word [bp-6]
-		call __U4D
+		call near __U4D
 		jmp SHORT @$110
 
 ;                 } else if (c == '%') {  /* Modulo operator. */
@@ -2211,7 +2208,7 @@ match_expression_:
 ;                             message(1, "modulo by zero");
 		mov dx, @$534
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                         value2 = 1;
 @$120:
@@ -2228,7 +2225,7 @@ match_expression_:
 		mov dx, word [bp-0xe]
 		mov bx, cx
 		mov cx, word [bp-6]
-		call __U4D
+		call near __U4D
 		mov word [bp-0x10], bx
 		mov word [bp-0xe], cx
 		jmp @$111
@@ -2244,7 +2241,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p);
 @$123:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -2305,7 +2302,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p);
 @$130:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -2337,8 +2334,7 @@ match_expression_:
 		mov al, byte [bp-2]
 		mov byte [di+1], al
 		mov byte [bp-2], 4
-		db 0xE9  ; !!! jmp NEAR @$149
-		dw @$149-$-2
+		jmp near @$149
 
 ;                         c = 1;
 @$134:
@@ -2374,7 +2370,7 @@ match_expression_:
 @$138:
 		mov dx, @$535
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                         value2 = 0;
 ; #if !CONFIG_SHIFT_OK_31
@@ -2440,7 +2436,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p);
 @$147:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov dx, ax
 		mov si, ax
 
@@ -2492,7 +2488,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p);
 @$153:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov dx, ax
 		mov si, ax
 
@@ -2530,7 +2526,7 @@ match_expression_:
 ;                 match_p = avoid_spaces(match_p);
 @$156:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -2577,7 +2573,7 @@ match_expression_:
 
 ;     return avoid_spaces(match_p);
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 
 ; }
 @$160:
@@ -2602,11 +2598,11 @@ islabel_:
 		mov dx, ax
 
 ;     return isalpha(c) || isdigit(c) || c == '_' || c == '.';
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		jne @$163
 		mov ax, dx
-		call isdigit_
+		call near isdigit_
 		test ax, ax
 		jne @$163
 		cmp dx, BYTE 0x5f
@@ -2636,24 +2632,24 @@ match_register_:
 ;     const char *r0, *r, *r2;
 ;
 ;     p = avoid_spaces(p);
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
 ;     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
 		mov al, byte [bx]
 		xor ah, ah
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		je @$167
 		mov al, byte [bx+1]
 		xor ah, ah
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		je @$167
 		mov al, byte [bx+2]
 		xor ah, ah
-		call islabel_
+		call near islabel_
 		test ax, ax
 		jne @$167
 
@@ -2740,7 +2736,7 @@ match_addressing_:
 ;
 ;     p = avoid_spaces(p);
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;     if (*p == '[') {
@@ -2749,20 +2745,20 @@ match_addressing_:
 
 ;         p = avoid_spaces(p + 1);
 		inc ax
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;         p2 = match_register(p, 16, &reg);
 		lea bx, [bp-2]
 		mov dx, 0x10
-		call match_register_
+		call near match_register_
 
 ;         if (p2 != NULL) {
 		test ax, ax
 		je @$172
 
 ;             p = avoid_spaces(p2);
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;             if (*p == ']') {
@@ -2818,13 +2814,13 @@ match_addressing_:
 
 ;                     p = avoid_spaces(p + 1);
 		lea ax, [si+1]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;                     p2 = match_register(p, 16, &reg2);
 		lea bx, [bp-4]
 		mov dx, 0x10
-		call match_register_
+		call near match_register_
 		mov bx, ax
 
 ;                 } else {
@@ -2872,7 +2868,7 @@ match_addressing_:
 
 ;                     p = avoid_spaces(p2);
 		mov ax, bx
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -2897,7 +2893,7 @@ match_addressing_:
 ;                         p = match_expression(p);
 @$180:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;                         if (p == NULL)
@@ -2974,7 +2970,7 @@ match_addressing_:
 ;                     p = match_expression(p);
 @$187:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;                     if (p == NULL)
@@ -2997,7 +2993,7 @@ match_addressing_:
 ;             p = match_expression(p);
 @$188:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;             if (p == NULL)
@@ -3034,7 +3030,7 @@ match_addressing_:
 ;         p = match_register(p, width, &reg);
 @$190:
 		lea bx, [bp-2]
-		call match_register_
+		call near match_register_
 		mov si, ax
 
 ;         if (p == NULL)
@@ -3089,14 +3085,14 @@ emit_flush_:
 		mov ax, [_output_fd]  ; !!! no word [...]
 		mov bx, cx
 		mov dx, _emit_buf
-		call write_
+		call near write_
 		cmp ax, cx
 		je @$197
 
 ;             message(1, "error writing to output file");
 		mov dx, @$536
 		mov ax, 1
-		call message_
+		call near message_
 
 ;             exit(3);
 		mov ax, 3
@@ -3155,7 +3151,7 @@ emit_write_:
 
 ;         emit_flush(0);
 		xor ax, ax
-		call emit_flush_
+		call near emit_flush_
 
 ;     }
 		jmp SHORT @$198
@@ -3202,7 +3198,7 @@ emit_bytes_:
 @$201:
 		mov dx, bx
 		mov ax, si
-		call emit_write_
+		call near emit_write_
 
 ;         bytes += size;
 		mov ax, bx
@@ -3252,7 +3248,7 @@ emit_byte_:
 ;     emit_bytes(&c, 1);
 		mov dx, 1
 		lea ax, [bp-2]
-		call emit_bytes_
+		call near emit_bytes_
 
 ; }
 		mov sp, bp
@@ -3270,7 +3266,7 @@ check_end_:
 		push dx
 
 ;     p = avoid_spaces(p);
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 
 ;     if (*p && *p != ';') {
@@ -3282,7 +3278,7 @@ check_end_:
 ;         message(1, "extra characters at end of line");
 		mov dx, @$537
 		mov ax, 1
-		call message_
+		call near message_
 
 ;         return NULL;
 		xor ax, ax
@@ -3353,18 +3349,18 @@ match_:
 		mov bx, 4
 		mov dx, @$538
 		mov ax, si
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		jne @$209
 		mov al, byte [si+4]
 		xor ah, ch
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		jne @$209
 
 ;                 p = avoid_spaces(p + 4);
 		lea ax, [si+4]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -3386,18 +3382,18 @@ match_:
 		mov bx, 4
 		mov dx, @$539
 		mov ax, si
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		jne @$210
 		mov al, byte [si+4]
 		xor ah, ah
-		call isalpha_
+		call near isalpha_
 		test ax, ax
 		jne @$210
 
 ;                 p = avoid_spaces(p + 4);
 		lea ax, [si+4]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov si, ax
 
@@ -3428,7 +3424,7 @@ match_:
 		mov dx, 8
 @$213:
 		mov ax, si
-		call match_addressing_
+		call near match_addressing_
 		jmp @$243
 
 ;             } else if (dc == 'k') {
@@ -3456,7 +3452,7 @@ match_:
 		lea bx, [bp-2]
 		mov dx, 8
 		mov ax, si
-		call match_register_
+		call near match_register_
 		test ax, ax
 		jmp SHORT @$211
 
@@ -3469,7 +3465,7 @@ match_:
 		lea bx, [bp-2]
 		mov dx, 0x10
 		mov ax, si
-		call match_register_
+		call near match_register_
 		test ax, ax
 @$218:
 		je @$215
@@ -3498,7 +3494,7 @@ match_:
 		mov dx, 0x10
 @$223:
 		mov ax, si
-		call match_register_
+		call near match_register_
 		jmp @$243
 
 ;         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
@@ -3509,7 +3505,7 @@ match_:
 ;             p = match_expression(p);
 @$225:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		jmp @$243
 
 ;         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
@@ -3522,7 +3518,7 @@ match_:
 ;             p = avoid_spaces(p);
 @$227:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;             qualifier = 0;
@@ -3531,13 +3527,13 @@ match_:
 ;             if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
 		mov bx, 5
 		mov dx, @$540
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		jne @$228
 		mov bx, si
 		mov al, byte [bx+5]
 		xor ah, ch
-		call isspace_
+		call near isspace_
 		test ax, ax
 		je @$228
 
@@ -3551,7 +3547,7 @@ match_:
 ;             p = match_expression(p);
 @$228:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;             if (p != NULL && qualifier == 0) {
@@ -3590,14 +3586,14 @@ match_:
 
 ;             p = avoid_spaces(p);
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov cx, ax
 		mov si, ax
 
 ;             if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
 		mov bx, 5
 		mov dx, @$540
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		je @$233
 @$232:
@@ -3606,7 +3602,7 @@ match_:
 		mov bx, cx
 		mov al, byte [bx+5]
 		xor ah, ah
-		call isspace_
+		call near isspace_
 		test ax, ax
 		jne @$234
 
@@ -3625,7 +3621,7 @@ match_:
 
 ;             p = avoid_spaces(p);
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 
 ;             qualifier = 0;
@@ -3634,13 +3630,13 @@ match_:
 ;             if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
 		mov bx, 4
 		mov dx, @$539
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		jne @$236
 		mov bx, si
 		mov al, byte [bx+4]
 		xor ah, ch
-		call isspace_
+		call near isspace_
 		test ax, ax
 		je @$236
 
@@ -3654,7 +3650,7 @@ match_:
 ;             p = match_expression(p);
 @$236:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;             if (p != NULL && qualifier == 0) {
@@ -3690,12 +3686,12 @@ match_:
 		mov bx, 5
 		mov dx, @$540
 		mov ax, si
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		jne @$238
 		mov al, byte [si+5]
 		xor ah, ah
-		call isspace_
+		call near isspace_
 		test ax, ax
 		jne @$245
 
@@ -3704,7 +3700,7 @@ match_:
 ;             p = match_expression(p);
 @$238:
 		mov ax, si
-		call match_expression_
+		call near match_expression_
 		mov si, ax
 
 ;             if (p == NULL)
@@ -3748,13 +3744,13 @@ match_:
 		jmp @$206
 @$241:
 		mov ax, si
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 		jmp SHORT @$240
 
 @$242:
 		lea ax, [si+1]
-		call match_expression_
+		call near match_expression_
 
 ;             continue;
 ;         }
@@ -3818,7 +3814,7 @@ match_:
 		cmp al, 0x2b
 		jne @$251
 
-;             return p;  /* Don't call check_end(p). */
+;             return p;  /* Don't call near check_end(p). */
 		mov ax, si
 		jmp @$29
 @$250:
@@ -3923,7 +3919,7 @@ match_:
 @$260:
 		mov dx, @$541
 		mov ax, 1
-		call message_
+		call near message_
 		jmp SHORT @$264
 
 ;         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
@@ -3953,7 +3949,7 @@ match_:
 
 ;             emit_byte(instruction_value);
 		mov ax, [_instruction_value]  ; !!! no word [...]
-		call emit_byte_
+		call near emit_byte_
 
 ;             c = instruction_value >> 8;
 		mov ax, [_instruction_value]  ; !!! no word [...]
@@ -4079,7 +4075,7 @@ match_:
 ;                     message_start(1);
 @$274:
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                     bbprintf(&message_bbb, "decode: internal error (%s)", error_base);
 		push word [bp-8]
@@ -4087,11 +4083,11 @@ match_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                     message_end();
-		call message_end_
+		call near message_end_
 
 ;                     exit(2);
 		mov ax, 2
@@ -4105,7 +4101,7 @@ match_:
 ;         emit_byte(c);
 @$275:
 		mov ax, word [bp-0xe]
-		call emit_byte_
+		call near emit_byte_
 
 ;         if (dw != 0) {
 		cmp byte [bp-4], 0
@@ -4116,7 +4112,7 @@ match_:
 ;             emit_byte(instruction_offset);
 @$277:
 		mov ax, [_instruction_offset]  ; !!! no word [...]
-		call emit_byte_
+		call near emit_byte_
 
 ;             if (dw > 1) emit_byte(instruction_offset >> 8);
 		cmp byte [bp-4], 1
@@ -4128,7 +4124,7 @@ match_:
 		sar dx, 1
 		rcr ax, 1
 		loop @$278
-		call emit_byte_
+		call near emit_byte_
 		jmp SHORT @$276
 
 ;         }
@@ -4136,7 +4132,7 @@ match_:
 ;     return check_end(p);
 @$279:
 		mov ax, si
-		call check_end_
+		call near check_end_
 
 ; }
 		jmp @$29
@@ -4160,7 +4156,7 @@ to_lowercase_:
 ;         *p = tolower(*p);
 @$281:
 		xor ah, ah
-		call tolower_
+		call near tolower_
 		mov byte [bx], al
 
 ;         p++;
@@ -4191,7 +4187,7 @@ separate_:
 		test al, al
 		je @$283
 		xor ah, ah
-		call isspace_
+		call near isspace_
 		test ax, ax
 		je @$283
 
@@ -4214,7 +4210,7 @@ separate_:
 		test al, al
 		je @$285
 		xor ah, ah
-		call isspace_
+		call near isspace_
 		test ax, ax
 		jne @$285
 		mov si, word [_p]
@@ -4245,7 +4241,7 @@ separate_:
 		mov bl, al
 		xor bh, bh
 		mov ax, bx
-		call isspace_
+		call near isspace_
 		test ax, ax
 		je @$287
 
@@ -4280,7 +4276,7 @@ message_flush_:
 		mov bx, cx
 		mov dx, _message_buf
 		mov ax, 2
-		call write_
+		call near write_
 
 ;         message_bbb.p = message_buf;
 @$291:
@@ -4294,7 +4290,7 @@ message_flush_:
 ;             if (write(listing_fd, message_buf, size) != size) {
 		mov bx, cx
 		mov dx, _message_buf
-		call write_
+		call near write_
 		cmp ax, cx
 		je @$289
 
@@ -4304,7 +4300,7 @@ message_flush_:
 ;                 message(1, "error writing to listing file");
 		mov dx, @$543
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 exit(3);
 		mov ax, 3
@@ -4366,7 +4362,7 @@ message_start_:
 		jne @$294
 
 ;         message_flush(NULL);  /* Flush listing_fd. */
-		call message_flush_
+		call near message_flush_
 
 ;         message_bbb.data = (void*)1;
 		mov word [_message_bbb+6], 1
@@ -4379,7 +4375,7 @@ message_start_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ; }
@@ -4400,14 +4396,14 @@ message_start_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 4
 
 ;     }
 ;     message_flush(NULL);
 @$296:
 		xor ax, ax
-		call message_flush_
+		call near message_flush_
 
 ;     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 		xor ax, ax
@@ -4419,7 +4415,7 @@ message_start_:
 ;
 ; void message(int error, const char *message) {
 message_:
-		call message_start_
+		call near message_start_
 
 ;     message_start(error);
 ;     bbprintf(&message_bbb, "%s", message);
@@ -4428,7 +4424,7 @@ message_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;     message_end();
@@ -4442,7 +4438,7 @@ message_end_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 8
 		jmp SHORT @$296
 
@@ -4467,7 +4463,7 @@ process_instruction_:
 ;     if (strcmp(part, "DB") == 0) {  /* Define 8-bit byte. */
 		mov dx, @$549
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$302
 
@@ -4475,7 +4471,7 @@ process_instruction_:
 ;             p = avoid_spaces(p);
 @$297:
 		mov ax, [_p]  ; !!! no word [...]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov [_p], ax  ; !!! no word [...]
 
@@ -4516,7 +4512,7 @@ process_instruction_:
 ;                     message(1, "Missing close quote");
 		mov dx, @$531
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 } else {
 		jmp SHORT @$304
@@ -4524,7 +4520,7 @@ process_instruction_:
 ;                     p3 = avoid_spaces(p3 + 1);
 @$301:
 		lea ax, [bx+1]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov si, ax
 		mov cx, ax
 
@@ -4544,7 +4540,7 @@ process_instruction_:
 		mov dx, bx
 		sub dx, word [_p]
 		mov ax, [_p]  ; !!! no word [...]
-		call emit_bytes_
+		call near emit_bytes_
 
 ;                 }
 ;                 p = p3;
@@ -4557,7 +4553,7 @@ process_instruction_:
 ;                 p = match_expression(p);
 @$305:
 		mov ax, [_p]  ; !!! no word [...]
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -4568,7 +4564,7 @@ process_instruction_:
 @$306:
 		mov dx, @$550
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                     break;
 		jmp @$324
@@ -4577,7 +4573,7 @@ process_instruction_:
 ;                 emit_byte(instruction_value);
 @$307:
 		mov ax, [_instruction_value]  ; !!! no word [...]
-		call emit_byte_
+		call near emit_byte_
 
 ;             }
 ;             if (*p == ',') {
@@ -4592,7 +4588,7 @@ process_instruction_:
 
 ;                 p = avoid_spaces(p);
 		mov ax, bx
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov [_p], ax  ; !!! no word [...]
 
@@ -4605,7 +4601,7 @@ process_instruction_:
 ;                 check_end(p);
 @$309:
 		mov ax, bx
-		call check_end_
+		call near check_end_
 
 ;                 break;
 @$310:
@@ -4618,13 +4614,13 @@ process_instruction_:
 @$311:
 		mov dx, @$551
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		mov byte [bp-2], al
 		test al, al
 		je @$312
 		mov dx, @$552
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$315
 
@@ -4636,7 +4632,7 @@ process_instruction_:
 ;             p = match_expression(p);
 @$312:
 		mov ax, [_p]  ; !!! no word [...]
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;             if (p == NULL) {
@@ -4648,7 +4644,7 @@ process_instruction_:
 ;             }
 ;             emit_byte(instruction_value);
 		mov ax, [_instruction_value]  ; !!! no word [...]
-		call emit_byte_
+		call near emit_byte_
 
 ;             emit_byte(instruction_value >> 8);
 		mov ax, [_instruction_value]  ; !!! no word [...]
@@ -4658,7 +4654,7 @@ process_instruction_:
 		sar dx, 1
 		rcr ax, 1
 		loop @$313
-		call emit_byte_
+		call near emit_byte_
 
 ; #if CONFIG_VALUE_BITS == 32
 ;             if (c) {
@@ -4667,12 +4663,12 @@ process_instruction_:
 
 ;                 emit_byte(instruction_value >> 16);
 		mov ax, [_instruction_value+2]  ; !!! no word [...]
-		call emit_byte_
+		call near emit_byte_
 
 ;                 emit_byte(instruction_value >> 24);
 		mov al, [_instruction_value+3]  ; !!! no byte
 		cbw
-		call emit_byte_
+		call near emit_byte_
 
 ;             }
 ; #endif
@@ -4688,7 +4684,7 @@ process_instruction_:
 
 ;                 p = avoid_spaces(p);
 		mov ax, bx
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov bx, ax
 		mov [_p], ax  ; !!! no word [...]
 
@@ -4720,7 +4716,7 @@ process_instruction_:
 
 ;                 message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                 bbprintf(&message_bbb, "Unknown instruction '%s'", part);
 		mov ax, _part
@@ -4729,12 +4725,12 @@ process_instruction_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                 message_end();
 @$317:
-		call message_end_
+		call near message_end_
 
 ;                 goto after_matches;
 @$318:
@@ -4745,7 +4741,7 @@ process_instruction_:
 @$319:
 		mov dx, bx
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		je @$322
 
@@ -4778,7 +4774,7 @@ process_instruction_:
 ;         p = match(p, p2);
 		mov dx, bx
 		mov ax, cx
-		call match_
+		call near match_
 		mov [_p], ax  ; !!! no word [...]
 
 ;         if (p == NULL) {
@@ -4787,7 +4783,7 @@ process_instruction_:
 
 ;             message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;             bbprintf(&message_bbb, "Error in instruction '%s %s'", part, p3);
 		push cx
@@ -4797,7 +4793,7 @@ process_instruction_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 8
 		jmp SHORT @$317
 
@@ -4806,7 +4802,7 @@ process_instruction_:
 ;         }
 ;         separate();
 @$323:
-		call separate_
+		call near separate_
 
 ;     }
 		jmp @$315
@@ -4856,14 +4852,14 @@ incbin_:
 ;
 ;     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
 		xor dx, dx
-		call open2_
+		call near open2_
 		mov si, ax
 		test ax, ax
 		jge @$325
 
 ;         message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;         bbprintf(&message_bbb, "Error: Cannot open '%s' for input", fname);
 		push cx
@@ -4871,11 +4867,11 @@ incbin_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;         message_end();
-		call message_end_
+		call near message_end_
 
 ;         return;
 		jmp @$161
@@ -4885,7 +4881,7 @@ incbin_:
 ;     message_flush(NULL);  /* Because we reuse message_buf below. */
 @$325:
 		xor ax, ax
-		call message_flush_
+		call near message_flush_
 
 ;     g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
 		xor ax, ax
@@ -4896,14 +4892,14 @@ incbin_:
 		mov bx, 0x200
 		mov dx, _message_buf
 		mov ax, si
-		call read_
+		call near read_
 		test ax, ax
 		jle @$327
 
 ;         emit_bytes(message_buf, size);
 		mov dx, ax
 		mov ax, _message_buf
-		call emit_bytes_
+		call near emit_bytes_
 
 ;     }
 		jmp SHORT @$326
@@ -4914,7 +4910,7 @@ incbin_:
 
 ;         message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;         bbprintf(&message_bbb, "Error: Error reading from '%s'", fname);
 		push cx
@@ -4922,17 +4918,17 @@ incbin_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;         message_end();
-		call message_end_
+		call near message_end_
 
 ;     }
 ;     close(input_fd);
 @$328:
 		mov ax, si
-		call close_
+		call near close_
 
 ; }
 		jmp @$161
@@ -4974,7 +4970,7 @@ assembly_push_:
 		mov dx, ax
 
 ;     const int input_filename_len = strlen(input_filename);
-		call strlen_
+		call near strlen_
 		mov cx, ax
 
 ; #if !CONFIG_CPU_UNALIGN
@@ -5020,7 +5016,7 @@ assembly_push_:
 ;     strcpy(assembly_p->input_filename, input_filename);
 		mov ax, [_assembly_p]  ; !!! no word [...]
 		db 0x83, 0xC0, 0x11  ; !!! add ax, BYTE 0x11
-		call strcpy_
+		call near strcpy_
 
 ;     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
 		mov ax, [_assembly_p]  ; !!! no word [...]
@@ -5121,7 +5117,7 @@ get_fmt_u_value_:
 		mov dx, si
 		mov bx, 0xa
 		xor cx, cx
-		call __U4D
+		call near __U4D
 		xor bh, bh
 		lea ax, [bx+0x30]
 		dec word [bp-2]
@@ -5133,7 +5129,7 @@ get_fmt_u_value_:
 		mov dx, si
 		mov bx, 0xa
 		xor cx, cx
-		call __U4D
+		call near __U4D
 		mov di, ax
 		mov si, dx
 
@@ -5195,7 +5191,7 @@ do_assembly_:
 
 ;     if (!(aip = assembly_push(input_filename))) {
 		mov ax, word [bp-0x16]
-		call assembly_push_
+		call near assembly_push_
 		mov si, ax
 		test ax, ax
 		jne @$336
@@ -5203,7 +5199,7 @@ do_assembly_:
 ;         message(1, "assembly stack overflow, too many pending %INCLUDE files");
 		mov dx, @$557
 		mov ax, 1
-		call message_
+		call near message_
 
 ;         return;
 		jmp @$160
@@ -5221,14 +5217,14 @@ do_assembly_:
 		lea bx, [si+0x11]
 		xor dx, dx
 		mov ax, bx
-		call open2_
+		call near open2_
 		mov word [bp-0x10], ax
 		test ax, ax
 		jge @$338
 
 ;         message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;         bbprintf(&message_bbb, "cannot open '%s' for input", aip->input_filename);
 		push bx
@@ -5237,11 +5233,11 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;         message_end();
-		call message_end_
+		call near message_end_
 
 ;         return;
 		jmp @$160
@@ -5255,7 +5251,7 @@ do_assembly_:
 		mov bx, word [si]
 		mov cx, word [si+2]
 		xor dx, dx
-		call lseek_
+		call near lseek_
 		cmp dx, word [si+2]
 		jne @$339
 		cmp ax, word [si]
@@ -5264,7 +5260,7 @@ do_assembly_:
 ;         message_start(1);
 @$339:
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;         bbprintf(&message_bbb, "cannot seek in '%s'", input_filename);
 		push word [bp-0x16]
@@ -5376,7 +5372,7 @@ do_assembly_:
 		sub bx, word [bp-8]
 		mov dx, word [bp-8]
 		mov ax, word [bp-0x10]
-		call read_
+		call near read_
 		test ax, ax
 		jge @$350
 
@@ -5384,7 +5380,7 @@ do_assembly_:
 		mov dx, @$560
 @$348:
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 break;
 		jmp SHORT @$345
@@ -5552,7 +5548,7 @@ do_assembly_:
 		mov bx, word [_p]
 		mov al, byte [bx]
 		xor ah, ah
-		call toupper_
+		call near toupper_
 		mov bx, word [_p]
 		mov byte [bx], al
 
@@ -5609,7 +5605,7 @@ do_assembly_:
 		mov [_p], ax  ; !!! no word [...]
 
 ;             separate();
-		call separate_
+		call near separate_
 
 ;             if (part[0] == '\0' && (*p == '\0' || *p == ';'))    /* Empty line */
 		cmp byte [_part], 0
@@ -5627,14 +5623,14 @@ do_assembly_:
 		cmp byte [_part], 0
 		je @$372
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		cmp byte [bx+_part-1], 0x3a
 		jne @$372
 
 ;                 part[strlen(part) - 1] = '\0';
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		mov byte [bx+_part-1], 0
 
@@ -5645,12 +5641,12 @@ do_assembly_:
 ;                     strcpy(name, global_label);
 		mov dx, _global_label
 		mov ax, _name
-		call strcpy_
+		call near strcpy_
 
 ;                     strcat(name, part);
 		mov dx, _part
 		mov ax, _name
-		call strcat_
+		call near strcat_
 
 ;                 } else {
 		jmp SHORT @$374
@@ -5663,17 +5659,17 @@ do_assembly_:
 @$373:
 		mov dx, _part
 		mov ax, _name
-		call strcpy_
+		call near strcpy_
 
 ;                     strcpy(global_label, name);
 		mov dx, _name
 		mov ax, _global_label
-		call strcpy_
+		call near strcpy_
 
 ;                 }
 ;                 separate();
 @$374:
-		call separate_
+		call near separate_
 
 ;                 if (avoid_level == 0 || level < avoid_level) {
 		mov ax, word [bp-4]
@@ -5691,13 +5687,13 @@ do_assembly_:
 @$375:
 		mov dx, @$562
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$380
 
 ;                         p = match_expression(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                         if (p == NULL) {
@@ -5716,7 +5712,7 @@ do_assembly_:
 
 ;                                 if (find_label(name)) {
 		mov ax, _name
-		call find_label_
+		call near find_label_
 		test dx, dx
 		jne @$377
 		test ax, ax
@@ -5725,7 +5721,7 @@ do_assembly_:
 ;                                     message_start(1);
 @$377:
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                                     bbprintf(&message_bbb, "Redefined label '%s'", name);
 		mov ax, _name
@@ -5735,11 +5731,11 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                                     message_end();
-		call message_end_
+		call near message_end_
 
 ;                                 } else {
 		jmp @$404
@@ -5749,7 +5745,7 @@ do_assembly_:
 		mov bx, word [_instruction_value]
 		mov cx, word [_instruction_value+2]
 		mov ax, _name
-		call define_label_
+		call near define_label_
 		mov [_last_label], ax  ; !!! no word [...]
 		mov word [_last_label+2], dx
 
@@ -5762,7 +5758,7 @@ do_assembly_:
 ;                                 last_label = find_label(name);
 @$381:
 		mov ax, _name
-		call find_label_
+		call near find_label_
 		mov bx, ax
 		mov ax, dx
 		mov word [_last_label], bx
@@ -5776,7 +5772,7 @@ do_assembly_:
 
 ;                                     message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                                     bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
 		mov ax, _name
@@ -5832,7 +5828,7 @@ do_assembly_:
 		mov [_first_time], ax  ; !!! no word [...]
 
 ;                         reset_address();
-		call reset_address_
+		call near reset_address_
 
 ;                     }
 ;                     if (assembler_step == 1) {
@@ -5842,7 +5838,7 @@ do_assembly_:
 
 ;                         if (find_label(name)) {
 		mov ax, _name
-		call find_label_
+		call near find_label_
 		test dx, dx
 		jne @$387
 		test ax, ax
@@ -5851,7 +5847,7 @@ do_assembly_:
 ;                             message_start(1);
 @$387:
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                             bbprintf(&message_bbb, "Redefined label '%s'", name);
 		mov ax, _name
@@ -5861,11 +5857,11 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                             message_end();
-		call message_end_
+		call near message_end_
 
 ;                         } else {
 		jmp SHORT @$394
@@ -5875,7 +5871,7 @@ do_assembly_:
 		mov bx, word [_address]
 		mov cx, word [_address+2]
 		mov ax, _name
-		call define_label_
+		call near define_label_
 		mov [_last_label], ax  ; !!! no word [...]
 		mov word [_last_label+2], dx
 
@@ -5886,7 +5882,7 @@ do_assembly_:
 ;                         last_label = find_label(name);
 @$390:
 		mov ax, _name
-		call find_label_
+		call near find_label_
 		mov bx, ax
 		mov ax, dx
 		mov word [_last_label], bx
@@ -5900,7 +5896,7 @@ do_assembly_:
 
 ;                             message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                             bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
 		mov ax, _name
@@ -5945,7 +5941,7 @@ do_assembly_:
 @$394:
 		mov dx, @$566
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		mov dx, word [bp-6]
 		add dx, BYTE 1
 		mov word [bp-0xc], dx
@@ -5989,7 +5985,7 @@ do_assembly_:
 
 ;                 p = match_expression(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -6011,7 +6007,7 @@ do_assembly_:
 		mov dx, @$568
 @$400:
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 }
 ;                 if (GET_UVALUE(instruction_value) != 0) {
@@ -6033,7 +6029,7 @@ do_assembly_:
 @$404:
 		mov ax, [_p]  ; !!! no word [...]
 @$405:
-		call check_end_
+		call near check_end_
 @$406:
 		jmp @$464
 
@@ -6044,7 +6040,7 @@ do_assembly_:
 @$407:
 		mov dx, @$569
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$409
 
@@ -6069,11 +6065,11 @@ do_assembly_:
 ;                     break;
 ;                 separate();
 @$408:
-		call separate_
+		call near separate_
 
 ;                 if (find_label(part) != NULL) {
 		mov ax, _part
-		call find_label_
+		call near find_label_
 		test dx, dx
 		jne @$404
 		test ax, ax
@@ -6091,7 +6087,7 @@ do_assembly_:
 @$409:
 		mov dx, @$570
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$416
 
@@ -6118,11 +6114,11 @@ do_assembly_:
 ;                     break;
 ;                 separate();
 @$411:
-		call separate_
+		call near separate_
 
 ;                 if (find_label(part) == NULL) {
 		mov ax, _part
-		call find_label_
+		call near find_label_
 		test dx, dx
 		je @$413
 @$412:
@@ -6147,7 +6143,7 @@ do_assembly_:
 @$416:
 		mov dx, @$571
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$420
 
@@ -6206,7 +6202,7 @@ do_assembly_:
 @$420:
 		mov dx, @$573
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$424
 
@@ -6264,7 +6260,7 @@ do_assembly_:
 @$425:
 		mov dx, @$575
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		je @$423
 
@@ -6273,19 +6269,19 @@ do_assembly_:
 ;             if (strcmp(part, "CPU") == 0) {
 		mov dx, @$576
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$426
 
 ;                 p = avoid_spaces(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (memcmp(p, "8086", 4) != 0)
 		mov bx, 4
 		mov dx, @$577
-		call memcmp_
+		call near memcmp_
 		test ax, ax
 		je @$423
 
@@ -6299,20 +6295,20 @@ do_assembly_:
 @$426:
 		mov dx, @$579
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$433
 
 ;                 p = avoid_spaces(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -6358,16 +6354,16 @@ do_assembly_:
 @$433:
 		mov dx, @$581
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$437
 
 ;                 separate();
-		call separate_
+		call near separate_
 
 ;                 check_end(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call check_end_
+		call near check_end_
 
 ;                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
 		mov al, [_part]  ; !!! no byte
@@ -6377,7 +6373,7 @@ do_assembly_:
 		jne @$435
 @$434:
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		mov al, byte [bx+_part-1]
 		cmp al, byte [_part]
@@ -6402,16 +6398,16 @@ do_assembly_:
 @$437:
 		mov dx, @$583
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$441
 
 ;                 separate();
-		call separate_
+		call near separate_
 
 ;                 check_end(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call check_end_
+		call near check_end_
 
 ;                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
 		mov al, [_part]  ; !!! no byte
@@ -6421,7 +6417,7 @@ do_assembly_:
 		jne @$439
 @$438:
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		mov al, byte [bx+_part-1]
 		cmp al, byte [_part]
@@ -6446,20 +6442,20 @@ do_assembly_:
 @$441:
 		mov dx, @$585
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$446
 
 ;                 p = avoid_spaces(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -6515,7 +6511,7 @@ do_assembly_:
 @$445:
 		mov dx, @$586
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                         } else {
 		jmp @$404
@@ -6538,7 +6534,7 @@ do_assembly_:
 ;                                 emit_byte(0);
 @$450:
 		xor ax, ax
-		call emit_byte_
+		call near emit_byte_
 		jmp SHORT @$447
 
 ;
@@ -6552,20 +6548,20 @@ do_assembly_:
 @$451:
 		mov dx, @$587
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$456
 
 ;                 p = avoid_spaces(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call avoid_spaces_
+		call near avoid_spaces_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -6588,7 +6584,7 @@ do_assembly_:
 		mov dx, word [_address+2]
 		mov bx, word [_instruction_value]
 		mov cx, word [_instruction_value+2]
-		call __I4D
+		call near __I4D
 
 ;                     align = align * instruction_value;
 		imul word [_instruction_value]
@@ -6610,7 +6606,7 @@ do_assembly_:
 ;                         emit_byte(0x90);
 @$455:
 		mov ax, 0x90
-		call emit_byte_
+		call near emit_byte_
 		jmp SHORT @$454
 
 ;                     check_end(p);
@@ -6630,7 +6626,7 @@ do_assembly_:
 		mov [_first_time], ax  ; !!! no word [...]
 
 ;                 reset_address();
-		call reset_address_
+		call near reset_address_
 
 ;             }
 ;             times = 1;
@@ -6640,7 +6636,7 @@ do_assembly_:
 ;             if (strcmp(part, "TIMES") == 0) {
 		mov dx, @$588
 		mov ax, _part
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$462
 
@@ -6649,7 +6645,7 @@ do_assembly_:
 
 ;                 p = match_expression(p);
 		mov ax, [_p]  ; !!! no word [...]
-		call match_expression_
+		call near match_expression_
 		mov [_p], ax  ; !!! no word [...]
 
 ;                 if (p == NULL) {
@@ -6661,7 +6657,7 @@ do_assembly_:
 @$458:
 		mov ax, cx
 @$459:
-		call message_
+		call near message_
 		jmp SHORT @$464
 
 ;                     break;
@@ -6682,7 +6678,7 @@ do_assembly_:
 		mov cx, word [_instruction_value]
 
 ;                 separate();
-		call separate_
+		call near separate_
 
 ;             }
 ;             base = address;
@@ -6705,10 +6701,10 @@ do_assembly_:
 		mov word [_p], dx
 
 ;                 separate();
-		call separate_
+		call near separate_
 
 ;                 process_instruction();
-		call process_instruction_
+		call near process_instruction_
 
 ;                 times--;
 		dec cx
@@ -6734,7 +6730,7 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 4
 
 ;             else
@@ -6747,7 +6743,7 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;             p = generated;
@@ -6770,7 +6766,7 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;             }
@@ -6788,7 +6784,7 @@ do_assembly_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 4
 
 ;                 p++;
@@ -6802,13 +6798,13 @@ do_assembly_:
 		push word [bp-0xa]
 		mov ax, [_line_number]  ; !!! no word [...]
 		mov dx, word [_line_number+2]
-		call get_fmt_u_value_
+		call near get_fmt_u_value_
 		push ax
 		mov ax, @$593
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 8
 
 ;         }
@@ -6828,7 +6824,7 @@ do_assembly_:
 		mov dx, 1
 		mov bx, ax
 		mov ax, word [bp-0x10]
-		call lseek_
+		call near lseek_
 		mov word [si], ax
 		mov word [si+2], dx
 		mov dx, word [si]
@@ -6839,11 +6835,11 @@ do_assembly_:
 ;                 message(1, "Cannot seek in source file");
 		mov dx, @$594
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 close(input_fd);
 		mov ax, word [bp-0x10]
-		call close_
+		call near close_
 
 ;                 return;
 		jmp @$160
@@ -6852,7 +6848,7 @@ do_assembly_:
 ;             close(input_fd);
 @$472:
 		mov ax, word [bp-0x10]
-		call close_
+		call near close_
 
 ;             aip->level = level;
 		mov ax, word [bp-6]
@@ -6873,7 +6869,7 @@ do_assembly_:
 
 ;             part[strlen(part) - 1] = '\0';
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		mov byte [bx+_part-1], 0
 
@@ -6895,13 +6891,13 @@ do_assembly_:
 ;             part[strlen(part) - 1] = '\0';
 @$475:
 		mov ax, _part
-		call strlen_
+		call near strlen_
 		mov bx, ax
 		mov byte [bx+_part-1], 0
 
 ;             incbin(part + 1);
 		mov ax, _part+1
-		call incbin_
+		call near incbin_
 
 ;         }
 		jmp SHORT @$474
@@ -6919,18 +6915,18 @@ do_assembly_:
 		mov dx, @$595
 @$478:
 		mov ax, 1
-		call message_
+		call near message_
 
 ;     }
 ;   close_return:
 ;     close(input_fd);
 @$479:
 		mov ax, word [bp-0x10]
-		call close_
+		call near close_
 
 ;     if ((aip = assembly_pop(aip)) != NULL) goto do_open_again;  /* Continue processing the input file which %INCLUDE()d the current input file. */
 		mov ax, si
-		call assembly_pop_
+		call near assembly_pop_
 		mov si, ax
 		test ax, ax
 		je @$480
@@ -6984,7 +6980,7 @@ main_:
 		mov bx, 0x38
 		mov dx, @$616
 		mov ax, 2
-		call write_
+		call near write_
 		jmp @$526
 
 ;         return 1;
@@ -7010,8 +7006,7 @@ main_:
 
 ;     c = 1;
 		mov si, 1
-		db 0xE9  ; !!! jmp NEAR @$492
-		dw @$492-$-2
+		jmp near @$492
 
 ;     while (c < argc) {
 ;         if (argv[c][0] == '-') {    /* All arguments start with dash */
@@ -7025,12 +7020,12 @@ main_:
 ;                     to_lowercase(argv[c]);
 @$482:
 		mov ax, word [bx]
-		call to_lowercase_
+		call near to_lowercase_
 
 ;                     if (strcmp(argv[c], "bin") == 0) {
 		mov ax, word [bx]
 		mov dx, @$597
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		jne @$483
 
@@ -7042,7 +7037,7 @@ main_:
 @$483:
 		mov ax, word [bx]
 		mov dx, @$598
-		call strcmp_
+		call near strcmp_
 		test ax, ax
 		je @$485
 
@@ -7050,7 +7045,7 @@ main_:
 ;                     } else {
 ;                         message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                         bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[c]);
 		push word [bx]
@@ -7059,11 +7054,11 @@ main_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                         message_end();
-		call message_end_
+		call near message_end_
 		jmp @$526
 
 ;                         return 1;
@@ -7130,7 +7125,7 @@ main_:
 		jne @$499
 		mov al, byte [bx+1]
 		xor ah, ah
-		call tolower_
+		call near tolower_
 		mov bx, dx
 		shl bx, 1
 		add bx, word [bp-6]
@@ -7144,7 +7139,7 @@ main_:
 		mov dx, @$596
 @$494:
 		mov ax, 1
-		call message_
+		call near message_
 		jmp @$526
 @$495:
 		db 0x83, 0xF8, 0x6c  ; !!! cmp ax, BYTE 0x6c
@@ -7179,8 +7174,7 @@ main_:
 @$498:
 		jmp @$510
 @$499:
-		db 0xE9  ; !!! jmp NEAR @$508
-		dw @$508-$-2
+		jmp near @$508
 
 ;                     c++;
 ;                 }
@@ -7204,7 +7198,7 @@ main_:
 
 ;                     *(char*)p = toupper(*p);
 		xor ah, ah
-		call toupper_
+		call near toupper_
 		mov byte [bx], al
 
 ;                     p++;
@@ -7228,7 +7222,7 @@ main_:
 		xor ax, ax
 		mov [_undefined], ax  ; !!! no word [...]
 		lea ax, [bx+1]
-		call match_expression_
+		call near match_expression_
 
 ;                     p = match_expression(p);
 ;                     if (p == NULL) {
@@ -7262,7 +7256,7 @@ main_:
 		inc ax
 		inc ax
 		mov bx, dx
-		call define_label_
+		call near define_label_
 
 ;                     }
 ;                 }
@@ -7273,7 +7267,7 @@ main_:
 ;                 message_start(1);
 @$507:
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                 bbprintf(&message_bbb, "unknown argument %s", argv[c]);
 		push word [di]
@@ -7291,7 +7285,7 @@ main_:
 
 ;                 message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                 bbprintf(&message_bbb, "more than one input file name: %s", argv[c]);
 		push word [di]
@@ -7350,11 +7344,11 @@ main_:
 
 ;     do_assembly(ifname);
 		mov ax, word [bp-2]
-		call do_assembly_
+		call near do_assembly_
 
 ;     message_flush(NULL);
 		xor ax, ax
-		call message_flush_
+		call near message_flush_
 
 ;     if (errors) { do_remove:
 		mov ax, [_errors+2]  ; !!! no word [...]
@@ -7364,7 +7358,7 @@ main_:
 ;         remove(output_filename);
 @$512:
 		mov ax, [_output_filename]  ; !!! no word [...]
-		call remove_
+		call near remove_
 
 ;         if (listing_filename != NULL)
 		mov ax, [_listing_filename]  ; !!! no word [...]
@@ -7372,7 +7366,7 @@ main_:
 		je @$513
 
 ;             remove(listing_filename);
-		call remove_
+		call near remove_
 @$513:
 		jmp @$526
 
@@ -7408,14 +7402,14 @@ main_:
 
 ;                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
 		mov dx, 0x1a4
-		call creat_
+		call near creat_
 		mov [_listing_fd], ax  ; !!! no word [...]
 		test ax, ax
 		jge @$517
 
 ;                     message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                     bbprintf(&message_bbb, "couldn't open '%s' as listing file", output_filename);
 		push word [_output_filename]
@@ -7430,14 +7424,14 @@ main_:
 @$517:
 		mov ax, [_output_filename]  ; !!! no word [...]
 		mov dx, 0x1a4
-		call creat_
+		call near creat_
 		mov [_output_fd], ax  ; !!! no word [...]
 		test ax, ax
 		jge @$518
 
 ;                 message_start(1);
 		mov ax, 1
-		call message_start_
+		call near message_start_
 
 ;                 bbprintf(&message_bbb, "couldn't open '%s' as output file", output_filename);
 		push word [_output_filename]
@@ -7462,14 +7456,13 @@ main_:
 
 ;             do_assembly(ifname);
 		mov ax, word [bp-2]
-		call do_assembly_
+		call near do_assembly_
 
 ;
 ;             if (listing_fd >= 0 && change == 0) {
 		cmp word [_listing_fd], BYTE 0
 		jge @$519
-		db 0xE9  ; !!! jmp NEAR @$521
-		dw @$521-$-2
+		jmp near @$521
 @$519:
 		cmp word [_change], BYTE 0
 		jne @$521
@@ -7477,37 +7470,37 @@ main_:
 ;                 bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
 		mov ax, [_errors]  ; !!! no word [...]
 		mov dx, word [_errors+2]
-		call get_fmt_u_value_
+		call near get_fmt_u_value_
 		push ax
 		mov ax, @$610
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n\r\n", GET_FMT_U_VALUE(warnings));
 		mov ax, [_warnings]  ; !!! no word [...]
 		mov dx, word [_warnings+2]
-		call get_fmt_u_value_
+		call near get_fmt_u_value_
 		push ax
 		mov ax, @$611
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
 		mov ax, [_bytes]  ; !!! no word [...]
 		mov dx, word [_bytes+2]
-		call get_fmt_u_value_
+		call near get_fmt_u_value_
 		push ax
 		mov ax, @$612
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                 if (label_list != NULL) {
@@ -7526,24 +7519,24 @@ main_:
 		push ax
 		mov ax, _message_bbb
 		push ax
-		call bbprintf_
+		call near bbprintf_
 		add sp, BYTE 6
 
 ;                     print_labels_sorted_to_listing_fd(label_list);
 		mov ax, [_label_list]  ; !!! no word [...]
 		mov dx, word [_label_list+2]
-		call print_labels_sorted_to_listing_fd_
+		call near print_labels_sorted_to_listing_fd_
 
 ;                 }
 ;             }
 ;             emit_flush(0);
 @$521:
 		xor ax, ax
-		call emit_flush_
+		call near emit_flush_
 
 ;             close(output_fd);
 		mov ax, [_output_fd]  ; !!! no word [...]
-		call close_
+		call near close_
 
 ;             if (listing_filename != NULL) {
 		cmp word [_listing_filename], BYTE 0
@@ -7551,11 +7544,11 @@ main_:
 
 ;                 message_flush(NULL);
 		xor ax, ax
-		call message_flush_
+		call near message_flush_
 
 ;                 close(listing_fd);
 		mov ax, [_listing_fd]  ; !!! no word [...]
-		call close_
+		call near close_
 
 ;             }
 ;             if (change) {
@@ -7573,7 +7566,7 @@ main_:
 ;                     message(1, "Aborted: Couldn't stabilize moving label");
 		mov dx, @$615
 		mov ax, 1
-		call message_
+		call near message_
 
 ;                 }
 ;             }
@@ -7692,7 +7685,7 @@ bbwrite1_:
 
 ;     bbb->flush(bbb);
 		mov ax, bx
-		call [bx+8]
+		call word [bx+8]
 
 ;   }
 		jmp SHORT @@$1
@@ -7775,7 +7768,7 @@ prints_:
 ;       bbwrite1(bbb, padchar);
 		mov dx, word [bp-2]
 		mov ax, word [bp-4]
-		call bbwrite1_
+		call near bbwrite1_
 
 ;       ++pc;
 		inc cx
@@ -7795,7 +7788,7 @@ prints_:
 		xor ah, ah
 		mov dx, ax
 		mov ax, word [bp-4]
-		call bbwrite1_
+		call near bbwrite1_
 
 ;     ++pc;
 		inc cx
@@ -7812,7 +7805,7 @@ prints_:
 ;     bbwrite1(bbb, padchar);
 		mov dx, word [bp-2]
 		mov ax, word [bp-4]
-		call bbwrite1_
+		call near bbwrite1_
 
 ;     ++pc;
 		inc cx
@@ -7869,9 +7862,8 @@ printi_:
 		mov bx, word [bp+8]
 		lea dx, [bp-0x12]
 		mov ax, di
-		call prints_
-		db 0xE9  ; !!! jmp NEAR @@$19
-		dw @@$19-$-2
+		call near prints_
+		jmp near @@$19
 
 ;   }
 ;
@@ -7950,7 +7942,7 @@ printi_:
 ;       bbwrite1(bbb, '-');
 		mov dx, 0x2d
 		mov ax, di
-		call bbwrite1_
+		call near bbwrite1_
 
 ;       ++pc;
 		inc word [bp-2]
@@ -7976,7 +7968,7 @@ printi_:
 		mov bx, word [bp+8]
 		mov dx, si
 		mov ax, di
-		call prints_
+		call near prints_
 		add ax, word [bp-2]
 
 ; }
@@ -8111,11 +8103,10 @@ print_:
 		mov bx, ax
 @@$28:
 		mov ax, word [bp-6]
-		call prints_
+		call near prints_
 @@$29:
 		add di, ax
-		db 0xE9  ; !!! jmp NEAR @@$41
-		dw @@$41-$-2
+		jmp near @@$41
 
 ;         continue;
 ;       }
@@ -8136,7 +8127,7 @@ print_:
 		mov bx, 0xa
 @@$32:
 		mov ax, word [bp-6]
-		call printi_
+		call near printi_
 		jmp SHORT @@$29
 
 ;         continue;
@@ -8229,7 +8220,7 @@ print_:
 @@$40:
 		xor dh, dh
 		mov ax, word [bp-6]
-		call bbwrite1_
+		call near bbwrite1_
 
 ;       ++pc;
 		inc di
@@ -8266,7 +8257,7 @@ bbprintf_:
 		lea bx, [bp+0xc]
 		mov dx, word [bp+0xa]
 		mov ax, word [bp+8]
-		call print_
+		call near print_
 
 ; }
 @@$43:
@@ -8298,7 +8289,7 @@ bbsprintf_:
 		lea bx, [bp+0xc]
 		mov dx, word [bp+0xa]
 		lea ax, [bp-0xa]
-		call print_
+		call near print_
 
 ;   va_start(args, format);
 ;   result = print(&bbb, format, args);
@@ -8524,7 +8515,7 @@ __I4D:		or dx, dx
 .0:		neg cx
 		neg bx
 		sbb cx, byte 0
-		call __U4D
+		call near __U4D
 		neg dx
 		neg ax
 		sbb dx, byte 0
@@ -8537,12 +8528,12 @@ __I4D:		or dx, dx
 		neg cx
 		neg bx
 		sbb cx, byte 0
-		call __U4D
+		call near __U4D
 		neg cx
 		neg bx
 		sbb cx, byte 0
 		ret
-.2:		call __U4D
+.2:		call near __U4D
 		neg cx
 		neg bx
 		sbb cx, byte 0

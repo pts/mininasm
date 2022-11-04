@@ -33,7 +33,7 @@
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
 ; !!! doc: incompatibility: es: before the instruction
-; !!! doc: incompatibility: `jmp near' to `jmp'
+; !!! doc: incompatibility: `jmp near' to `jmp'; by default, nasm still optimizes
 ; !!! doc: incompatibility: `call near' to `call'
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
 ; !!! Does `CALL FAR' and `JMP FAR' still work?
@@ -834,7 +834,7 @@ define_label_:
 _..3:
 		xor ax, ax
 		xor dx, dx
-		jmp SHORT _..5
+		jmp SHORT _..5  ; !!! In .wasm, this is just a `jmp'. Should we assume `short' during the autoconversion?
 _..4:
 		xchg word [si], ax
 		xchg word [si+2], dx
