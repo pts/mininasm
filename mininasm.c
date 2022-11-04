@@ -251,11 +251,11 @@ modify [si cl]
 
 #define DEBUG
 
-char *output_filename;
-int output_fd;
+static char *output_filename;
+static int output_fd;
 
-char *listing_filename;
-int listing_fd = -1;
+static char *listing_filename;
+static int listing_fd = -1;
 
 #ifndef CONFIG_VALUE_BITS
 #define CONFIG_VALUE_BITS 32
@@ -287,36 +287,36 @@ typedef unsigned long uvalue_t;
 #endif
 typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
-uvalue_t line_number;
+static uvalue_t line_number;
 
-int assembler_step;  /* !! Change many variables from int to char. */
-value_t default_start_address;
-value_t start_address;
-value_t address;
-int first_time;
+static int assembler_step;  /* !! Change many variables from int to char. */
+static value_t default_start_address;
+static value_t start_address;
+static value_t address;
+static int first_time;
 
-unsigned char instruction_addressing;
-unsigned char instruction_offset_width;
-value_t instruction_offset;
+static unsigned char instruction_addressing;
+static unsigned char instruction_offset_width;
+static value_t instruction_offset;
 
-unsigned char instruction_register;
+static unsigned char instruction_register;
 
-value_t instruction_value;
+static value_t instruction_value;
 
 #define MAX_SIZE        256
 
-char part[MAX_SIZE];
-char expr_name[MAX_SIZE];
-char global_label[MAX_SIZE];
+static char part[MAX_SIZE];
+static char expr_name[MAX_SIZE];
+static char global_label[MAX_SIZE];
 
-char *g;
-char generated[8];
+static char *g;
+static char generated[8];
 
-uvalue_t errors;
-uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
-uvalue_t bytes;
-int change;
-int change_number;
+static uvalue_t errors;
+static uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
+static uvalue_t bytes;
+static int change;
+static int change_number;
 
 #if CONFIG_DOSMC_PACKED
 _Packed  /* Disable extra aligment byte at the end of `struct label'. */
@@ -362,20 +362,21 @@ struct label {
     char name[1];
 };
 
-struct label MY_FAR *label_list;
-struct label MY_FAR *last_label;
-int undefined;
+static struct label MY_FAR *label_list;
+static struct label MY_FAR *last_label;
+static int undefined;
 
 extern const char instruction_set[];
 
 /* [32] without the trailing \0 wouldn't work in C++. */
-const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
+static const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
 
+/* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf message_bbb;
 
-void message(int error, const char *message);
-void message_start(int error);
-void message_end(void);
+static void message(int error, const char *message);
+static void message_start(int error);
+static void message_end(void);
 
 #ifdef __DESMET__
 /* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
@@ -483,7 +484,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 /*
  ** Define a new label
  */
-struct label MY_FAR *define_label(const char *name, value_t value) {
+static struct label MY_FAR *define_label(const char *name, value_t value) {
     struct label MY_FAR *label;
 
     /* Allocate label */
@@ -597,7 +598,7 @@ struct label MY_FAR *define_label(const char *name, value_t value) {
 /*
  ** Find a label
  */
-struct label MY_FAR *find_label(const char *name) {
+static struct label MY_FAR *find_label(const char *name) {
     struct label MY_FAR *explore;
     int c;
 
@@ -615,7 +616,7 @@ struct label MY_FAR *find_label(const char *name) {
     return NULL;
 }
 
-struct label MY_FAR *find_dollar_label(const char *name) {
+static struct label MY_FAR *find_dollar_label(const char *name) {
     if (name[0] == '$') ++name;
     return find_label(name);
 }
@@ -623,7 +624,7 @@ struct label MY_FAR *find_dollar_label(const char *name) {
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
-void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
+static void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
     /* Morris in-order traversal of binary tree: iterative (non-recursive,
@@ -657,7 +658,7 @@ void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
 /*
  ** Avoid spaces in input
  */
-const char *avoid_spaces(const char *p) {
+static const char *avoid_spaces(const char *p) {
     for (; *p == ' '; p++) {}
     return p;
 }
@@ -669,7 +670,7 @@ const char *avoid_spaces(const char *p) {
 /*
  ** Check for a non-first label character, same as in NASM.
  */
-int islabel(int c) {
+static int islabel(int c) {
     return isalpha(c) || isdigit(c) || c == '_' || c == '.' || c == '@' || c == '?' || c == '$' || c == '~' || c == '#';
 }
 
@@ -677,7 +678,7 @@ int islabel(int c) {
 /*
  ** Check for a first label character (excluding the leading '$' syntax), same as in NASM.
  */
-int islabel1(int c) {
+static int islabel1(int c) {
     return isalpha(c) || c == '_' || c == '.' || c == '@' || c == '?';
 }
 #endif
@@ -694,7 +695,7 @@ int islabel1(int c) {
  * with true. Every other byte in the pattern matches itself, and the
  * matching continues.
  */
-char casematch(const char *p, const char *pattern) {
+static char casematch(const char *p, const char *pattern) {
     char c;
     for (; (c = *pattern++) != '*'; ++p) {
         if (c - 'A' + 0U <= 'Z' - 'A' + 0U) {
@@ -732,7 +733,7 @@ static int is_colonless_instruction(const char *p) {
 /*
  ** Returns NULL if not a label, otherwise after the label.
  */
-const char *match_label_prefix(const char *p) {
+static const char *match_label_prefix(const char *p) {
     const char *p2;
     char c = *p++;
     if (c == '$') {
@@ -758,7 +759,7 @@ const char *match_label_prefix(const char *p) {
  ** level == 0 is top tier, that's how callers should call it.
  ** Saves the result to `instruction_value'.
  */
-const char *match_expression(const char *match_p) {
+static const char *match_expression(const char *match_p) {
     static struct match_stack_item {
         signed char casei;
         unsigned char level;
@@ -1082,7 +1083,7 @@ const char *match_expression(const char *match_p) {
 /*
  ** Match register
  */
-const char *match_register(const char *p, int width, unsigned char *reg) {
+static const char *match_register(const char *p, int width, unsigned char *reg) {
     const char *r0, *r, *r2;
 
     p = avoid_spaces(p);
@@ -1098,13 +1099,13 @@ const char *match_register(const char *p, int width, unsigned char *reg) {
     return NULL;
 }
 
-const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
+static const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
 
 /*
  ** Match addressing.
  ** As a side effect, it sets instruction_addressing, instruction_offset, instruction_offset_width.
  */
-const char *match_addressing(const char *p, int width) {
+static const char *match_addressing(const char *p, int width) {
     unsigned char reg, reg2, reg12;
     unsigned char *instruction_addressing_p = &instruction_addressing;  /* Using this pointer saves 20 bytes in __DOSMC__. */
     const char *p2;
@@ -1200,11 +1201,12 @@ const char *match_addressing(const char *p, int width) {
     return p;
 }
 
+/* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf emit_bbb;
 
-char emit_buf[512];
+static char emit_buf[512];
 
-void emit_flush(struct bbprintf_buf *bbb) {
+static void emit_flush(struct bbprintf_buf *bbb) {
     const int size = emit_bbb.p - emit_buf;
     (void)bbb;  /* emit_bbb. */
     if (size) {
@@ -1218,7 +1220,7 @@ void emit_flush(struct bbprintf_buf *bbb) {
 
 struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf, 0, emit_flush };
 
-void emit_write(const char *s, int size) {
+static void emit_write(const char *s, int size) {
     int emit_free;
     while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
 #ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
@@ -1238,7 +1240,7 @@ void emit_write(const char *s, int size) {
 #endif
 }
 
-void emit_bytes(const char *s, int size)  {
+static void emit_bytes(const char *s, int size)  {
     address += size;
     if (assembler_step == 2) {
         emit_write(s, size);
@@ -1252,7 +1254,7 @@ void emit_bytes(const char *s, int size)  {
 /*
  ** Emit one byte to output
  */
-void emit_byte(int byte) {
+static void emit_byte(int byte) {
     const char c = byte;
     emit_bytes(&c, 1);
 }
@@ -1260,7 +1262,7 @@ void emit_byte(int byte) {
 /*
  ** Check for end of line
  */
-const char *check_end(const char *p) {
+static const char *check_end(const char *p) {
     p = avoid_spaces(p);
     if (*p) {
         message(1, "extra characters at end of line");
@@ -1272,7 +1274,7 @@ const char *check_end(const char *p) {
 /*
  ** Search for a match with instruction
  */
-const char *match(const char *p, const char *pattern_and_encode) {
+static const char *match(const char *p, const char *pattern_and_encode) {
     int c;
     int bit;
     int qualifier;
@@ -1456,14 +1458,14 @@ const char *match(const char *p, const char *pattern_and_encode) {
     return check_end(p);
 }
 
-const char *prev_p;
-const char *p;
+static const char *prev_p;
+static const char *p;
 
 /*
  ** Separate a portion of entry up to the first space.
  ** First word gets copied to `part', and `p' is advanced after it.
  */
-void separate(void) {
+static void separate(void) {
     char *p2;
 
     for (; *p == ' '; ++p) {}
@@ -1474,9 +1476,9 @@ void separate(void) {
     for (; *p == ' '; ++p) {}
 }
 
-char message_buf[512];
+static char message_buf[512];
 
-void message_flush(struct bbprintf_buf *bbb) {
+static void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
     (void)bbb;  /* message_bbb. */
     if (size) {
@@ -1495,13 +1497,13 @@ void message_flush(struct bbprintf_buf *bbb) {
 /* data = 0 means write to listing_fd only, = 1 means write to stderr + listing_fd. */
 struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
 
-const char *filename_for_message;
+static const char *filename_for_message;
 
 /*
  ** Generate a message
  ** !! Remove `error' argument, warning not supported yet.
  */
-void message_start(int error) {
+static void message_start(int error) {
     const char *msg_prefix;
     if (!message_bbb.data) {
         message_flush(NULL);  /* Flush listing_fd. */
@@ -1521,7 +1523,7 @@ void message_start(int error) {
     }
 }
 
-void message_end(void) {
+static void message_end(void) {
     /* We must use \r\n, because this will end up on stderr, and on DOS
      * with O_BINARY, just a \n doesn't break the line properly.
      */
@@ -1530,7 +1532,7 @@ void message_end(void) {
     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 }
 
-void message(int error, const char *message) {
+static void message(int error, const char *message) {
     message_start(error);
     bbprintf(&message_bbb, "%s", message);
     message_end();
@@ -1539,7 +1541,7 @@ void message(int error, const char *message) {
 /*
  ** Process an instruction
  */
-void process_instruction(void) {
+static void process_instruction(void) {
     const char *p2 = NULL, *p3;
     char c;
 
@@ -1637,14 +1639,14 @@ void process_instruction(void) {
  ** Reset current address.
  ** Called anytime the assembler needs to generate code.
  */
-void reset_address(void) {
+static void reset_address(void) {
     address = start_address = default_start_address;
 }
 
 /*
  ** Include a binary file
  */
-void incbin(const char *fname) {
+static void incbin(const char *fname) {
     int input_fd;
     int size;
 
@@ -1671,7 +1673,7 @@ void incbin(const char *fname) {
 /*
  ** Creates label named `part' with value `instruction_value'.
  */
-void create_label(void) {
+static void create_label(void) {
     if (assembler_step == 1) {
         if (find_label(part)) {
             message_start(1);
@@ -1698,7 +1700,7 @@ void create_label(void) {
     }
 }
 
-char line_buf[512];
+static char line_buf[512];
 typedef char assert_line_buf_size[sizeof(line_buf) >= 2 * MAX_SIZE];  /* To avoid too much copy per line in do_assembly(...). */
 
 #if !CONFIG_CPU_UNALIGN
@@ -1721,11 +1723,11 @@ struct assembly_info {
  * Supports %INCLUDE depth of more than 21 on DOS with 8.3 filenames (no pathname).
  */
 #if CONFIG_CPU_UNALIGN
-char assembly_stack[512];
+static char assembly_stack[512];
 #else
-struct assembly_info assembly_stack[(512 + sizeof(struct assembly_info) - 1) / sizeof(struct assembly_info)];
+static struct assembly_info assembly_stack[(512 + sizeof(struct assembly_info) - 1) / sizeof(struct assembly_info)];
 #endif
-struct assembly_info *assembly_p;  /* = (struct assembly_info*)assembly_stack; */
+static struct assembly_info *assembly_p;  /* = (struct assembly_info*)assembly_stack; */
 
 static struct assembly_info *assembly_push(const char *input_filename) {
     const int input_filename_len = strlen(input_filename);
@@ -1793,7 +1795,7 @@ static const char *get_fmt_u_value(uvalue_t u) {
 /*
  ** Do an assembler step
  */
-void do_assembly(const char *input_filename) {
+static void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
     const char *p3;
     char *line;
