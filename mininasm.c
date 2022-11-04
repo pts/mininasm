@@ -364,7 +364,7 @@ struct label {
 
 static struct label MY_FAR *label_list;
 static struct label MY_FAR *last_label;
-static int undefined;
+static char has_undefined;
 
 extern const char instruction_set[];
 
@@ -757,7 +757,8 @@ static const char *match_label_prefix(const char *p) {
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
- ** Saves the result to `instruction_value'.
+ ** Saves the result to `instruction_value', or 0 if there was an undefined label.
+ ** Sets `has_undefined' indicating whether ther was an undefined label.
  */
 static const char *match_expression(const char *match_p) {
     static struct match_stack_item {
@@ -777,6 +778,7 @@ static const char *match_expression(const char *match_p) {
     unsigned char level;
 
     level = 0;
+    has_undefined = 0;
     msp = match_stack;
     goto do_match;
   do_pop:
@@ -933,7 +935,7 @@ static const char *match_expression(const char *match_p) {
             label = find_label(expr_name);
             if (label == NULL) {
                 /*value1 = 0;*/
-                undefined++;
+                has_undefined = 1;
                 if (assembler_step == 2) {
                     message_start(1);
                     /* This will be printed twice for `jmp', but once for `jc'. */
@@ -960,7 +962,7 @@ static const char *match_expression(const char *match_p) {
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
                     if (GET_UVALUE(value2) == 0) {
-                        if (assembler_step == 2)
+                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
                             message(1, "division by zero");
                         value2 = 1;
                     }
@@ -969,7 +971,7 @@ static const char *match_expression(const char *match_p) {
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
                     if (GET_UVALUE(value2) == 0) {
-                        if (assembler_step == 2)
+                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
                             message(1, "modulo by zero");
                         value2 = 1;
                     }
@@ -1014,7 +1016,8 @@ static const char *match_expression(const char *match_p) {
                          * To get deterministic output, we disallow shift amounts with more than 5 bits.
                          * NASM has nondeterministic output, depending on the host architecture (32-bit mode or 64-bit mode).
                          */
-                        message(1, "shift by larger than 31");
+                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
+                            message(1, "shift by larger than 31");
                         value2 = 0;
 #if !CONFIG_SHIFT_OK_31
                     } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(value2) > 15) {
@@ -1078,7 +1081,7 @@ static const char *match_expression(const char *match_p) {
         }
     }
     if (msp != match_stack) goto do_pop;
-    instruction_value = value1;
+    instruction_value = has_undefined ? 0 : value1;
     return avoid_spaces(match_p);
 }
 
@@ -1288,7 +1291,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
 
     p0 = p;
   next_pattern:
-    undefined = 0;
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
@@ -1335,7 +1337,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (p != NULL && qualifier == 0) {
                 is_address_used = 1;
                 c = instruction_value - (current_address + 2);
-                if (dc == 'c' && undefined == 0 && (c < -128 || c > 127))
+                if (dc == 'c' && !has_undefined && (c < -128 || c > 127))
                     goto mismatch;
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
@@ -1355,9 +1357,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
             if (p != NULL && qualifier == 0) {
                 c = instruction_value;
-                if (undefined != 0)
+                if (has_undefined)
                     goto mismatch;
-                if (undefined == 0 && (c < -128 || c > 127))
+                if (!has_undefined && (c < -128 || c > 127))
                     goto mismatch;
             }
         } else if (dc == 'f') {  /* FAR pointer. */
@@ -1966,11 +1968,10 @@ static void do_assembly(const char *input_filename) {
             }
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
-            undefined = 0;
             p = match_expression(p);
             if (p == NULL) {
                 message(1, "Bad expression");
-            } else if (undefined) {
+            } else if (has_undefined) {
                 message(1, "Cannot use undefined labels");
             }
             if (GET_UVALUE(instruction_value) != 0) {
@@ -2089,11 +2090,10 @@ static void do_assembly(const char *input_filename) {
                 message(1, "Unsupported processor requested");
         } else if (casematch(part, "BITS")) {
             p = avoid_spaces(p);
-            undefined = 0;
             p = match_expression(p);
             if (p == NULL) {
                 message(1, "Bad expression");
-            } else if (undefined) {
+            } else if (has_undefined) {
                 message(1, "Cannot use undefined labels");
             } else if (GET_UVALUE(instruction_value) != 16) {
                 message(1, "Unsupported BITS requested");
@@ -2109,12 +2109,11 @@ static void do_assembly(const char *input_filename) {
             }
             include = 2;
         } else if (casematch(part, "ORG")) {
-            undefined = 0;
             p = match_expression(p);
             if (p != NULL) check_end(p);
             if (p == NULL) {
                 message(1, "Bad expression");
-            } else if (undefined) {
+            } else if (has_undefined) {
                 message(1, "Cannot use undefined labels");
             } else if (is_start_address_set) {
                 if (instruction_value != default_start_address) {
@@ -2134,30 +2133,28 @@ static void do_assembly(const char *input_filename) {
             }
         } else if (casematch(part, "ALIGN")) {
             p = avoid_spaces(p);
-            undefined = 0;
             p = match_expression(p);
             if (p == NULL) {
                 message(1, "Bad expression");
-            } else if (undefined) {
+            } else if (has_undefined) {
                 message(1, "Cannot use undefined labels");
             } else {
+                check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
                 align = current_address / instruction_value;
                 align = align * instruction_value;
                 align = align + instruction_value;
                 while (current_address < align)
                     emit_byte(0x90);
-                check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
             }
         } else {
             times = 1;
             if (casematch(part, "TIMES")) {
-                undefined = 0;
                 p = match_expression(p);
                 if (p == NULL) {
                     message(1, "Bad expression");
                     goto after_line;
                 }
-                if (undefined) {
+                if (has_undefined) {
                     message(1, "Cannot use undefined labels");
                     goto after_line;
                 }
@@ -2260,12 +2257,11 @@ int main(int argc, char **argv) {
                 for (p = argv[c] + 2; *p && *p != '='; ++p) {}
                 if (*p == '=') {
                     *(char*)p++ = 0;
-                    undefined = 0;
                     p = match_expression(p);
                     if (p == NULL) {
                         message(1, "Bad expression");
                         return 1;
-                    } else if (undefined) {
+                    } else if (has_undefined) {
                         message(1, "Cannot use undefined labels");
                         return 1;
                     } else {
