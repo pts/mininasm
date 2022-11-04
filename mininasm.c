@@ -1787,9 +1787,26 @@ static const char *get_fmt_u_value(uvalue_t u) {
     } while (u != 0);
     return p;
 }
+#define FMT_04X "%s%04X"
+#define GET_FMT_04X_VALUE(value) get_fmt_04x_high_value(value >> 16), sizeof(short) == 2 ? (unsigned short)(value) : ((value) & 0xffffU)
+static const char *get_fmt_04x_high_value(unsigned u) {
+    static char buf[5];
+    char *p = buf + sizeof(buf) - 1;
+    char c;
+    *p = '\0';
+    while (u != 0) {
+        c = '0' + ((unsigned char)u & 0xf);
+        if (c > '9') c += 'A' - ('0' + 10);
+        *--p = c;
+        u >>= 4;
+    }
+    return p;
+}
 #else
 #define FMT_05U "%05u"
 #define GET_FMT_U_VALUE(value) (value)
+#define FMT_04X "%04X"
+#define GET_FMT_04X_VALUE(value) (value)
 #endif
 
 /*
@@ -2173,7 +2190,7 @@ static void do_assembly(const char *input_filename) {
             if (first_time)
                 bbprintf(&message_bbb /* listing_fd */, "      ");
             else
-                bbprintf(&message_bbb /* listing_fd */, "%04X  ", base);
+                bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(base));
             p = generated;
             while (p < g) {
                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
@@ -2182,6 +2199,7 @@ static void do_assembly(const char *input_filename) {
                 bbprintf(&message_bbb /* listing_fd */, "  ");
                 p++;
             }
+            /* TODO(pts): Keep the original line with the original comment, if possible. This is complicated and needs more memory. */
             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
         }
         if (include == 1) {
