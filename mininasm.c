@@ -1846,9 +1846,97 @@ void do_assembly(const char *input_filename) {
 
         p = avoid_spaces(line);
         if (p[0] == '\0') goto after_line;  /* Empty line. */
+        separate();
+
+        /* Process preprocessor directive. Labels are not allowed here. */
+        if (part[0] != '%') {
+            if (avoid_level != 0 && level >= avoid_level) {
+#ifdef DEBUG
+                /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
+#endif
+                goto after_line;
+            }
+        } else if (casematch(part, "%IF")) {
+            if (GET_UVALUE(++level) == 0) { if_too_deep:
+                message(1, "%IF too deep");
+                goto close_return;
+            }
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            undefined = 0;
+            p = match_expression(p);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
+            }
+            if (GET_UVALUE(instruction_value) != 0) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            goto after_line;
+        } else if (casematch(part, "%IFDEF")) {
+            if (GET_UVALUE(++level) == 0) goto if_too_deep;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            separate();
+            if (find_dollar_label(part) != NULL) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            goto after_line;
+        } else if (casematch(part, "%IFNDEF")) {
+            if (GET_UVALUE(++level) == 0) goto if_too_deep;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            separate();
+            if (find_dollar_label(part) == NULL) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            goto after_line;
+        } else if (casematch(part, "%ELSE")) {
+            if (level == 1) {
+                message(1, "%ELSE without %IF");
+                goto close_return;
+            }
+            if (avoid_level != 0 && level > avoid_level)
+                goto after_line;
+            if (avoid_level == level) {
+                avoid_level = 0;
+            } else if (avoid_level == 0) {
+                avoid_level = level;
+            }
+            check_end(p);
+            goto after_line;
+        } else if (casematch(part, "%ENDIF")) {
+            if (avoid_level == level)
+                avoid_level = 0;
+            if (--level == 0) {
+                message(1, "%ENDIF without %IF");
+                goto close_return;
+            }
+            check_end(p);
+            goto after_line;
+        } else if (casematch(part, "%INCLUDE")) {
+            if (avoid_level != 0 && level >= avoid_level) goto after_line;
+            separate();
+            check_end(p);
+            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
+                message(1, "Missing quotes on %include");
+                goto after_line;
+            }
+            include = 1;
+            goto after_line;
+        }
 
         /* Parse and process label, if any. */
-        separate();
         if (part[strlen(part) - 1] == ':') {  /* Label */
             part[strlen(part) - 1] = '\0';
             if (part[0] == '.') {
@@ -1937,73 +2025,10 @@ void do_assembly(const char *input_filename) {
             separate();
         }
 
-        if (casematch(part, "%IF")) {
-            if (GET_UVALUE(++level) == 0) { if_too_deep:
-                message(1, "%IF too deep");
-                goto close_return;
-            }
-            if (avoid_level != 0 && level >= avoid_level)
-                goto after_line;
-            undefined = 0;
-            p = match_expression(p);
-            if (p == NULL) {
-                message(1, "Bad expression");
-            } else if (undefined) {
-                message(1, "Cannot use undefined labels");
-            }
-            if (GET_UVALUE(instruction_value) != 0) {
-                ;
-            } else {
-                avoid_level = level;
-            }
-            check_end(p);
-        } else if (casematch(part, "%IFDEF")) {
-            if (GET_UVALUE(++level) == 0) goto if_too_deep;
-            if (avoid_level != 0 && level >= avoid_level)
-                goto after_line;
-            separate();
-            if (find_dollar_label(part) != NULL) {
-                ;
-            } else {
-                avoid_level = level;
-            }
-            check_end(p);
-        } else if (casematch(part, "%IFNDEF")) {
-            if (GET_UVALUE(++level) == 0) goto if_too_deep;
-            if (avoid_level != 0 && level >= avoid_level)
-                goto after_line;
-            separate();
-            if (find_dollar_label(part) == NULL) {
-                ;
-            } else {
-                avoid_level = level;
-            }
-            check_end(p);
-        } else if (casematch(part, "%ELSE")) {
-            if (level == 1) {
-                message(1, "%ELSE without %IF");
-                goto close_return;
-            }
-            if (avoid_level != 0 && level > avoid_level)
-                goto after_line;
-            if (avoid_level == level) {
-                avoid_level = 0;
-            } else if (avoid_level == 0) {
-                avoid_level = level;
-            }
-            check_end(p);
-        } else if (casematch(part, "%ENDIF")) {
-            if (avoid_level == level)
-                avoid_level = 0;
-            if (--level == 0) {
-                message(1, "%ENDIF without %IF");
-                goto close_return;
-            }
-            check_end(p);
-        } else if (avoid_level != 0 && level >= avoid_level) {
-#ifdef DEBUG
-            /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
-#endif
+        /* Process command (non-preprocessor, non-label). */
+        if (part[0] == '\0') {
+        } else if (!isalpha(part[0])) {
+            message(1, "Instruction expected");
         } else if (casematch(part, "USE16")) {
         } else if (casematch(part, "CPU")) {
             p = avoid_spaces(p);
@@ -2022,14 +2047,6 @@ void do_assembly(const char *input_filename) {
             } else {
                 check_end(p);
             }
-        } else if (casematch(part, "%INCLUDE")) {
-            separate();
-            check_end(p);
-            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                message(1, "Missing quotes on %include");
-                goto after_line;
-            }
-            include = 1;
         } else if (casematch(part, "INCBIN")) {
             separate();
             check_end(p);
