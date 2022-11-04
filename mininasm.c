@@ -918,6 +918,7 @@ static const char *match_expression(const char *match_p) {
                 value1 = current_address;
             }
         } else if (islabel(c) && c != '#' /* && c != '~' && c != '$' && !isdigit(c) */) {  /* Start of label. Naively matches c == '$' and c == '~' and isdigit(c) as well, but we've checked those above. */
+            /* !!! TODO(pts): Disallow these keywords as label here (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD */
             if (isalpha(match_p[1]) && !islabel(match_p[2])) {
                 for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
                     if ((c & ~32) == p2[0] && (match_p[1] & ~32) == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
@@ -1107,7 +1108,7 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
 static const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
 
 /*
- ** Match addressing.
+ ** Match addressing (r/m): can be register or effective address [...].
  ** As a side effect, it sets instruction_addressing, instruction_offset, instruction_offset_width.
  */
 static const char *match_addressing(const char *p, int width) {
@@ -1286,7 +1287,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     const char *p0;
     const char *error_base;
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
-    unsigned char unused_reg;
     char dc, dw;
 
     p0 = p;
@@ -1295,35 +1295,33 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
             if (casematch(p, "WORD!")) {
-                p = avoid_spaces(p + 4);
-                if (*p != '[')
-                    goto mismatch;
+                p += 4;
                 qualifier = 16;
             } else if (casematch(p, "BYTE!")) {
-                p = avoid_spaces(p + 4);
-                if (*p != '[')
-                    goto mismatch;
+                p += 4;
                 qualifier = 8;
+            } else if ((dc == 'l' || dc == 'm') && p[0] == '[') {  /* Disallow e.g.: dec [bx] */
+                goto mismatch;
             }
-            if (dc == 'j') {
+            if (dc == 'j' || dc == 'l') {
+                /* NASM allows with a warning, but we don't for dc == 'l': dec word bh */
                 if (qualifier == 16) goto mismatch;
-              match_addressing_8:
                 /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                 p = match_addressing(p, 8);
-            } else if (dc == 'k') {
+            } else /* if (dc == 'k' || dc == 'm') */ {
+                /* NASM allows with a warning, but we don't for dc == 'm': dec byte bx */
                 if (qualifier == 8) goto mismatch;
-              match_addressing_16:
                 /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                 p = match_addressing(p, 16);
-            } else if (dc == 'l') {
-                if (qualifier != 8 && match_register(p, 8, &unused_reg) == 0) goto mismatch;
-                goto match_addressing_8;
-            } else /*if (dc == 'm')*/ {
-                if (qualifier != 16 && match_register(p, 16, &unused_reg) == 0) goto mismatch;
-                goto match_addressing_16;
             }
-        } else if (dc == 'q' || dc == 'r') {  /* Register, 8-bit (q) or 16-bit (r). */
-            p = match_register(p, dc == 'q' ? 0 : 16, &instruction_register);  /* 0: anything without the 16 bit set. */
+        } else if (dc == 'q') {  /* Register, 8-bit. */
+            /* NASM allows with a warning, but we don't for dc == 'l': dec word bh */
+            if (casematch(p, "BYTE!")) p += 4;
+            p = match_register(p, 0, &instruction_register);  /* 0: anything without the 16 bit set. */
+        } else if (dc == 'r') {  /* Register, 16-bit. */
+            /* NASM allows with a warning, but we don't for dc == 'm': dec byte bx */
+            if (casematch(p, "WORD!")) p += 4;
+            p = match_register(p, 16, &instruction_register);
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
             p = match_expression(p);
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
