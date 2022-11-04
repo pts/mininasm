@@ -1924,8 +1924,15 @@ void do_assembly(const char *input_filename) {
             }
             check_end(p);
             goto after_line;
+        } else if (casematch(part, "%IF*") || casematch(part, "%ELIF*")) {
+            /* We report this even if skipped. */
+            message_start(1);
+            bbprintf(&message_bbb, "Unknown preprocessor condition: %s", part);
+            message_end();
+            goto close_return;  /* There is no meaningful way to continue. */
+        } else if (avoid_level != 0 && level >= avoid_level) {
+            goto after_line;
         } else if (casematch(part, "%INCLUDE")) {
-            if (avoid_level != 0 && level >= avoid_level) goto after_line;
             separate();
             check_end(p);
             if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
@@ -1933,6 +1940,11 @@ void do_assembly(const char *input_filename) {
                 goto after_line;
             }
             include = 1;
+            goto after_line;
+        } else {
+            message_start(1);
+            bbprintf(&message_bbb, "Unknown preprocessor directive: %s", part);
+            message_end();
             goto after_line;
         }
 
