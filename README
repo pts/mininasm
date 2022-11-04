@@ -44,11 +44,13 @@ Differences between mininasm and NASM:
 
 * mininasm won't insert long (near) jumps for miscalculated conditional jumps.
 
-* Labels are started with letter, underscore (_), at-sign (@) or period (.).
-  Subsequent characters can be letter, digit, underscore, at-sign, period or
-  dollar ($).
+* There is only support for 8086/8088 processors (bits 16, cpu 8086), no
+  later 16-bit instructions (cpu 186; cpu 286), no 8087 floating point
+  instructions, no 32-bit instructions (bits 32, in protected mode), no 64-bit
+  instructions (bits 64, in long mode).
 
-* There is only support for 8086/8088 processors (cpu 8086).
+* Label definitions without (a leading `$' or a trailing `:') are supported
+  only for `equ', `db', `dw' and `dd'.
 
 * All label values are integers, there are no section-relative values. This
   makes mininasm more permissive, e.g. `db $ * 3' works in mininasm, but

@@ -668,11 +668,20 @@ const char *avoid_spaces(const char *p) {
 #endif
 
 /*
- ** Check for a label character
+ ** Check for a non-first label character, same as in NASM.
  */
 int islabel(int c) {
-    return isalpha(c) || isdigit(c) || c == '_' || c == '.' || c == '$' || c == '@';
+    return isalpha(c) || isdigit(c) || c == '_' || c == '.' || c == '@' || c == '?' || c == '$' || c == '~' || c == '#';
 }
+
+#if 0  /* Unused. */
+/*
+ ** Check for a first label character (excluding the leading '$' syntax), same as in NASM.
+ */
+int islabel1(int c) {
+    return isalpha(c) || c == '_' || c == '.' || c == '@' || c == '?';
+}
+#endif
 
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
@@ -833,7 +842,7 @@ const char *match_expression(const char *match_p) {
             } else {  /* Current address ($). */
                 value1 = address;
             }
-        } else if (islabel(c) /* && c != '$' && !isdigit(c) */) {  /* Start of label. Incorrectly matches c == '$' and isdigit(c) as well, but we've checked those above. */
+        } else if (islabel(c) && c != '#' /* && c != '~' && c != '$' && !isdigit(c) */) {  /* Start of label. Naively matches c == '$' and c == '~' and isdigit(c) as well, but we've checked those above. */
             if (isalpha(match_p[1]) && !islabel(match_p[2])) {
                 for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
                     if ((c & ~32) == p2[0] && (match_p[1] & ~32) == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
@@ -1405,7 +1414,8 @@ const char *prev_p;
 const char *p;
 
 /*
- ** Separate a portion of entry up to the first space
+ ** Separate a portion of entry up to the first space.
+ ** First word gets copied to `part', and `p' is advanced after it.
  */
 void separate(void) {
     char *p2;
