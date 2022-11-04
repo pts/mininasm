@@ -306,7 +306,6 @@ value_t instruction_value;
 #define MAX_SIZE        256
 
 char part[MAX_SIZE];
-char label_name[MAX_SIZE];  /* Used only in label parsing in do_assembly)(. */
 char expr_name[MAX_SIZE];
 char global_label[MAX_SIZE];
 
@@ -1970,44 +1969,36 @@ void do_assembly(const char *input_filename) {
 
         /* Parse and process label, if any. */
         if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p[0] == '$' && p3[0] == ' '))) {
-            memcpy(part, p, p3 - p);
-            part[p3 - p] = '\0';
-            p = avoid_spaces(p3 + 1);
-            /* !! TODO(pts): reuse part as label_name */
-            if (part[0] == '.') {
-                strcpy(label_name, global_label);
-                strcat(label_name, part);
-            } else if (part[0] == '$') {
-                if (part[1] == '.') {
-                    strcpy(label_name, global_label);
-                    strcat(label_name, part + 1);
-                } else {
-                   strcpy(label_name, part + 1);
-                   goto set_global_label;
-                }
+            if (p[0] == '$') ++p;
+            if (p[0] == '.') {
+                times = strlen(global_label);
+                strcpy(part, global_label);
+                memcpy(part + times, p, p3 - p);
+                part[times + (p3 - p)] = '\0';
             } else {
-                strcpy(label_name, part);
-               set_global_label:
-                strcpy(global_label, label_name);
+                memcpy(part, p, p3 - p);
+                part[(p3 - p)] = '\0';
+                strcpy(global_label, part);
             }
+            p = avoid_spaces(p3 + 1);
             if (casematch(p, "EQU*") && !islabel(p[3])) {
                 p = match_expression(p + 3);
                 if (p == NULL) {
                     message(1, "bad expression");
                 } else {
                     if (assembler_step == 1) {
-                        if (find_label(label_name)) {
+                        if (find_label(part)) {
                             message_start(1);
-                            bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                            bbprintf(&message_bbb, "Redefined label '%s'", part);
                             message_end();
                         } else {
-                            last_label = define_label(label_name, instruction_value);
+                            last_label = define_label(part, instruction_value);
                         }
                     } else {
-                        last_label = find_label(label_name);
+                        last_label = find_label(part);
                         if (last_label == NULL) {
                             message_start(1);
-                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
                             message_end();
                         } else {
                             if (last_label->value != instruction_value) {
@@ -2031,18 +2022,18 @@ void do_assembly(const char *input_filename) {
                 reset_address();
             }
             if (assembler_step == 1) {
-                if (find_label(label_name)) {
+                if (find_label(part)) {
                     message_start(1);
-                    bbprintf(&message_bbb, "Redefined label '%s'", label_name);
+                    bbprintf(&message_bbb, "Redefined label '%s'", part);
                     message_end();
                 } else {
-                    last_label = define_label(label_name, address);
+                    last_label = define_label(part, address);
                 }
             } else {
-                last_label = find_label(label_name);
+                last_label = find_label(part);
                 if (last_label == NULL) {
                     message_start(1);
-                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
+                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
                     message_end();
                 } else {
                     if (last_label->value != address) {
