@@ -292,7 +292,7 @@ static uvalue_t line_number;
 static int assembler_step;  /* !! Change many variables from int to char. */
 static value_t default_start_address;
 static value_t start_address;
-static value_t address;
+static value_t current_address;
 static int first_time;
 
 static unsigned char instruction_addressing;
@@ -911,7 +911,7 @@ static const char *match_expression(const char *match_p) {
             } else if (islabel(c)) {
                 goto label_expr;
             } else {  /* Current address ($). */
-                value1 = address;
+                value1 = current_address;
             }
         } else if (islabel(c) && c != '#' /* && c != '~' && c != '$' && !isdigit(c) */) {  /* Start of label. Naively matches c == '$' and c == '~' and isdigit(c) as well, but we've checked those above. */
             if (isalpha(match_p[1]) && !islabel(match_p[2])) {
@@ -1241,7 +1241,7 @@ static void emit_write(const char *s, int size) {
 }
 
 static void emit_bytes(const char *s, int size)  {
-    address += size;
+    current_address += size;
     if (assembler_step == 2) {
         emit_write(s, size);
         bytes += size;
@@ -1331,7 +1331,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL && qualifier == 0) {
-                c = instruction_value - (address + 2);
+                c = instruction_value - (current_address + 2);
                 if (dc == 'c' && undefined == 0 && (c < -128 || c > 127))
                     goto mismatch;
             }
@@ -1406,11 +1406,11 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             instruction_offset = instruction_value >> 8;
             dw = 1;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
-            c = instruction_value - (address + 1);
+            c = instruction_value - (current_address + 1);
             if (assembler_step == 2 && (c < -128 || c > 127))
                 message(1, "short jump too long");
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
-            c = instruction_value - (address + 2);
+            c = instruction_value - (current_address + 2);
             instruction_offset = c >> 8;
             dw = 1;
         } else if (dc == 'f') {  /* Far (16+16 bit) jump or call. */
@@ -1640,7 +1640,7 @@ static void process_instruction(void) {
  ** Called anytime the assembler needs to generate code.
  */
 static void reset_address(void) {
-    address = start_address = default_start_address;
+    current_address = start_address = default_start_address;
 }
 
 /*
@@ -1919,7 +1919,7 @@ static void do_assembly(const char *input_filename) {
             goto close_return;
         }
 
-        base = address;
+        base = current_address;
         g = generated;
         include = 0;
 
@@ -2056,7 +2056,7 @@ static void do_assembly(const char *input_filename) {
                 first_time = 0;
                 reset_address();
             }
-            instruction_value = address;
+            instruction_value = current_address;
             create_label();
         }
 
@@ -2105,14 +2105,14 @@ static void do_assembly(const char *input_filename) {
             } else {
                 if (first_time == 1) {
                     first_time = 0;
-                    address = instruction_value;
+                    current_address = instruction_value;
                     start_address = instruction_value;
-                    base = address;
+                    base = current_address;
                 } else {
-                    if (instruction_value < address) {
+                    if (instruction_value < current_address) {
                         message(1, "Backward address");
                     } else {
-                        while (address < instruction_value)
+                        while (current_address < instruction_value)
                             emit_byte(0);
 
                     }
@@ -2128,10 +2128,10 @@ static void do_assembly(const char *input_filename) {
             } else if (undefined) {
                 message(1, "Cannot use undefined labels");
             } else {
-                align = address / instruction_value;
+                align = current_address / instruction_value;
                 align = align * instruction_value;
                 align = align + instruction_value;
-                while (address < align)
+                while (current_address < align)
                     emit_byte(0x90);
                 check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
             }
@@ -2158,7 +2158,7 @@ static void do_assembly(const char *input_filename) {
                 times = instruction_value;
                 separate();
             }
-            base = address;
+            base = current_address;
             g = generated;
             p3 = prev_p;
             while (times) {
@@ -2378,7 +2378,7 @@ int main(int argc, char **argv) {
             }
             assembler_step = 2;
             first_time = 1;
-            address = start_address;
+            current_address = start_address;
             do_assembly(ifname);
 
             if (listing_fd >= 0 && change == 0) {
