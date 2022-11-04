@@ -1645,6 +1645,7 @@ void incbin(const char *fname) {
 }
 
 char line_buf[512];
+typedef char assert_line_buf_size[sizeof(line_buf) >= 2 * MAX_SIZE];  /* To avoid too much copy per line in do_assembly(...). */
 
 #if !CONFIG_CPU_UNALIGN
 struct guess_align_assembly_info_helper { off_t o; char c; };
