@@ -1644,6 +1644,36 @@ void incbin(const char *fname) {
     close(input_fd);
 }
 
+/*
+ ** Creates label named `part' with value `instruction_value'.
+ */
+void create_label(void) {
+    if (assembler_step == 1) {
+        if (find_label(part)) {
+            message_start(1);
+            bbprintf(&message_bbb, "Redefined label '%s'", part);
+            message_end();
+        } else {
+            last_label = define_label(part, instruction_value);
+        }
+    } else {
+        last_label = find_label(part);
+        if (last_label == NULL) {
+            message_start(1);
+            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
+            message_end();
+        } else {
+            if (last_label->value != instruction_value) {
+#ifdef DEBUG
+                  /*message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
+#endif
+                change = 1;
+            }
+            last_label->value = instruction_value;
+        }
+    }
+}
+
 char line_buf[512];
 typedef char assert_line_buf_size[sizeof(line_buf) >= 2 * MAX_SIZE];  /* To avoid too much copy per line in do_assembly(...). */
 
@@ -1987,66 +2017,20 @@ void do_assembly(const char *input_filename) {
                 if (p == NULL) {
                     message(1, "bad expression");
                 } else {
-                    if (assembler_step == 1) {
-                        if (find_label(part)) {
-                            message_start(1);
-                            bbprintf(&message_bbb, "Redefined label '%s'", part);
-                            message_end();
-                        } else {
-                            last_label = define_label(part, instruction_value);
-                        }
-                    } else {
-                        last_label = find_label(part);
-                        if (last_label == NULL) {
-                            message_start(1);
-                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
-                            message_end();
-                        } else {
-                            if (last_label->value != instruction_value) {
-#ifdef DEBUG
-/*                                        message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
-#endif
-                                change = 1;
-                            }
-                            last_label->value = instruction_value;
-                        }
-                    }
+                    create_label();
                     check_end(p);
                 }
                 goto after_line;
             }
-            if (first_time == 1) {
+            if (first_time == 1) {  /* !! TODO(pts): Why only here? */
 #ifdef DEBUG
                 /*                        message_start(1); bbprintf(&message_bbb, "First time '%s'", line); message_end();  */
 #endif
                 first_time = 0;
                 reset_address();
             }
-            if (assembler_step == 1) {
-                if (find_label(part)) {
-                    message_start(1);
-                    bbprintf(&message_bbb, "Redefined label '%s'", part);
-                    message_end();
-                } else {
-                    last_label = define_label(part, address);
-                }
-            } else {
-                last_label = find_label(part);
-                if (last_label == NULL) {
-                    message_start(1);
-                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
-                    message_end();
-                } else {
-                    if (last_label->value != address) {
-#ifdef DEBUG
-/*                                message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, address); message_end(); */
-#endif
-                        change = 1;
-                    }
-                    last_label->value = address;
-                }
-
-            }
+            instruction_value = address;
+            create_label();
         }
 
         /* Process command (non-preprocessor, non-label). */
