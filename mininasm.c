@@ -1845,18 +1845,21 @@ void do_assembly(const char *input_filename) {
         include = 0;
 
         p = avoid_spaces(line);
-        if (p[0] == '\0') goto after_line;  /* Empty line. */
-        separate();
-
-        /* Process preprocessor directive. Labels are not allowed here. */
-        if (part[0] != '%') {
+        if (p[0] == '\0') {  /* Empty line. */
+            goto after_line;
+        } else if (p[0] != '%') {
             if (avoid_level != 0 && level >= avoid_level) {
 #ifdef DEBUG
                 /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
 #endif
                 goto after_line;
             }
-        } else if (casematch(part, "%IF")) {
+            goto not_preproc;
+        }
+
+        /* Process preprocessor directive. Labels are not allowed here. */
+        separate();
+        if (casematch(part, "%IF")) {
             if (GET_UVALUE(++level) == 0) { if_too_deep:
                 message(1, "%IF too deep");
                 goto close_return;
@@ -1876,7 +1879,6 @@ void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-            goto after_line;
         } else if (casematch(part, "%IFDEF")) {
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
@@ -1888,7 +1890,6 @@ void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-            goto after_line;
         } else if (casematch(part, "%IFNDEF")) {
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
@@ -1900,7 +1901,6 @@ void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-            goto after_line;
         } else if (casematch(part, "%ELSE")) {
             if (level == 1) {
                 message(1, "%ELSE without %IF");
@@ -1914,7 +1914,6 @@ void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-            goto after_line;
         } else if (casematch(part, "%ENDIF")) {
             if (avoid_level == level)
                 avoid_level = 0;
@@ -1923,7 +1922,6 @@ void do_assembly(const char *input_filename) {
                 goto close_return;
             }
             check_end(p);
-            goto after_line;
         } else if (casematch(part, "%IF*") || casematch(part, "%ELIF*")) {
             /* We report this even if skipped. */
             message_start(1);
@@ -1931,7 +1929,6 @@ void do_assembly(const char *input_filename) {
             message_end();
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
-            goto after_line;
         } else if (casematch(part, "%INCLUDE")) {
             separate();
             check_end(p);
@@ -1940,15 +1937,16 @@ void do_assembly(const char *input_filename) {
                 goto after_line;
             }
             include = 1;
-            goto after_line;
         } else {
             message_start(1);
             bbprintf(&message_bbb, "Unknown preprocessor directive: %s", part);
             message_end();
-            goto after_line;
         }
+        goto after_line;
+      not_preproc:
 
         /* Parse and process label, if any. */
+        separate();
         if (part[strlen(part) - 1] == ':') {  /* Label */
             part[strlen(part) - 1] = '\0';
             if (part[0] == '.') {
