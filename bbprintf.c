@@ -218,6 +218,7 @@ int bbprintf(struct bbprintf_buf *bbb, const char *format, ...) {
   return print(bbb, format, args);
 }
 
+#if 0  /* Unused. */
 int bbsprintf(char *out, const char *format, ...) {
   int result;
   struct bbprintf_buf bbb;
@@ -229,6 +230,7 @@ int bbsprintf(char *out, const char *format, ...) {
   *bbb.p = '\0';
   return result;
 }
+#endif
 
 #if 0  /* Unused. */
 int bbsnprintf(char *out, int size, const char *format, ...) {
