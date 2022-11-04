@@ -306,7 +306,7 @@ value_t instruction_value;
 #define MAX_SIZE        256
 
 char part[MAX_SIZE];
-char name[MAX_SIZE];
+char label_name[MAX_SIZE];  /* Used only in label parsing in do_assembly)(. */
 char expr_name[MAX_SIZE];
 char global_label[MAX_SIZE];
 
@@ -1846,46 +1846,47 @@ void do_assembly(const char *input_filename) {
 
         while (1) {
             p = line;
+
+            /* Parse and process label, if any. */
             separate();
             if (part[0] == '\0') break;  /* Empty line */
             if (part[strlen(part) - 1] == ':') {  /* Label */
                 part[strlen(part) - 1] = '\0';
                 if (part[0] == '.') {
-                    strcpy(name, global_label);
-                    strcat(name, part);
+                    strcpy(label_name, global_label);
+                    strcat(label_name, part);
                 } else if (part[0] == '$') {
                     if (part[1] == '.') {
-                        strcpy(name, global_label);
-                        strcat(name, part + 1);
+                        strcpy(label_name, global_label);
+                        strcat(label_name, part + 1);
                     } else {
-                       strcpy(name, part + 1);
+                       strcpy(label_name, part + 1);
                        goto set_global_label;
                     }
                 } else {
-                    strcpy(name, part);
+                    strcpy(label_name, part);
                    set_global_label:
-                    strcpy(global_label, name);
+                    strcpy(global_label, label_name);
                 }
-                separate();
                 if (avoid_level == 0 || level < avoid_level) {
-                    if (casematch(part, "EQU")) {
-                        p = match_expression(p);
+                    if (casematch(p, "EQU*") && !islabel(p[3])) {
+                        p = match_expression(p + 3);
                         if (p == NULL) {
                             message(1, "bad expression");
                         } else {
                             if (assembler_step == 1) {
-                                if (find_label(name)) {
+                                if (find_label(label_name)) {
                                     message_start(1);
-                                    bbprintf(&message_bbb, "Redefined label '%s'", name);
+                                    bbprintf(&message_bbb, "Redefined label '%s'", label_name);
                                     message_end();
                                 } else {
-                                    last_label = define_label(name, instruction_value);
+                                    last_label = define_label(label_name, instruction_value);
                                 }
                             } else {
-                                last_label = find_label(name);
+                                last_label = find_label(label_name);
                                 if (last_label == NULL) {
                                     message_start(1);
-                                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
+                                    bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
                                     message_end();
                                 } else {
                                     if (last_label->value != instruction_value) {
@@ -1909,18 +1910,18 @@ void do_assembly(const char *input_filename) {
                         reset_address();
                     }
                     if (assembler_step == 1) {
-                        if (find_label(name)) {
+                        if (find_label(label_name)) {
                             message_start(1);
-                            bbprintf(&message_bbb, "Redefined label '%s'", name);
+                            bbprintf(&message_bbb, "Redefined label '%s'", label_name);
                             message_end();
                         } else {
-                            last_label = define_label(name, address);
+                            last_label = define_label(label_name, address);
                         }
                     } else {
-                        last_label = find_label(name);
+                        last_label = find_label(label_name);
                         if (last_label == NULL) {
                             message_start(1);
-                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", name);
+                            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", label_name);
                             message_end();
                         } else {
                             if (last_label->value != address) {
@@ -1934,7 +1935,9 @@ void do_assembly(const char *input_filename) {
 
                     }
                 }
+                separate();
             }
+
             if (casematch(part, "%IF")) {
                 if (GET_UVALUE(++level) == 0) { if_too_deep:
                     message(1, "%IF too deep");
