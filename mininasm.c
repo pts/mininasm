@@ -1356,6 +1356,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
             if (p != NULL && qualifier == 0) {
                 is_address_used = 1;
+                if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
                 c = instruction_value - (current_address + 2);
                 if (dc == 'c' && !has_undefined && (c < -128 || c > 127))
                     goto mismatch;
