@@ -32,7 +32,6 @@
 ; * add ax, byte 9. wcc: 05 09 00; wasm: 83 C0 09.
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
-; !!! doc: incompatibility: es: before the instruction
 ; !!! doc: incompatibility: `jmp near' to `jmp'; by default, nasm still optimizes
 ; !!! doc: incompatibility: `call near' to `call'
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion

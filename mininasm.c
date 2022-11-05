@@ -297,6 +297,8 @@ static char is_start_address_set;
 
 static unsigned char instruction_addressing;
 static unsigned char instruction_offset_width;
+/* Machine code byte value or 0 segment register missing from effective address [...]. */
+static char instruction_addressing_segment;
 static value_t instruction_offset;
 
 static unsigned char instruction_register;
@@ -1115,13 +1117,22 @@ static const char *match_addressing(const char *p, int width) {
     unsigned char reg, reg2, reg12;
     unsigned char *instruction_addressing_p = &instruction_addressing;  /* Using this pointer saves 20 bytes in __DOSMC__. */
     const char *p2;
+    char c;
 
     instruction_offset = 0;
     instruction_offset_width = 0;
+    instruction_addressing_segment = 0;
 
     p = avoid_spaces(p);
     if (*p == '[') {
         p = avoid_spaces(p + 1);
+        if (p[0] != '\0' && ((p[1] & ~32) == 'S') && ((c = p[0] & ~32) == 'S' || c - 'C' + 0U <= 'E' - 'C' + 0U)) {  /* Possible segment register: CS, DS, ES or SS. */
+            p2 = avoid_spaces(p + 2);
+            if (p2[0] == ':') {  /* Found segment register. */
+                p = avoid_spaces(p2 + 1);
+                instruction_addressing_segment = c == 'C' ? 0x2e : c == 'D' ? 0x3e : c == 'E' ? 0x26 : /* c == 'S' ? */ 0x36;
+            }
+        }
         p2 = match_register(p, 16, &reg);
         if (p2 != NULL) {
             p = avoid_spaces(p2);
@@ -1289,8 +1300,17 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
     char dc, dw;
 
+    /* Example instructions with emitted_bytes + instructon + "pattern encode":
+     *
+     * 3B063412  cmp ax,[0x1234]  "r,k 3Bdrd"
+     * 88063412  mov [0x1234],al  "k,r 89drd"  ; A23412
+     * 89063412  mov [0x1234],ax  "k,r 89drd"  ; A33412
+     * 8A063412  mov al,[0x1234]  "q,j 8Adrd"  ; A03412
+     * 8B063412  mov ax,[0x1234]  "r,k 8Bdrd"  ; A13412
+     */
     p0 = p;
   next_pattern:
+    instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
@@ -1386,6 +1406,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     /*
      ** Instruction properly matched, now generate binary
      */
+    if (instruction_addressing_segment) emit_byte(instruction_addressing_segment);
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
@@ -1396,12 +1417,25 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             dc = *pattern_and_encode++ - '0';
             if (dc > 9) dc -= 7;
             c = (c << 4) | dc;
+            if ((unsigned char)(c - 0x88) <= (unsigned char)(0x8b - 0x88) && pattern_and_encode == error_base + 2 && instruction_addressing == 6 && instruction_register == 0) {
+                /* Optimization:
+                 *
+                 * 88063412  mov [0x1234],al  "k,r 89drd"  --> A23412
+                 * 89063412  mov [0x1234],ax  "k,r 89drd"  --> A33412
+                 * 8A063412  mov al,[0x1234]  "q,j 8Adrd"  --> A03412
+                 * 8B063412  mov ax,[0x1234]  "r,k 8Bdrd"  --> A13412
+                 */
+                pattern_and_encode = "";
+                dw = 2;
+                c += 0xa0 - 0x88;
+                c ^= 2;
+            }
         } else if (dc == 'i') {
             c = instruction_value;
         } else if (dc == 'j') {
             c = instruction_value;
             instruction_offset = instruction_value >> 8;
-            dw = 1;
+            dw = 1;  /* TODO(pts): Optimize this and below as ++dw. */
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
             c = instruction_value - (current_address + 1);
@@ -2496,7 +2530,7 @@ const char instruction_set[] =
     "LOOPNE\0" "a E0a\0"
     "LOOPNZ\0" "a E0a\0"
     "LOOPZ\0" "a E1a\0"
-    "MOV\0" "AL,[i] A0j" ALSO "AX,[i] A1j" ALSO "[i],AL A2j" ALSO "[i],AX A3j" ALSO "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,i ozoozri" ALSO "r,i ozooorj" ALSO "l,i oozzzoozdzzzdi" ALSO "m,i oozzzooodzzzdj\0"
+    "MOV\0" "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,i ozoozri" ALSO "r,i ozooorj" ALSO "l,i oozzzoozdzzzdi" ALSO "m,i oozzzooodzzzdj\0"
     "MOVSB\0" " A4\0"
     "MOVSW\0" " A5\0"
     "MUL\0" "l F6dozzd" ALSO "m F7dozzd\0"

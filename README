@@ -75,10 +75,6 @@ Differences between mininasm and NASM:
 	dw
 	align
 
-* The segment prefix must be the first word in the instructions, e.g.
-  `es cmp al, [di]' works in both NASM and mininasm, but `cmp al, [es:di]'
-  doesn't work in mininasm.
-
 * Source lines longer than 255 bytes (not counting the trailing whitespace +
   optional comment + LF line terminator) are not allowed.
 

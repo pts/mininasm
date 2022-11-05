@@ -570,18 +570,18 @@ RBL_GET_LEFT_:
 		mov es, dx
 
 ;     char MY_FAR *p = MK_FP((label)->left_seg, ((label)->left_right_ofs >> 4) & 0xe);
-		es mov al, byte [bx]
+		mov al, byte [es:bx]
 		xor ah, ah
 		mov cl, 4
 		mov si, ax
 		sar si, cl
 		and si, BYTE 0xe
-		es mov es, word [bx+1]
+		mov es, word [es:bx+1]
 		mov ax, si
 		mov dx, es
 
 ;     if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
-		es cmp byte [si], 0
+		cmp byte [es:si], 0
 		jne @$1
 		lea ax, [si+1]
 @$1:
@@ -597,16 +597,16 @@ RBL_GET_RIGHT_:
 		mov es, dx
 
 ;     char MY_FAR *p = MK_FP((label)->right_seg, (label)->left_right_ofs & 0xe);
-		es mov al, byte [bx]
+		mov al, byte [es:bx]
 		and al, 0xe
 		xor ah, ah
-		es mov es, word [bx+3]
+		mov es, word [es:bx+3]
 		mov bx, ax
 		mov dx, es
 
 ;     if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
 		mov si, ax
-		es cmp byte [si], 0
+		cmp byte [es:si], 0
 		jne @$2
 		inc bx
 
@@ -625,17 +625,17 @@ RBL_SET_LEFT_:
 		mov es, dx
 
 ;     label->left_seg = FP_SEG(ptr);
-		es mov word [si+1], cx
+		mov word [es:si+1], cx
 
 ;     label->left_right_ofs = (label->left_right_ofs & 0x1f) | (FP_OFF(ptr) & 0xe) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
 		and bx, BYTE 0xe
 		mov cl, 4
 		shl bx, cl
-		es mov cl, byte [si]
+		mov cl, byte [es:si]
 		and cl, 0x1f
 		xor ch, ch
 		or bx, cx
-		es mov byte [si], bl
+		mov byte [es:si], bl
 
 ; }
 		pop si
@@ -648,14 +648,14 @@ RBL_SET_RIGHT_:
 		mov es, dx
 
 ;     label->right_seg = FP_SEG(ptr);
-		es mov word [si+3], cx
+		mov word [es:si+3], cx
 
 ;     label->left_right_ofs = (label->left_right_ofs & 0xf1) | (FP_OFF(ptr) & 0xe);  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
-		es mov al, byte [si]
+		mov al, byte [es:si]
 		and al, 0xf1
 		and bl, 0xe
 		or al, bl
-		es mov byte [si], al
+		mov byte [es:si], al
 
 ; }
 		pop si
@@ -764,16 +764,16 @@ define_label_:
 ;     RBL_SET_LEFT_RIGHT_NULL(label);
 @$6:
 		les si, [bp-6]
-		es mov byte [si], 0x10
-		es mov word [si+3], 0
-		es mov ax, word [si+3]
-		es mov word [si+1], ax
+		mov byte [es:si], 0x10
+		mov word [es:si+3], 0
+		mov ax, word [es:si+3]
+		mov word [es:si+1], ax
 
 ;     label->value = value;
-		es mov word [si+5], bx
+		mov word [es:si+5], bx
 		mov ax, word [bp-0x10]
 		mov bx, si
-		es mov word [bx+7], ax
+		mov word [es:bx+7], ax
 
 ;     strcpy_far(label->name, name);
 		mov cx, ds
@@ -802,7 +802,7 @@ define_label_:
 ;         RBL_SET_RED_1(label);
 		mov es, word [bp-4]
 		mov bx, si
-		es or byte [bx], 1
+		or byte [es:bx], 1
 
 ;         path->label = label_list;
 		mov ax, [_label_list]  ; !!! mov ax, word [_label_list]
@@ -892,7 +892,7 @@ define_label_:
 ;                 if (RBL_IS_RED(left)) {
 		mov es, word [bp-0xa]
 		mov bx, word [bp-0xe]
-		es test byte [bx], 1
+		test byte [es:bx], 1
 		je @$15
 
 ;                     struct label MY_FAR *leftleft = RBL_GET_LEFT(left);
@@ -905,12 +905,12 @@ define_label_:
 ;                     if (!RBL_IS_NULL(leftleft) && RBL_IS_RED(leftleft)) {
 		test dx, dx
 		je @$16
-		es test byte [bx], 1
+		test byte [es:bx], 1
 		je @$16
 
 ;                         struct label MY_FAR *tlabel;
 ;                         RBL_SET_RED_0(leftleft);
-		es and byte [bx], 0xfe
+		and byte [es:bx], 0xfe
 
 ;                         tlabel = RBL_GET_LEFT(clabel);
 		mov ax, di
@@ -965,7 +965,7 @@ define_label_:
 ;                 if (RBL_IS_RED(right)) {
 		mov es, word [bp-8]
 		mov bx, word [bp-0xc]
-		es test byte [bx], 1
+		test byte [es:bx], 1
 		je @$15
 
 ;                     struct label MY_FAR *left = RBL_GET_LEFT(clabel);
@@ -978,20 +978,20 @@ define_label_:
 ;                     if (!RBL_IS_NULL(left) && RBL_IS_RED(left)) {
 		test dx, dx
 		je @$18
-		es test byte [bx], 1
+		test byte [es:bx], 1
 		je @$18
 
 ;                          RBL_SET_RED_0(left);
-		es and byte [bx], 0xfe
+		and byte [es:bx], 0xfe
 
 ;                          RBL_SET_RED_0(right);
 		mov es, word [bp-8]
 		mov bx, word [bp-0xc]
-		es and byte [bx], 0xfe
+		and byte [es:bx], 0xfe
 
 ;                          RBL_SET_RED_1(clabel);
 		mov es, word [bp-2]
-		es or byte [di], 1
+		or byte [es:di], 1
 
 ;                      } else {
 		jmp SHORT @$20
@@ -1022,18 +1022,18 @@ define_label_:
 
 ;                          RBL_COPY_RED(tlabel, clabel);
 		les bx, [bp-0x14]
-		es mov ah, byte [bx]
+		mov ah, byte [es:bx]
 		and ah, 0xfe
 		mov es, word [bp-2]
-		es mov al, byte [di]
+		mov al, byte [es:di]
 		and al, 1
 		or ah, al
 		mov es, word [bp-0x12]
-		es mov byte [bx], ah
+		mov byte [es:bx], ah
 
 ;                          RBL_SET_RED_1(clabel);
 		mov es, word [bp-2]
-		es or byte [di], 1
+		or byte [es:di], 1
 
 ;                          clabel = tlabel;
 		mov di, bx
@@ -1063,7 +1063,7 @@ define_label_:
 
 ;         RBL_SET_RED_0(label_list);
 		mov es, dx
-		es and byte [bx], 0xfe
+		and byte [es:bx], 0xfe
 
 ;     }
 ;   done:
@@ -1210,7 +1210,7 @@ print_labels_sorted_to_listing_fd_:
 
 ;         if (RBL_IS_LEFT_NULL(node)) goto do_print;
 		mov es, ax
-		es cmp word [si+1], BYTE 0
+		cmp word [es:si+1], BYTE 0
 		je @$35
 
 ;         for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
@@ -1272,9 +1272,9 @@ print_labels_sorted_to_listing_fd_:
 ; #if IS_VALUE_LONG
 ;             bbprintf(&message_bbb, "%-20s %04x%04x\r\n", global_label, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
 		mov es, word [bp-2]
-		es mov ax, word [si+5]
+		mov ax, word [es:si+5]
 		push ax
-		es mov ax, word [si+7]
+		mov ax, word [es:si+7]
 		push ax
 		mov ax, _global_label
 		push ax
@@ -2091,9 +2091,9 @@ match_expression_:
 ;                 value1 = label->value;
 @$106:
 		mov es, dx
-		es mov ax, word [bx+5]
+		mov ax, word [es:bx+5]
 		mov word [bp-0x10], ax
-		es mov ax, word [bx+7]
+		mov ax, word [es:bx+7]
 @$107:
 		mov word [bp-0xe], ax
 
@@ -5785,8 +5785,8 @@ do_assembly_:
 ;                                     if (last_label->value != instruction_value) {
 @$382:
 		mov es, dx
-		es mov dx, word [bx+5]
-		es mov ax, word [bx+7]
+		mov dx, word [es:bx+5]
+		mov ax, word [es:bx+7]
 		cmp ax, word [_instruction_value+2]
 		jne @$383
 		cmp dx, word [_instruction_value]
@@ -5805,8 +5805,8 @@ do_assembly_:
 		les bx, [_last_label]
 		mov ax, [_instruction_value]  ; !!! no word [...]
 		mov dx, word [_instruction_value+2]
-		es mov word [bx+5], ax
-		es mov word [bx+7], dx
+		mov word [es:bx+5], ax
+		mov word [es:bx+7], dx
 		jmp @$404
 
 ;                                 }
@@ -5909,8 +5909,8 @@ do_assembly_:
 ;                             if (last_label->value != address) {
 @$391:
 		mov es, dx
-		es mov dx, word [bx+5]
-		es mov ax, word [bx+7]
+		mov dx, word [es:bx+5]
+		mov ax, word [es:bx+7]
 		cmp ax, word [_address+2]
 		jne @$392
 		cmp dx, word [_address]
@@ -5929,8 +5929,8 @@ do_assembly_:
 		les bx, [_last_label]
 		mov ax, [_address]  ; !!! no word [...]
 		mov dx, word [_address+2]
-		es mov word [bx+5], ax
-		es mov word [bx+7], dx
+		mov word [es:bx+5], ax
+		mov word [es:bx+7], dx
 
 ;                         }
 ;
@@ -7339,7 +7339,7 @@ main_:
 		dec ax
 		mov es, ax
 		inc ax
-		es add ax, word [3]
+		add ax, word [es:3]
 		mov [___malloc_struct__], ax  ; !!! no word [...]
 
 ;     do_assembly(ifname);
