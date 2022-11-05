@@ -365,7 +365,6 @@ struct label {
 };
 
 static struct label MY_FAR *label_list;
-static struct label MY_FAR *last_label;
 static char has_undefined;
 
 extern const char instruction_set[];
@@ -1707,6 +1706,7 @@ static void incbin(const char *fname) {
  ** Creates label named `part' with value `instruction_value'.
  */
 static void create_label(void) {
+    struct label MY_FAR *last_label;
     if (assembler_step == 1) {
         if (find_label(part)) {
             message_start(1);
