@@ -1387,6 +1387,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (*p != ':')
                 goto mismatch;
             p = match_expression(p + 1);
+        } else if (dc == '!') {
+            if (islabel(*p)) goto mismatch;
+            continue;
         } else if (dc - 'a' + 0U <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else {
@@ -2463,7 +2466,7 @@ const char instruction_set[] =
     "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "AL,i 14i" ALSO "AX,i 15j" ALSO "k,s 83dzozdi" ALSO "j,i 80dzozdi" ALSO "k,i 81dzozdj\0"
     "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "AL,i 04i" ALSO "AX,i 05j" ALSO "k,s 83dzzzdi" ALSO "j,i 80dzzzdi" ALSO "k,i 81dzzzdj\0"
     "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "AL,i 24i" ALSO "AX,i 25j" ALSO "k,s 83dozzdi" ALSO "j,i 80dozzdi" ALSO "k,i 81dozzdj\0"
-    "CALL\0" "FAR k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
+    "CALL\0" "FAR!k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
     "CBW\0" " 98\0"
     "CLC\0" " F8\0"
     "CLD\0" " FC\0"
@@ -2500,7 +2503,7 @@ const char instruction_set[] =
     "JGE\0" "a 7Da\0"
     "JL\0" "a 7Ca\0"
     "JLE\0" "a 7Ea\0"
-    "JMP\0" "FAR k FFdozod" ALSO "f EAf" ALSO "k FFdozzd" ALSO "c EBa" ALSO "b E9b\0"
+    "JMP\0" "FAR!k FFdozod" ALSO "f EAf" ALSO "k FFdozzd" ALSO "c EBa" ALSO "b E9b\0"
     "JNA\0" "a 76a\0"
     "JNAE\0" "a 72a\0"
     "JNB\0" "a 73a\0"
