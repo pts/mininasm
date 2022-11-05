@@ -735,20 +735,26 @@ static int is_colonless_instruction(const char *p) {
  */
 static const char *match_label_prefix(const char *p) {
     const char *p2;
-    char c = *p++;
-    if (c == '$') {
-        c = *p++;
-        if (isalpha(c)) goto goodc;
-    } else if (isalpha(c)) {
-        if (isalpha(p[0]) && !islabel(p[1])) {
-            for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
-                if ((c & ~32) == p2[0] && (p[0] & ~32) == p2[1]) return NULL;  /* A register name is not a valid label name. */
+    char cd[2];
+    cd[0] = *p++;
+    if (cd[0] == '$') {
+        cd[0] = *p++;
+        if (isalpha(cd[0])) goto goodc;
+    } else if (isalpha(cd[0])) {
+        if (isalpha(cd[1] = p[0]) && !islabel(p[1])) {
+            /* !! TODO(pts): Size optimization: concatenate register_names: "DBDWDDCSDSESSS" "..."; also compare them as short (int16_t). */
+            cd[0] &= ~32;
+            cd[1] &= ~32;
+            for (p2 = (char*)register_names; p2 != register_names + (sizeof(register_names) & ~1); p2 += 2) {
+                if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
             }
+            if ((cd[1] == 'S') && (cd[0] == 'S' || cd[0] - 'C' + 0U <= 'E' - 'C' + 0U)) return NULL;  /* Segment register: CS, DS, ES or SS. */
         }
         if (is_colonless_instruction(p - 1)) return NULL;
+        /* !!! TODO(pts): Disallow these keywords as label (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD. */
         goto goodc;
     }
-    if (c != '_' && c != '.' && c != '@' && c != '?') return NULL;
+    if (cd[0] != '_' && cd[0] != '.' && cd[0] != '@' && cd[0] != '?') return NULL;
   goodc:
     for (; islabel(p[0]); ++p) {}
     return p;
@@ -1320,7 +1326,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             qualifier = 0;
-            /* !!! TODO(pts): Disallow these keywords as label (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD */
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             if (casematch(p, "SHORT!")) {
                 p += 5;
