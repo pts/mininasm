@@ -42,8 +42,6 @@ following improvements:
 
 Differences between mininasm and NASM:
 
-* mininasm won't insert long (near) jumps for miscalculated conditional jumps.
-
 * There is only support for 8086/8088 processors (bits 16, cpu 8086), no
   later 16-bit instructions (cpu 186; cpu 286), no 8087 floating point
   instructions, no 32-bit instructions (bits 32, in protected mode), no 64-bit

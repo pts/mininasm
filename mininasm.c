@@ -1294,7 +1294,7 @@ static const char *check_end(const char *p) {
  ** Search for a match with instruction
  */
 static const char *match(const char *p, const char *pattern_and_encode) {
-    int c;
+    int c;  /* Can be as little as 16-bits. value_t is used instead where larger is needed. */
     int bit;
     int qualifier;
     const char *p0;
@@ -1311,6 +1311,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
      * 8B063412  mov ax,[0x1234]  "r,k 8Bdrd"  ; A13412
      */
     p0 = p;
+    qualifier = 0;  /* Pacify gcc. */
   next_pattern:
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
@@ -1347,7 +1348,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
             if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
+        } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. !!! 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
             qualifier = 0;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             if (casematch(p, "SHORT!")) {
@@ -1355,17 +1356,20 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
-            if (p != NULL && qualifier == 0) {
-                is_address_used = 1;
+            if (p != NULL) {
                 if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
-                c = instruction_value - (current_address + 2);
-                if (dc == 'c' && !has_undefined && (c < -128 || c > 127))
-                    goto mismatch;
+                instruction_value -= current_address + 2;
+                if (qualifier == 0 && dc == 'c') {
+                    is_address_used = 1;
+                    /* Jump is longer than 8-bit signed relative jump. Do a mismatch here, so that the next pattern will generate a near jump. */
+                    if (((uvalue_t)instruction_value + 0x80) & ~0xffU) goto mismatch;
+                }
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             if (casematch(p, "SHORT!")) goto mismatch;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
+            instruction_value -= current_address + 3;
         } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the form of `k,s', k be a 16-bit register or 16-bit effective address.  */
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
@@ -1432,6 +1436,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 dw = 2;
                 c += 0xa0 - 0x88;
                 c ^= 2;
+            } else if ((unsigned char)(c - 0x70) <= 0xfU && qualifier == 0 && (((uvalue_t)instruction_value + 0x80) & ~0xffU)) {  /* Generate 5-byte `near' version of 8-bit relative conditional jump with an inverse. */
+                emit_byte(c ^ 1);  /* Conditional jump with negated condition. */
+                emit_byte(3);  /* Skip next 3 bytes if negated condition is true. */
+                c = 0xe9;  /* `jmp near', 2 bytes will follow for encode "b". */
+                pattern_and_encode = "b";
+                instruction_value -= 3;  /* Jump source address (0xe9) is 3 times larger than previously anticipated. */
             }
         } else if (dc == 'i') {
             c = instruction_value;
@@ -1441,12 +1451,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             dw = 1;  /* TODO(pts): Optimize this and below as ++dw. */
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
-            c = instruction_value - (current_address + 1);
-            if (assembler_step == 2 && (c < -128 || c > 127))
+            if (assembler_step == 2 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
                 message(1, "short jump too long");
+            c = instruction_value;
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
-            c = instruction_value - (current_address + 2);
+            if (assembler_step == 2 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
+                message(1, "near jump too long");
+            c = instruction_value;
             instruction_offset = c >> 8;
             dw = 1;
         } else if (dc == 'f') {  /* Far (16+16 bit) jump or call. */
