@@ -917,13 +917,7 @@ static const char *match_expression(const char *match_p) {
                 is_address_used = 1;
                 value1 = current_address;
             }
-        } else if (islabel(c) && c != '#' /* && c != '~' && c != '$' && !isdigit(c) */) {  /* Start of label. Naively matches c == '$' and c == '~' and isdigit(c) as well, but we've checked those above. */
-            /* !!! TODO(pts): Disallow these keywords as label here (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD */
-            if (isalpha(match_p[1]) && !islabel(match_p[2])) {
-                for (p2 = (char*)register_names; p2 != register_names + 32; p2 += 2) {
-                    if ((c & ~32) == p2[0] && (match_p[1] & ~32) == p2[1]) goto match_error;  /* Using a register name as a label without a preceding `$' is an error. */
-                }
-            }
+        } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
             p2 = expr_name;
             if (c == '.') {
