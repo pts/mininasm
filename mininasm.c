@@ -1345,6 +1345,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (casematch(p, "WORD!")) p += 4;
             p = match_register(p, 16, &instruction_register);
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
+            if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. */
             qualifier = 0;
@@ -1365,20 +1366,16 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (casematch(p, "SHORT!")) goto mismatch;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 's') {  /* Signed immediate, 8-bit. */
+        } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the form of `k,s', k be a 16-bit register or 16-bit effective address.  */
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
                 p += 4;
                 qualifier = 1;
             }
             p = match_expression(p);
-            if (p != NULL && qualifier == 0) {
-                c = instruction_value;
-                if (has_undefined)
-                    goto mismatch;
-                if (!has_undefined && (c < -128 || c > 127))
-                    goto mismatch;
-            }
+            /* !!! TODO(pts): Disable this optimization with -O0, bacause NASM doesn't do it. */
+            /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
+            if (p != NULL && qualifier == 0 && /* !has_undefined && */ (((uvalue_t)instruction_value + 0x80) & 0xff00U)) goto mismatch;
         } else if (dc == 'f') {  /* FAR pointer. */
             if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             p = match_expression(p);
