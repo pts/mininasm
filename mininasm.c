@@ -737,27 +737,30 @@ static int is_colonless_instruction(const char *p) {
 static const char *match_label_prefix(const char *p) {
     const char *p2;
     char cd[2];
-    cd[0] = *p++;
+    cd[0] = *p;
     if (cd[0] == '$') {
-        cd[0] = *p++;
+        cd[0] = *++p;
         if (isalpha(cd[0])) goto goodc;
     } else if (isalpha(cd[0])) {
-        if (isalpha(cd[1] = p[0]) && !islabel(p[1])) {
-            /* !! TODO(pts): Size optimization: concatenate register_names: "DBDWDDCSDSESSS" "..."; also compare them as short (int16_t). */
-            cd[0] &= ~32;
-            cd[1] &= ~32;
-            for (p2 = (char*)register_names; p2 != register_names + (sizeof(register_names) & ~1); p2 += 2) {
-                if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
+        if (isalpha(cd[1] = p[1])) {
+            if (!islabel(p[2])) {  /* 2-character label. */
+                /* !! TODO(pts): Size optimization: concatenate register_names: "DBDWDDCSDSESSS" "..."; also compare them as short (int16_t). */
+                cd[0] &= ~32;
+                cd[1] &= ~32;
+                for (p2 = (char*)register_names; p2 != register_names + (sizeof(register_names) & ~1); p2 += 2) {
+                    if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
+                }
+                if ((cd[1] == 'S') && (cd[0] == 'S' || cd[0] - 'C' + 0U <= 'E' - 'C' + 0U)) return NULL;  /* Segment register: CS, DS, ES or SS. */
             }
-            if ((cd[1] == 'S') && (cd[0] == 'S' || cd[0] - 'C' + 0U <= 'E' - 'C' + 0U)) return NULL;  /* Segment register: CS, DS, ES or SS. */
+            if (is_colonless_instruction(p)) return NULL;
+            /* TODO(pts): Is it faster or smaller to add these to a binary tree? */
+            if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "FAR!") || casematch(p, "BYTE!") || casematch(p, "WORD!") || casematch(p, "DWORD!")) return NULL;
         }
-        if (is_colonless_instruction(p - 1)) return NULL;
-        /* !!! TODO(pts): Disallow these keywords as label (for better error reporting `mov short, ax'): SHORT, NEAR, FAR, BYTE, WORD, DWORD. */
         goto goodc;
     }
     if (cd[0] != '_' && cd[0] != '.' && cd[0] != '@' && cd[0] != '?') return NULL;
   goodc:
-    for (; islabel(p[0]); ++p) {}
+    while (islabel(*++p)) {}
     return p;
 }
 
