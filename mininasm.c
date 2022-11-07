@@ -307,6 +307,8 @@ static unsigned char instruction_register;
 
 static value_t instruction_value;
 
+static int opt_level;  /* The default of 0 is equivalent to `nasm -O0', which is the default for NASM 0.98.39, but not for newer NASMs (which default to multipass optimization). */
+
 #define MAX_SIZE        256
 
 static char part[MAX_SIZE];
@@ -2312,6 +2314,19 @@ int main(int argc, char **argv) {
                         p = argv[c] + 2;
                         define_label(p + (p[0] == '$'), instruction_value);
                     }
+                }
+                c++;
+            } else if (argv[c][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
+                d = argv[c][2];
+                if (d == '\0' || argv[c][3] != '\0') { bad_opt_level:
+                    message(1, "bad optimization argument");
+                    return 1;
+                } else if (d == '0') {
+                    opt_level = 0;  /* No optimization, same as NASM 0.98.39 and 0.99.06 default. */
+                } else if (d == 'x' || d == 'X' || d == '3' || d == '9') {
+                    opt_level = 9;  /* Full, multipass optimization, same as newer NASM 2.x default. */
+                } else {
+                    goto bad_opt_level;
                 }
                 c++;
             } else if (argv[c][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
