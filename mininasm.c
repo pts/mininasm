@@ -267,6 +267,7 @@ typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. 
 typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
 #define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
 #define GET_UVALUE(value) (uvalue_t)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
+#define GET_U16(value) (unsigned short)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
 #if CONFIG_VALUE_BITS == 32
 #if __SIZEOF_INT__ >= 4
@@ -280,6 +281,7 @@ typedef unsigned long uvalue_t;
 #endif
 #define GET_VALUE(value) (value_t)(sizeof(value_t) == 4 ? (value_t)(value) : sizeof(int) == 4 ? (value_t)(int)(value) : sizeof(long) == 4 ? (value_t)(long)(value) : (value_t)(((long)(value) & 0x7fffffffL) | -((long)(value) & 0x80000000UL)))
 #define GET_UVALUE(value) (uvalue_t)(sizeof(uvalue_t) == 4 ? (uvalue_t)(value) : sizeof(unsigned) == 4 ? (uvalue_t)(unsigned)(value) : sizeof(unsigned long) == 4 ? (uvalue_t)(unsigned long)(value) : (uvalue_t)(value) & 0xffffffffUL)
+#define GET_U16(value) (unsigned short)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
 #error CONFIG_VALUE_BITS must be 16 or 32.
 #endif
@@ -299,7 +301,7 @@ static unsigned char instruction_addressing;
 static unsigned char instruction_offset_width;
 /* Machine code byte value or 0 segment register missing from effective address [...]. */
 static char instruction_addressing_segment;
-static value_t instruction_offset;
+static unsigned short instruction_offset;
 
 static unsigned char instruction_register;
 
@@ -1177,11 +1179,11 @@ static const char *match_addressing(const char *p, int width) {
                         p++;
                       set_width:
                         ++instruction_offset_width;
-                        if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
-                            *instruction_addressing_p |= 0x40;
-                        } else {
+                        if ((instruction_offset + 0x80) & 0xff00U) {
                             ++instruction_offset_width;
                             *instruction_addressing_p |= 0x80;
+                        } else {
+                            *instruction_addressing_p |= 0x40;
                         }
                     } else {    /* Syntax error */
                         return NULL;
