@@ -249,7 +249,23 @@ modify [si cl]
 #define CONFIG_SHIFT_SIGNED 0
 #endif
 
-#define DEBUG
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+#if DEBUG && !defined(__DOSMC__)  /* fprintf not available in __DOSMC__. */
+#include <stdio.h>
+#define DEBUG0(fmt) fprintf(stderr, "debug: " fmt)
+#define DEBUG1(fmt, a1) fprintf(stderr, "debug: " fmt, a1)
+#define DEBUG2(fmt, a1, a2) fprintf(stderr, "debug: " fmt, a1, a2)
+#define DEBUG3(fmt, a1, a2, a3) fprintf(stderr, "debug: " fmt, a1, a2, a3)
+#define DEBUG4(fmt, a1, a2, a3, a4) fprintf(stderr, "debug: " fmt, a1, a2, a3, a4)
+#else
+#define DEBUG0(fmt) do {} while (0)
+#define DEBUG1(fmt, a1) do {} while (0)
+#define DEBUG2(fmt, a1, a2) do {} while (0)
+#define DEBUG3(fmt, a1, a2, a3) do {} while (0)
+#define DEBUG4(fmt, a1, a2, a3, a4) do {} while (0)
+#endif
 
 static char *output_filename;
 static int output_fd;
@@ -1743,8 +1759,9 @@ static void create_label(void) {
             message_end();
         } else {
             if (last_label->value != instruction_value) {
-#ifdef DEBUG
-                  /*message_start(1); bbprintf(&message_bbb, "Woops: label '%s' changed value from %04x to %04x", last_label->name, last_label->value, instruction_value); message_end(); */
+#if DEBUG
+                /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%04x to 0x%04x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
+                if (0) DEBUG3("oops: label '%s' changed value from 0x%04x to 0x%04x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
                 change = 1;
             }
@@ -1810,7 +1827,9 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
     assembly_p = aip;
     p = (char*)aip;
     if (*--p != '\0') {
-        /* TODO(pts): If DEBUG, assert it. */
+#if DEBUG
+        message(1, "oops: pop from empty %include stack\n");
+#endif
     } else {
 #if CONFIG_CPU_UNALIGN
         --p;
@@ -1982,7 +2001,7 @@ static void do_assembly(const char *input_filename) {
         linep = (char*)p + 1;
         for (; p != line && p[-1] == ' '; --p) {}  /* Removes trailing \r and spaces. */
         *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
-        /* fprintf(stderr, "line=(%s)\n", line); */
+        if (0) DEBUG3("line @0x%x %u=(%s)\r\n", (unsigned)current_address, (unsigned)line_number, line);
         if (p - line >= MAX_SIZE) { line_too_long:
             message(1, "assembly line too long");
             goto close_return;
@@ -1997,8 +2016,8 @@ static void do_assembly(const char *input_filename) {
             goto after_line;
         } else if (p[0] != '%') {
             if (avoid_level != 0 && level >= avoid_level) {
-#ifdef DEBUG
-                /* message_start(); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); */
+#if DEBUG
+                if (0) { message_start(1); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); }
 #endif
                 goto after_line;
             }
