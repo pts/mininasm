@@ -667,12 +667,12 @@ static void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
             strcpy_far(global_label, node->name);
 #if CONFIG_VALUE_BITS == 32
 #if IS_VALUE_LONG
-            bbprintf(&message_bbb, "%-20s %04x%04x\r\n", global_label, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
+            bbprintf(&message_bbb, "%-20s %04X%04X\r\n", global_label, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
 #else
-            bbprintf(&message_bbb, "%-20s %08x\r\n", global_label, GET_UVALUE(node->value));
+            bbprintf(&message_bbb, "%-20s %08X\r\n", global_label, GET_UVALUE(node->value));
 #endif
 #else
-            bbprintf(&message_bbb, "%-20s %04x\r\n", global_label, GET_UVALUE(node->value));
+            bbprintf(&message_bbb, "%-20s %04X\r\n", global_label, GET_UVALUE(node->value));
 #endif
             node = RBL_GET_RIGHT(node);
         }
