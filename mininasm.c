@@ -329,8 +329,8 @@ static int opt_level;  /* The default of 0 is equivalent to `nasm -O0', which is
 #define MAX_SIZE        256
 
 static char part[MAX_SIZE];
-static char expr_name[MAX_SIZE];
-static char global_label[MAX_SIZE];
+static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
+static char *global_label_end;
 
 static char *g;
 static char generated[8];
@@ -830,6 +830,7 @@ static const char *match_expression(const char *match_p) {
     /*union {*/  /* Using union to save stack memory would make __DOSMC__ program larger. */
         unsigned shift;
         char *p2;
+        char *p3;
         struct label MY_FAR *label;
     /*} u;*/
     char c;
@@ -977,27 +978,25 @@ static const char *match_expression(const char *match_p) {
             }
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
-            p2 = expr_name;
-            if (c == '.') {
-                strcpy(expr_name, global_label);
-                while (*p2 != '\0')
-                    p2++;
-            }
+            p2 = global_label_end;
+            p3 = (c == '.') ? global_label : p2;  /* If label starts with '.', then prepend global_label. */
             for (; islabel(match_p[0]); *p2++ = *match_p++) {}
             *p2 = '\0';
-            label = find_label(expr_name);
+            if (0) DEBUG1("use_label=(%s)\r\n", p3);
+            label = find_label(p3);
             if (label == NULL) {
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
                     message_start(1);
                     /* This will be printed twice for `jmp', but once for `jc'. */
-                    bbprintf(&message_bbb, "Undefined label '%s'", expr_name);
+                    bbprintf(&message_bbb, "Undefined label '%s'", p3);
                     message_end();
                 }
             } else {
                 value1 = label->value;
             }
+            *global_label_end = '\0';  /* Undo the concat to global_label. */
         } else {
             /* TODO(pts): Make this match syntax error nonsilent? What about when trying instructions? */
             goto match_error;
@@ -1909,23 +1908,23 @@ static void incbin(const char *fname) {
 }
 
 /*
- ** Creates label named `part' with value `instruction_value'.
+ ** Creates label named `global_label' with value `instruction_value'.
  */
 static void create_label(void) {
     struct label MY_FAR *last_label;
     if (assembler_pass == 1) {
-        if (find_label(part)) {
+        if (find_label(global_label)) {
             message_start(1);
-            bbprintf(&message_bbb, "Redefined label '%s'", part);
+            bbprintf(&message_bbb, "Redefined label '%s'", global_label);
             message_end();
         } else {
-            last_label = define_label(part, instruction_value);
+            last_label = define_label(global_label, instruction_value);
         }
     } else {
-        last_label = find_label(part);
+        last_label = find_label(global_label);
         if (last_label == NULL) {
             message_start(1);
-            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", part);
+            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", global_label);
             message_end();
         } else {
             if (last_label->value != instruction_value) {
@@ -2104,6 +2103,7 @@ static void do_assembly(const char *input_filename) {
     line_number = aip->line_number;
 
     global_label[0] = '\0';
+    global_label_end = global_label;
     linep = line_rend = line_buf;
     for (;;) {  /* Read and process next line from input. */
         if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
@@ -2331,16 +2331,11 @@ static void do_assembly(const char *input_filename) {
         if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(avoid_spaces(p3 + 1))
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
-            if (p[0] == '.') {
-                times = strlen(global_label);
-                strcpy(part, global_label);
-                memcpy(part + times, p, p3 - p);
-                part[times + (p3 - p)] = '\0';
-            } else {
-                memcpy(part, p, p3 - p);
-                part[(p3 - p)] = '\0';
-                strcpy(global_label, part);
-            }
+            liner = (p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
+            memcpy(liner, p, p3 - p);
+            liner += p3 - p;
+            *liner = '\0';
+            if (p[0] != '.') global_label_end = liner;
             p = avoid_spaces(p3 + 1);
             if (casematch(p, "EQU!")) {
                 p = match_expression(p + 3);
@@ -2350,10 +2345,12 @@ static void do_assembly(const char *input_filename) {
                     create_label();
                     check_end(p);
                 }
+                *global_label_end = '\0';  /* Undo the concat to global_label. */
                 goto after_line;
             }
             instruction_value = current_address;
             create_label();
+            *global_label_end = '\0';  /* Undo the concat to global_label. */
         }
 
         /* Process command (non-preprocessor, non-label). */
