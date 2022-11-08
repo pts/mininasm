@@ -345,43 +345,57 @@ _Packed  /* Disable extra aligment byte at the end of `struct label'. */
 #endif
 struct label {
 #if CONFIG_DOSMC_PACKED
-    /* The fields .left_right_ofs, .left_seg and .right_seg together contain
-     * 2 far pointers (tree_left and tree_right) and (if CONFIG_BALANCED is
-     * true) the tree_red bit. .left_seg contains the 16-bit segment part of
-     * tree_left, and .right_seg contains the 16-bit segment part of
-     * tree_right. .left_right_ofs contains the offset of the far pointers
-     * and the tree_red bit. It is assumed that far pointer offsets are 4
-     * bits wide (0 <= offset <= 15), because malloc_far guarantees it
-     * (with its and `and ax, 0fh' instruction).
+    /* The fields .left_right_ofs, .left_seg_swapped and .right_seg together
+     * contain 2 far pointers (tree_left and tree_right), the is_node_deleted
+     * bit and (if CONFIG_BALANCED is true) the is_node_red bit.
+     * .left_seg_swapped contains the 16-bit segment part of tree_left (it's
+     * byte-swapped (so it's stored big endian), and all bits are negated),
+     * and .right_seg contains the 16-bit segment part of tree_right.
+     * .left_right_ofs contains the offset of the far pointers, the
+     * is_node_deleted bit and (if CONFIG_BALANCED is true) the is_node_red
+     * bit. It is assumed that far pointer offsets are 4 bits wide
+     * (0 <= offset <= 15), because malloc_far guarantees it (with its
+     * `and ax, 0fh' instruction).
+     *
+     * Lemma 1. The first byte of .left_seg_swapped is nonzero. Proof. If it
+     * was zero, then the high 8 bits of left_seg would be 0xff, thus the
+     * linear memory address for tree_left (left child) would be at least
+     * 0xff000, which is too large for a memory address in DOS conventional
+     * memory ending at 0xa0000, and malloc_far allocates from there.
      *
      * If CONFIG_BALANCED is false, bits of .left_right_ofs look like
-     * LLLLRRRR, where LLLL is the 4-bit offset of tree_left, and RRRR is the
-     * 4-bit offset of tree_right.
+     * LLLDRRRR, where LLLM is the 4-bit offset of tree_left (see below how
+     * to get M), RRRR is the 4-bit offset of tree_right, and D is the
+     * is_node_deleted bit.
      *
      * If CONFIG_BALANCED is true, bits of .left_right_ofs look like
-     * LLL1RRRE, where LLLM is the 4-bit offset of tree_left, RRRS is the
-     * 4-bit offset of tree_right, 1 is 1, E is the tree_red bit value.
-     * The lower M and S bits of the offsets are not stored, but they will
-     * be inferred like below. The pointer with the offset LLL0 is either
-     * correct or 1 less than the correct LLL1. If it's correct, then it points
-     * to a nonzero .left_right_ofs (it has a 1 bit). If it's 1 less, then it
-     * points to the all-zero NUL byte (the NUL terminator of the name in the
-     * previous label). Thus by comparing the byte at offset LLL0 to zero,
-     * we can infer whether M is 0 or 1. For this to work we
-     * need that the very first struct label starts at an even offset; this
-     * is guaranteed by malloc_far.
+     * LLLDRRRE, where LLLM is the 4-bit offset of tree_left, RRRS is the
+     * 4-bit offset of tree_right, D is the is_node_deleted bit, E is the
+     * is_node_red bit. The lower M and S bits of the offsets are not stored,
+     * but they will be inferred like below. The pointer with the offset LLL0
+     * is either correct or 1 less than the correct LLL1. If it's correct, then
+     * it points to a nonzero .left_seg_swapped (see Lemma 1 above). If it's 1
+     * less, then it points to the all-zero NUL byte (the NUL terminator of the
+     * name in the previous label). Thus by comparing the byte at offset LLL0
+     * to zero, we can infer whether M is 0 (iff the byte is nonzero) or 1 (iff
+     * the byte is zero). For this to work we need that the very first struct
+     * label starts at an even offset; this is guaranteed by malloc_far.
      */
+    unsigned left_seg_swapped;  /* Byte-swapped (so it's stored big endian), all bits negated. The first byte is never zero. */
+    unsigned right_seg;
     unsigned char left_right_ofs;
-    unsigned left_seg, right_seg;
 #else
     struct label MY_FAR *tree_left;
     struct label MY_FAR *tree_right;
 #endif
     value_t value;
 #if CONFIG_BALANCED && !CONFIG_DOSMC_PACKED
-    char tree_red;  /* Is it a red node of the red-black tree? */
+    char is_node_red;  /* Is it a red node of the red-black tree? */
 #endif
-    char name[1];
+#if !CONFIG_DOSMC_PACKED
+    char is_node_deleted;
+#endif
+    char name[1];  /* Usually multiple characters terminated by NUL. The last byte is alsways zero. */
 };
 
 static struct label MY_FAR *label_list;
@@ -438,14 +452,21 @@ struct tree_path_entry {
 #endif  /* CONFIG_BALANCED */
 
 #if CONFIG_DOSMC_PACKED
-typedef char assert_label_size[sizeof(struct label) == 5 /* left and right pointers, tree_red */ + sizeof(value_t) + 1 /* trailing NUL in ->name */];
+/* Swap the 2 bytes and negate all bits. */
+static unsigned swap16(unsigned u);
+#pragma aux swap16 = "xchg al, ah" "not ax" value [ax] parm [ax]  /* TODO(pts): Optimize for size, try ax, bx and dx. */
+typedef char assert_label_size[sizeof(struct label) == 5 /* left and right pointers, is_node_red */ + sizeof(value_t) + 1 /* trailing NUL in ->name */];
 #define RBL_IS_NULL(label) (FP_SEG(label) == 0)
-#define RBL_IS_LEFT_NULL(label) ((label)->left_seg == 0)
+#define RBL_IS_LEFT_NULL(label) ((label)->left_seg_swapped == 0xffffU)
 #define RBL_IS_RIGHT_NULL(label) ((label)->right_seg == 0)
+#define RBL_IS_DELETED(label) ((label)->left_right_ofs & 0x10)
+#define RBL_SET_DELETED_0(label) ((label)->left_right_ofs &= ~0x10)
+#define RBL_SET_DELETED_1(label) ((label)->left_right_ofs |= 0x10)
 #if CONFIG_BALANCED
-#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = 0x10, (label)->left_seg = (label)->right_seg = 0)
+/* Also sets IS_DELETED to false. */
+#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = 0, (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
 static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
-    char MY_FAR *p = MK_FP((label)->left_seg, ((label)->left_right_ofs >> 4) & 0xe);
+    char MY_FAR *p = MK_FP(swap16((label)->left_seg_swapped), ((label)->left_right_ofs >> 4) & 0xe);
     if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
     return (struct label MY_FAR*)p;
 }
@@ -455,7 +476,7 @@ static struct label MY_FAR *RBL_GET_RIGHT(struct label MY_FAR *label) {
     return (struct label MY_FAR*)p;
 }
 static void RBL_SET_LEFT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
-    label->left_seg = FP_SEG(ptr);
+    label->left_seg_swapped = swap16(FP_SEG(ptr));
     label->left_right_ofs = (label->left_right_ofs & 0x1f) | (FP_OFF(ptr) & 0xe) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
 }
 static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
@@ -467,9 +488,10 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #define RBL_SET_RED_0(label) ((label)->left_right_ofs &= 0xfe)
 #define RBL_SET_RED_1(label) ((label)->left_right_ofs |= 1)
 #else  /* Else CONFIG_BALANCED. */
-#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg = (label)->right_seg = 0)
+#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
 static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
-    char MY_FAR *p = MK_FP((label)->left_seg, (label)->left_right_ofs >> 4);
+    char MY_FAR *p = MK_FP(swap16((label)->left_seg_swapped), ((label)->left_right_ofs >> 4) & 0xe);
+    if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
     return (struct label MY_FAR*)p;
 }
 static struct label MY_FAR *RBL_GET_RIGHT(struct label MY_FAR *label) {
@@ -477,8 +499,8 @@ static struct label MY_FAR *RBL_GET_RIGHT(struct label MY_FAR *label) {
     return (struct label MY_FAR*)p;
 }
 static void RBL_SET_LEFT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
-    label->left_seg = FP_SEG(ptr);
-    label->left_right_ofs = (label->left_right_ofs & 0x0f) | FP_OFF(ptr) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
+    label->left_seg_swapped = swap16(FP_SEG(ptr));
+    label->left_right_ofs = (label->left_right_ofs & 0x1f) | (FP_OFF(ptr) & 0xe) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
 }
 static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) {
     label->right_seg = FP_SEG(ptr);
@@ -494,11 +516,14 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #define RBL_GET_RIGHT(label) ((label)->tree_right)
 #define RBL_SET_LEFT(label, ptr) ((label)->tree_left = (ptr))
 #define RBL_SET_RIGHT(label, ptr) ((label)->tree_right = (ptr))
+#define RBL_IS_DELETED(label) ((label)->is_node_deleted)
+#define RBL_SET_DELETED_0(label) ((label)->is_node_deleted = 0)
+#define RBL_SET_DELETED_1(label) ((label)->is_node_deleted = 1)
 #if CONFIG_BALANCED
-#define RBL_IS_RED(label) ((label)->tree_red)  /* Nonzero means true. */
-#define RBL_COPY_RED(label, source_label) ((label)->tree_red = (source_label)->tree_red)
-#define RBL_SET_RED_0(label) ((label)->tree_red = 0)
-#define RBL_SET_RED_1(label) ((label)->tree_red = 1)
+#define RBL_IS_RED(label) ((label)->is_node_red)  /* Nonzero means true. */
+#define RBL_COPY_RED(label, source_label) ((label)->is_node_red = (source_label)->is_node_red)
+#define RBL_SET_RED_0(label) ((label)->is_node_red = 0)
+#define RBL_SET_RED_1(label) ((label)->is_node_red = 1)
 #endif  /* CONFIG_BALANCED. */
 #endif  /* CONFIG_DOSMC_PACKED. */
 
@@ -508,7 +533,11 @@ static void fatal_out_of_memory(void) {
 }
 
 /*
- ** Define a new label
+ ** Defines a new label.
+ **
+ ** If the label already exists, it adds a duplicate one. This is not
+ ** useful, so the caller is recommended to call define_label(name, ...)
+ ** only if find_label(name) returns NULL.
  */
 static struct label MY_FAR *define_label(const char *name, value_t value) {
     struct label MY_FAR *label;
@@ -521,6 +550,7 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
     }
 
     /* Fill label */
+    if (0) DEBUG2("define_label name=(%s) value=0x%x\n", name, (unsigned)value);
     RBL_SET_LEFT_RIGHT_NULL(label);
     label->value = value;
     strcpy_far(label->name, name);
@@ -625,18 +655,23 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
  */
 static struct label MY_FAR *find_label(const char *name) {
     struct label MY_FAR *explore;
+    struct label MY_FAR *milestone = NULL;
     int c;
 
     /* Follows a binary tree */
     explore = label_list;
     while (!RBL_IS_NULL(explore)) {
         c = strcmp_far(name, explore->name);
-        if (c == 0)
+        if (c == 0) {
             return explore;
-        if (c < 0)
+        } else if (c < 0) {
+            milestone = explore;
             explore = RBL_GET_LEFT(explore);
-        else
+        } else {
             explore = RBL_GET_RIGHT(explore);
+            /* Stop on circular path created by Morris inorder traversal, e.g. in reset_macros(). */
+            if (explore == milestone) break;
+        }
     }
     return NULL;
 }
@@ -649,7 +684,7 @@ static void print_labels_sorted_to_listing_fd(void) {
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
     char c;
-    /* Morris in-order traversal of binary tree: iterative (non-recursive,
+    /* Morris inorder traversal of binary tree: iterative (non-recursive,
      * so it uses O(1) stack), modifies the tree pointers temporarily, but
      * then restores them, runs in O(n) time.
      */
@@ -662,7 +697,7 @@ static void print_labels_sorted_to_listing_fd(void) {
         } else {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
-            if ((c = node->name[0]) != ' ' && c != '#') {  /* Skip macro counters. */
+            if ((c = node->name[0]) != '%') {  /* Skip macro definitions. */
 #if CONFIG_VALUE_BITS == 32
 #if IS_VALUE_LONG
                 bbprintf(&message_bbb, "%-20s %04X%04X\r\n", node->name, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
@@ -673,32 +708,6 @@ static void print_labels_sorted_to_listing_fd(void) {
                 bbprintf(&message_bbb, "%-20s %04X\r\n", node->name, GET_UVALUE(node->value));
 #endif
             }
-            node = RBL_GET_RIGHT(node);
-        }
-    }
-}
-
-static char has_macro_counters;
-
-static void reset_macro_counters(void) {
-    struct label MY_FAR *node = label_list;
-    struct label MY_FAR *pre;
-    struct label MY_FAR *pre_right;
-    if (!has_macro_counters) return;
-    /* Morris in-order traversal of binary tree: iterative (non-recursive,
-     * so it uses O(1) stack), modifies the tree pointers temporarily, but
-     * then restores them, runs in O(n) time.
-     */
-    while (!RBL_IS_NULL(node)) {
-        if (RBL_IS_LEFT_NULL(node)) goto do_work;
-        for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
-        if (RBL_IS_NULL(pre_right)) {
-            RBL_SET_RIGHT(pre, node);
-            node = RBL_GET_LEFT(node);
-        } else {
-            RBL_SET_RIGHT(pre, NULL);
-          do_work:  /* Do for each node. */
-            if (node->name[0] == '#') node->value = 0;
             node = RBL_GET_RIGHT(node);
         }
     }
@@ -893,7 +902,7 @@ static const char *match_expression(const char *match_p) {
               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
               value1 += value2;
             }
-        } else if (c == '0' && (match_p[1] | 32) == 'b') {  /* Binary */
+        } else if (c == '0' && (match_p[1] | 32) == 'b') {  /* Binary. */
             match_p += 2;
             /*value1 = 0;*/
             while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
@@ -905,7 +914,7 @@ static const char *match_expression(const char *match_p) {
                 match_p++;
             }
             goto check_nolabel;
-        } else if (c == '0' && (match_p[1] | 32) == 'x') {  /* Hexadecimal */
+        } else if (c == '0' && (match_p[1] | 32) == 'x') {  /* Hexadecimal. */
             match_p += 2;
           parse_hex0:
             shift = 0;
@@ -924,13 +933,13 @@ static const char *match_expression(const char *match_p) {
         } else if (c == '0' && (match_p[1] | 32) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
             /*value1 = 0;*/
-            for (; (unsigned char)(c = match_p[0] - '0') < 8; ++match_p) {
+            for (; (unsigned char)(c = match_p[0] + 0U - '0') < 8U; ++match_p) {
                 value1 = (value1 << 3) | c;
             }
           check_nolabel:
             c = match_p[0];
             if (islabel(c)) goto bad_label;
-        } else if (c == '\'' || c == '"') {  /* Character constant */
+        } else if (c == '\'' || c == '"') {  /* Character constant. */
             /*value1 = 0;*/ shift = 0;
             for (++match_p; match_p[0] != '\0' && match_p[0] != c; ++match_p) {
                 if (shift < sizeof(value_t) * 8) {
@@ -944,9 +953,9 @@ static const char *match_expression(const char *match_p) {
             } else {
                 ++match_p;
             }
-        } else if (isdigit(c)) {  /* Decimal */
+        } else if (isdigit(c)) {  /* Decimal, even if it starts with '0'. */
             /*value1 = 0;*/
-            for (p2 = (char*)match_p; (unsigned char)(c = match_p[0] - '0') <= 9; ++match_p) {
+            for (p2 = (char*)match_p; (unsigned char)(c = match_p[0] + 0U - '0') <= 9U; ++match_p) {
                 value1 = value1 * 10 + c;
             }
             c = match_p[0];
@@ -985,7 +994,7 @@ static const char *match_expression(const char *match_p) {
             *p2 = '\0';
             if (0) DEBUG1("use_label=(%s)\r\n", p3);
             label = find_label(p3);
-            if (label == NULL) {
+            if (label == NULL || RBL_IS_DELETED(label)) {
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
@@ -1136,6 +1145,46 @@ static const char *match_expression(const char *match_p) {
     if (msp != match_stack) goto do_pop;
     instruction_value = has_undefined ? 0 : value1;
     return avoid_spaces(match_p);
+}
+
+/*
+ ** Returns true iff p is a valid `%DEFINE' value expression string.
+ **
+ ** `%DEFINE' value expressions are integer literals possibly prefixed by
+ ** any number of `-', `+' or `~'. The reason for that is NASM
+ ** compatibility: mininasm can store only integer-valued macro values, and
+ ** NASM stores the strings instead, and these restrictions check for the
+ ** intersection of same behavior.
+ **
+ ** The implementation corresponds to match_expression(...).
+ */
+static char is_define_value(const char *p) {
+    char c;
+    for (; (c = p[0]) == '-' || c == '+' || c == '~' || isspace(c); ++p) {}
+    if (c == '0' && (p[1] | 32) == 'b') {  /* Binary. */
+        p += 2;
+        for (; (c = p[0]) == '0' || c == '1' || c == '_'; ++p) {}
+    } else if (c == '0' && (p[1] | 32) == 'x') {  /* Hexadecimal. */
+      try_hex2:
+        p += 2;
+        for (; c = p[0], isxdigit(c); ++p) {}
+    } else if (c == '0' && (p[1] | 32) == 'o') {  /* Octal. */
+        p += 2;
+        for (; (unsigned char)(c = p[0]) - '0' + 0U < 8U; ++p) {}
+    } else if (c == '\'' || c == '"') {  /* Character constant. */
+        return p[1] != '\0' && p[1] != c && p[2] == c;
+    } else if (isdigit(c)) {  /* Decimal or hexadecimal. */
+        for (; (unsigned char)(c = p[0]) - '0' + 0U <= 9U; ++p) {}
+        if ((c | 32) == 'h' || isxdigit(c)) {
+            for (; c = p[0], isxdigit(c); ++p) {}
+            return (c | 32) == 'h';
+        }
+    } else if (c == '$' && isdigit(p[1])) {
+        goto try_hex2;
+    } else {
+        return 0;
+    }
+    return c == '\0';
 }
 
 /*
@@ -1912,26 +1961,31 @@ static void incbin(const char *fname) {
  ** Creates label named `global_label' with value `instruction_value'.
  */
 static void create_label(void) {
-    struct label MY_FAR *last_label;
+    struct label MY_FAR *last_label = find_label(global_label);
     if (assembler_pass == 1) {
-        if (find_label(global_label)) {
+        if (last_label == NULL) {
+            last_label = define_label(global_label, instruction_value);
+        } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %UNDEF-ined macro. */
+          do_undelete:
+            RBL_SET_DELETED_0(last_label);
+            last_label->value = instruction_value;
+        } else {
             message_start(1);
             bbprintf(&message_bbb, "Redefined label '%s'", global_label);
             message_end();
-        } else {
-            last_label = define_label(global_label, instruction_value);
         }
     } else {
-        last_label = find_label(global_label);
         if (last_label == NULL) {
             message_start(1);
-            bbprintf(&message_bbb, "Inconsistency, label '%s' not found", global_label);
+            bbprintf(&message_bbb, "oops: label '%s' not found", global_label);
             message_end();
+        } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %undef-ined macro. */
+            goto do_undelete;
         } else {
             if (last_label->value != instruction_value) {
 #if DEBUG
-                /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%04x to 0x%04x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
-                if (opt_level == 0) DEBUG3("oops: label '%s' changed value from 0x%04x to 0x%04x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
+                /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%x to 0x%x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
+                if (opt_level == 0) DEBUG3("oops: label '%s' changed value from 0x%x to 0x%x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
                 have_labels_changed = 1;
             }
@@ -2051,6 +2105,164 @@ static const char *get_fmt_04x_high_value(unsigned u) {
 #define GET_FMT_04X_VALUE(value) (value)
 #endif
 
+#define MACRO_CMDLINE 1  /* Macro defined in the command-line with an INTVALUE. */
+#define MACRO_SELF 2  /* Macro defined in the assembly source as `%DEFINE NAME NAME', so itself. */
+#define MACRO_VALUE 3  /* Macro defined in the assembly source as `%DEFINE NAME INTVALUE' or `%assign NAME EXPR'. */
+
+static char has_macros;
+
+static void reset_macros(void) {
+    struct label MY_FAR *node = label_list;
+    struct label MY_FAR *pre;
+    struct label MY_FAR *pre_right;
+    char value;
+    struct label MY_FAR *value_label;
+    if (!has_macros) return;
+    /* Morris inorder traversal of binary tree: iterative (non-recursive,
+     * so it uses O(1) stack), modifies the tree pointers temporarily, but
+     * then restores them, runs in O(n) time.
+     */
+    while (!RBL_IS_NULL(node)) {
+        if (RBL_IS_LEFT_NULL(node)) goto do_work;
+        for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
+        if (RBL_IS_NULL(pre_right)) {
+            RBL_SET_RIGHT(pre, node);
+            node = RBL_GET_LEFT(node);
+        } else {
+            RBL_SET_RIGHT(pre, NULL);
+          do_work:  /* Do for each node. */
+            if (node->name[0] == '%') {
+                value = node->value;  /* Also make it shorter (char). */
+                if (value != MACRO_CMDLINE) {
+                    RBL_SET_DELETED_1(node);
+                    /* Delete the label corresponding to the macro defined with an INTVALUE. */
+                    if (value == MACRO_VALUE) {
+                        strcpy_far(global_label, node->name);  /* Copying for __DOSMC__, because find_label doesn't accept a far pointer. */
+                        if ((value_label = find_label(global_label + 1)) != NULL) RBL_SET_DELETED_1(value_label);
+                    }
+                }
+            }
+            node = RBL_GET_RIGHT(node);
+        }
+    }
+}
+
+/*
+ ** name1 points to 1 byte before `NAME'.
+ ** It's OK if the macro is not defined.
+ */
+static void unset_macro(char *name1) {
+    char c;
+    const char name1c = *name1;
+    const char *p3;
+    struct label MY_FAR *label;
+    if (!isalpha(name1[1]) || (p3 = match_label_prefix(name1 + 1)) == NULL || *p3 != '\0') {
+         message(1, "bad macro name");
+         return;
+    }
+    *name1 = '%';
+    label = find_label(name1);
+    *name1 = name1c;
+    if (label == NULL || RBL_IS_DELETED(label)) return;  /* No such macro, unset is a noop. */
+    c = label->value;  /* Make it shorter for future comparisons. */
+    if (c == MACRO_CMDLINE) {
+        message(1, "invalid macro override");
+        return;
+    }
+    RBL_SET_DELETED_1(label);
+    if (c == MACRO_VALUE) {  /* Also delete the corresponding label. */
+        if ((label = find_label(name1 + 1)) != NULL) RBL_SET_DELETED_1(label);
+    }
+}
+
+#define MACRO_SET_DEFINE_CMDLINE MACRO_CMDLINE
+#define MACRO_SET_DEFINE MACRO_VALUE
+#define MACRO_SET_ASSIGN (MACRO_VALUE | 0x10)
+
+/*
+ ** name1 points to 1 byte before `NAME', name_end points to the end of
+ ** name. Both *name1 and *name_end can be changed temporarily.
+ */
+static void set_macro(char *name1, char *name_end, const char *value, char macro_set_mode) {
+    const char name1c = *name1;
+    const char name_endc = *name_end;
+    const char *p3;
+    struct label MY_FAR *label;
+    struct label MY_FAR *macro_label;
+
+    value = avoid_spaces(value);  /* Before we change *name_end, in case name_end == value. */
+    *name_end = '\0';
+    if (!isalpha(name1[1]) || (p3 = match_label_prefix(name1 + 1)) != name_end) {
+         message(1, "bad macro name");
+         goto do_return;
+    }
+    *name1 = '%';  /* Macro NAME prefixed by '%'. */
+    macro_label = find_label(name1);
+    if (0) DEBUG3("set_macro mode 0x%x strcmp (%s) (%s)\n", macro_set_mode, name1 + 1, value);
+    if (macro_set_mode == MACRO_SET_DEFINE && strcmp(name1 + 1, value) == 0) {  /* `%DEFINE NAME NAME'. */
+        if (macro_label == NULL) {
+            define_label(name1, MACRO_SELF);
+        } else if (RBL_IS_DELETED(macro_label)) {
+            RBL_SET_DELETED_0(macro_label);
+            macro_label->value = MACRO_SELF;
+        } else if ((char)macro_label->value != MACRO_SELF) {
+          invalid_macro_override:
+            message(1, "invalid macro override");
+            goto do_return;
+        }
+    } else if (macro_set_mode != MACRO_SET_ASSIGN && !is_define_value(value)) {
+      bad_macro_value:
+        /* By reporting an error here we want to avoid the following NASM
+         * incompatibility:
+         *
+         *   %define foo 5+2
+         *   db foo*6
+         *
+         * In NASM, this is equivalent to`db 5+2* 6', which is `db 17'.
+         * mininasm is not able to store strings (e.g. `5+2') as macro
+         * values, and storing 7 would be incompatible with NASM, because
+         * that would be equivalent to `db 7*6', which is `db 42'.
+         */
+        message(1, "bad macro value");
+        goto do_return;
+    } else if ((label = find_label(name1 + 1)) != NULL && !RBL_IS_DELETED(label) && (macro_label == NULL || RBL_IS_DELETED(macro_label))) {
+        message(1, "macro name conflicts with label");
+        goto do_return;
+    } else {
+        *name_end = name_endc;
+        p3 = match_expression(value);
+        *name_end = '\0';
+        if (p3 == NULL || *p3 != '\0') {
+            if (macro_set_mode != MACRO_SET_ASSIGN) goto bad_macro_value;
+            message(1, "Bad expression");
+            goto do_return;
+        } else if (has_undefined) {
+            message(1, "Cannot use undefined labels");
+            goto do_return;
+        }
+        macro_set_mode &= ~0x10;  /* Change MACRO_SET_ASSIGN to MACRO_VALUE == MACRO_SET_DEFINE. */
+        /* Now: macro_set_mode is MACRO_CMDLINE == MACRO_SET_DEFINE_CMDLINE or MACRO_VALUE == MACRO_SET_DEFINE. */
+        if (macro_label == NULL) {
+            define_label(name1, macro_set_mode);
+        } else if (RBL_IS_DELETED(macro_label)) {
+            RBL_SET_DELETED_0(macro_label);
+            macro_label->value = macro_set_mode;
+        } else if ((char)macro_label->value != macro_set_mode) {
+            goto invalid_macro_override;
+        }
+        if (label == NULL) {
+            define_label(name1 + 1, instruction_value);
+        } else {
+            RBL_SET_DELETED_0(label);
+            label->value = instruction_value;
+        }
+    }
+    has_macros = 1;
+  do_return:
+    *name1 = name1c;
+    *name_end = name_endc;
+}
+
 /*
  ** Do an assembler pass.
  */
@@ -2072,7 +2284,6 @@ static void do_assembly(const char *input_filename) {
     char pc;
     char is_ifndef;
     struct label MY_FAR *label;
-    struct label MY_FAR *label2;
 
     have_labels_changed = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
@@ -2228,42 +2439,15 @@ static void do_assembly(const char *input_filename) {
                 goto after_line;
             if (0) DEBUG1("%%IFDEF macro=(%s)\r\n", p);
             p3 = match_label_prefix(p);
-            if (!p3 || *p3 != '\0') {
+            if (!p3 || *p3 != '\0' || !isalpha(*p)) {
                 message(1, "bad macro name");
-            } else if (find_label(p) != NULL) {
-                if (assembler_pass > 1) {
-                    pc = *--p;
-                    *(char*)p = ' ';  /* Prefix the macro name with a space. */
-                    if ((label = find_label(p)) == NULL) {
-                        if (0) DEBUG1("oops: missing undefined macro counter: (%s)\r\n", p);
-                    } else {
-                        *(char*)p = '#';
-                        if ((label2 = find_label(p)) == NULL) {
-                            label2 = define_label(p, 0);
-                        }
-                        if (0) DEBUG3("increment2 value2=%u value=%u p=(%s)\r\n", (unsigned)label2->value, (unsigned)label->value, p);
-                        if ((++*(uvalue_t*)&label2->value <= (uvalue_t)label->value) != is_ifndef) {  /* This macro is not defined yet in this pass. */
-                            avoid_level = level;  /* Our %IFDEF or %IFNDEF is false, start hiding. */
-                        }
-                    }
-                    *(char*)p = pc;  /* Restore original character for listing_fd. */
-                }
             } else {
-                if (!is_ifndef) avoid_level = level;  /* Our %IFDEF is false, start hiding. */
-                if (assembler_pass == 1) {
-                    has_macro_counters = 1;
-                    pc = *--p;
-                    *(char*)p = ' ';  /* Prefix the macro name with a space. */
-                    if ((label = find_label(p)) == NULL) {
-                        define_label(p, 1);
-                    } else {
-                        if (++*(uvalue_t*)&label->value == 0) {
-                            --*(uvalue_t*)&label->value;
-                            message(1, "too many %IFDEFs");
-                        }
-                    }
-                    *(char*)p = pc;  /* Restore original character for listing_fd. */
+                pc = *--p;
+                *(char*)p = '%';  /* Prefix the macro name with a '%'. */
+                if (((label = find_label(p)) != NULL && !RBL_IS_DELETED(label)) == is_ifndef) {
+                    avoid_level = level;  /* Our %IFDEF or %IFNDEF is false, start hiding. */
                 }
+                *(char*)p = pc;  /* Restore original character for listing_fd. */
             }
         } else if (casematch(part, "%IFNDEF")) {
             is_ifndef = 1;
@@ -2304,22 +2488,11 @@ static void do_assembly(const char *input_filename) {
                 goto after_line;
             }
             include = 1;
-        } else if (casematch(part, "%DEFINE")) {
-            p3 = match_label_prefix(p);
-            if (!p3 || !isspace(*p3)) {
-                message(1, "bad macro name");
-            } else {
-                pc = *p3;
-                *(char*)p3++ = '\0';
-                p3 = avoid_spaces(p3);
-                if (0) DEBUG2("%%DEFINE macro=(%s) value=(%s)\r\n", p, p3);
-                if (strcmp(p, p3) != 0) {
-                    message(1, "%DEFINE must be to itself");  /* Only allow `%define NAME NAME', useful after `NAME equ value', for NASM and YASM `%ifdef NAME' comptibility. */
-                } else if (!find_label(p)) {
-                    message(1, "Cannot use undefined labels");
-                }
-                *(char*)p3 = pc;  /* Restore original character for listing_fd. */
-            }
+        } else if ((pc = casematch(part, "%DEFINE")) || casematch(part, "%ASSIGN")) {
+            for (p3 = p; *p3 != '\0' && !isspace(*p3); ++p3) {}
+            set_macro((char*)p - 1, (char*)p3, p3, pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN);
+        } else if (casematch(part, "%UNDEF")) {
+            unset_macro((char*)p - 1);
         } else {
             message_start(1);
             bbprintf(&message_bbb, "Unknown preprocessor directive: %s", part);
@@ -2533,22 +2706,10 @@ int main(int argc, char **argv) {
     while (c < argc) {  /* !! TODO(pts): Use ++argv instead of c. */
         if (argv[c][0] == '-') {    /* All arguments start with dash */
             d = argv[c][1] | 32;  /* Flags characters are case insensitive. */
-            if (d == 'd') {  /* Define label */
-                for (p = argv[c] + 2; *p && *p != '='; ++p) {}
-                if (*p == '=') {
-                    *(char*)p++ = 0;
-                    p = match_expression(p);
-                    if (p == NULL) {
-                        message(1, "Bad expression");
-                        return 1;
-                    } else if (has_undefined) {
-                        message(1, "Cannot use undefined labels");
-                        return 1;
-                    } else {
-                        p = argv[c] + 2;
-                        define_label(p + (p[0] == '$'), instruction_value);
-                    }
-                }
+            if (d == 'd') {  /* Define macro: -DNAME and -DNAME=VALUE. -DNAME is not allowed, because macros with an empty values are nt allowed. */
+                for (p = argv[c] + 2; *p != '\0' && *p != '='; ++p) {}
+                set_macro(argv[c] + 1, (char*)p, p + (*p == '='), MACRO_SET_DEFINE_CMDLINE);
+                if (errors) return 1;
                 c++;
             } else if (argv[c][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
                 d = argv[c][2];
@@ -2679,7 +2840,7 @@ int main(int argc, char **argv) {
                 wide_instr_read_at = NULL;
             }
             reset_address();
-            reset_macro_counters();
+            reset_macros();
             do_assembly(ifname);
             emit_flush(0);
             close(output_fd);

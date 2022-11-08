@@ -38,6 +38,7 @@
 ; !!! add it: CMP AX, BYTE ...
 ; !!! add it: SUB AX, BYTE ...
 ; !!! predefine some __NASM_MAJOR__ or __MININASM__ etc.
+; !!! add comparison operator support to match_expression
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c
 ; implemented in C), compiled with the OpenWatcom C compiler, then
