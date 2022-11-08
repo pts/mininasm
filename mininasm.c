@@ -338,7 +338,7 @@ static uvalue_t errors;
 static uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
 static uvalue_t bytes;
 static int change;
-static int change_number;
+static int change_number;  /* !! TODO(pts): Merge assembler_step to this variable. */
 
 #if CONFIG_DOSMC_PACKED
 _Packed  /* Disable extra aligment byte at the end of `struct label'. */
@@ -502,6 +502,11 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #endif  /* CONFIG_BALANCED. */
 #endif  /* CONFIG_DOSMC_PACKED. */
 
+static void fatal_out_of_memory(void) {
+    message(1, "Out of memory");  /* Only applies dynamically allocated memory (malloc(...)), e.g. for labels and wide instructions. */
+    exit(1);
+}
+
 /*
  ** Define a new label
  */
@@ -511,8 +516,7 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
     /* Allocate label */
     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
     if (RBL_IS_NULL(label)) {
-        message(1, "Out of memory for label");
-        exit(1);
+        fatal_out_of_memory();
         return NULL;
     }
 
@@ -742,7 +746,7 @@ static int is_colonless_instruction(const char *p) {
     } else if (c == 'D') {
         c = p[1] & ~32;
         return (c == 'B' || c == 'W'
-#if CONFIG_VALUE_BITS == 32   
+#if CONFIG_VALUE_BITS == 32
             || c == 'D'  /* "DD". */
 #endif
             ) && !islabel(p[2]);
@@ -1129,6 +1133,116 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
     return NULL;
 }
 
+/* --- Recording of wide sources for -O0
+ *
+ * In assembler_step == 1, add_wide_source_in_step_1(...) for all jump
+ * sources which were guessed as `jmp near', and for all effective address
+ * offsets which were guessed as 16-bit, both
+ *  because they had undefined labels,
+ *
+ * In assembler_step == 2, these sources are used to force the jump to
+ * `jmp near' and he effective address to 16-bit, thus the instruction won't
+ * get optimized to a smaller size (e.g. from `jmp near' to `jmp short'),
+ * which is a requirement for -O0.
+ */
+
+#if CONFIG_DOSMC_PACKED
+_Packed  /* Disable extra aligment byte at the end of `struct label'. */
+#endif
+struct wide_instr_block {
+    struct wide_instr_block MY_FAR *next;
+    uvalue_t instrs[128];
+};
+
+static struct wide_instr_block MY_FAR *wide_instr_first_block;
+static struct wide_instr_block MY_FAR *wide_instr_last_block;
+static uvalue_t MY_FAR *wide_instr_add_block_end;
+static uvalue_t MY_FAR *wide_instr_add_at;
+
+static struct wide_instr_block MY_FAR *wide_instr_read_block;
+static uvalue_t MY_FAR *wide_instr_read_at;
+
+/*
+ ** Must be called with strictly increasing fpos values. Thus calling it with
+ ** the same fpos multiple times is not allowed.
+ */
+static void add_wide_instr_in_step_1(void) {
+    /* TODO(pts): Optimize this function for size in __DOSMC__. */
+    const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
+    struct wide_instr_block MY_FAR *new_block;
+#if DEBUG
+    if (wide_instr_add_at != NULL && wide_instr_add_at[-1] >= fpos) {
+        DEBUG1("oops: added non-strictly-increasing wide instruction at fpos=0x%x\r\n", (unsigned)fpos);
+        message(1, "oops: bad wide position");
+        return;
+    }
+#endif
+    if (wide_instr_add_at == wide_instr_add_block_end) {
+        if ((new_block = (struct wide_instr_block MY_FAR*)malloc_far(sizeof(struct wide_instr_block) + CONFIG_DOSMC_PACKED)) == NULL) fatal_out_of_memory();
+        if (wide_instr_first_block == NULL) {
+            wide_instr_first_block = new_block;
+        } else {
+            wide_instr_last_block->next = new_block;
+        }
+        wide_instr_last_block = new_block;
+        wide_instr_add_at = new_block->instrs;
+        wide_instr_add_block_end = new_block->instrs + sizeof(new_block->instrs) / sizeof (new_block->instrs[0]);  /* TODO(pts): For __DOSMC__, don't do the multiplication again. */
+#if CONFIG_DOSMC_PACKED
+        ((char MY_FAR*)new_block)[sizeof(struct wide_instr_block)] = '\0';  /* Mimic trailing NUL of a ``previous label'' for RBL_GET_LEFT(..) and RBL_GET_RIGHT(...). */
+#endif
+    }
+    *wide_instr_add_at++ = fpos;
+    if (0) DEBUG1("added preguessed wide instruction at fpos=0x%x\r\n", (unsigned)fpos);
+}
+
+/*
+ ** Must be called with increasing fpos values. Thus calling it with the same
+ ** fpos multiple times is OK.
+ */
+static char is_wide_instr_in_step_2(void) {
+    /* TODO(pts): Optimize this function for size in __DOSMC__. */
+    const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
+    uvalue_t MY_FAR *vp;
+    char is_next_block;
+    if (0) DEBUG2("guess from fpos=0x%x rp=%p\r\n", (unsigned)fpos, (void*)wide_instr_read_at);
+    if (wide_instr_read_at) {
+        if (fpos == *wide_instr_read_at) {  /* Called again with the same fpos as last time. */
+            return 1;
+        } else if (fpos <= *wide_instr_read_at) { bad_instr_order:
+            DEBUG2("oops: bad instr order fpos=0x%x added=0x%x\r\n", (unsigned)fpos, (unsigned)*wide_instr_read_at);
+            message(1, "oops: bad instr order");
+            goto return_0;
+        }
+        vp = wide_instr_read_at + 1;
+    } else {
+        if (wide_instr_first_block == NULL) goto return_0;  /* No wide instructions at all. */
+        wide_instr_read_block = wide_instr_first_block;
+        vp = wide_instr_read_block->instrs;
+    }
+    if (0) DEBUG2("guess2 from 0x%x at=%d\r\n", (unsigned)fpos, (int)(vp - wide_instr_first_block->instrs));
+    if (vp == wide_instr_add_at) {  /* All wide instructions have been read. Also matches if there were none. */
+        goto return_0;
+    } else if (vp == wide_instr_read_block->instrs + sizeof(wide_instr_read_block->instrs) / sizeof(wide_instr_read_block->instrs[0])) {
+        vp = wide_instr_read_block->next->instrs;
+        is_next_block = 1;
+        if (0) DEBUG0("next wide block\r\n");
+    } else {
+        is_next_block = 0;
+    }
+    if (fpos > *vp) {
+        DEBUG0("oops: bad instr order2\r\n");
+        goto bad_instr_order;
+    } else if (fpos == *vp) {
+        wide_instr_read_at = vp;
+        if (is_next_block) wide_instr_read_block = wide_instr_read_block->next;
+        return 1;
+    } else { return_0:
+        return 0;
+    }
+}
+
+/* --- */
+
 static const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
 
 /*
@@ -1160,7 +1274,7 @@ static const char *match_addressing(const char *p, int width) {
             p = avoid_spaces(p2);
             if (*p == ']') {
                 p++;
-                if (reg == 5) {  /* BP. */
+                if (reg == 5) {  /* Just [BP] without offset. */
                     *instruction_addressing_p = 0x46;
                     /*instruction_offset = 0;*/  /* Already set. */
                     ++instruction_offset_width;
@@ -1191,17 +1305,31 @@ static const char *match_addressing(const char *p, int width) {
                         p = match_expression(p);
                         if (p == NULL)
                             return NULL;
-                        instruction_offset = instruction_value;
                         if (*p != ']')
                             return NULL;
                         p++;
+                        reg = 0;  /* Make sure it's not BP, as checked below. */
+                        instruction_offset = GET_U16(instruction_value);  /* Higher bits are ignored. */
                       set_width:
-                        ++instruction_offset_width;
-                        if ((instruction_offset + 0x80) & 0xff00U) {
-                            ++instruction_offset_width;
-                            *instruction_addressing_p |= 0x80;
-                        } else {
-                            *instruction_addressing_p |= 0x40;
+                        if (opt_level == 0) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_step == 1. This is similar to NASM. */
+                           if (assembler_step == 1) {
+                               if (has_undefined) {
+                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_step_1() should be called later if this match is taken. */
+                                   goto set_16bit_offset;
+                               }
+                           } else {
+                               if (is_wide_instr_in_step_2()) goto force_16bit_offset;
+                           }
+                        }
+                        if (instruction_offset != 0 || reg == 5 /* BP only */) {
+                            if ((instruction_offset + 0x80) & 0xff00U) { force_16bit_offset:
+                                instruction_offset_width = 2;
+                              set_16bit_offset:
+                                *instruction_addressing_p |= 0x80;  /* 16-bit offset. */
+                            } else {
+                                ++instruction_offset_width;
+                                *instruction_addressing_p |= 0x40;  /* Signed 8-bit offset. */
+                            }
                         }
                     } else {    /* Syntax error */
                         return NULL;
@@ -1211,10 +1339,10 @@ static const char *match_addressing(const char *p, int width) {
                     p = match_expression(p);
                     if (p == NULL)
                         return NULL;
-                    instruction_offset = instruction_value;
                     if (*p != ']')
                         return NULL;
                     p++;
+                    instruction_offset = GET_U16(instruction_value);
                     goto set_width;
                 }
             } else {    /* Syntax error */
@@ -1224,7 +1352,7 @@ static const char *match_addressing(const char *p, int width) {
             p = match_expression(p);
             if (p == NULL)
                 return NULL;
-            instruction_offset = instruction_value;
+            instruction_offset = GET_U16(instruction_value);
             if (*p != ']')
                 return NULL;
             p++;
@@ -1319,7 +1447,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     int qualifier;
     const char *p0;
     const char *error_base;
-    static value_t segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
+    static unsigned short segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
     char dc, dw;
 
     /* Example instructions with emitted_bytes + instructon + "pattern encode":
@@ -1333,7 +1461,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     p0 = p;
     qualifier = 0;  /* Pacify gcc. */
   next_pattern:
+    if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
+    instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
             qualifier = 0;
@@ -1368,7 +1498,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'i') {  /* Unsigned immediate, 8-bit or 16-bit. */
             if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. !!! 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
+        } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
             qualifier = 0;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             if (casematch(p, "SHORT!")) {
@@ -1377,6 +1507,16 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL) {
+                if (qualifier == 0 && opt_level == 0 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_step == 1. This is similar to NASM. */
+                   if (assembler_step == 1) {
+                       if (has_undefined) {
+                           add_wide_instr_in_step_1();
+                           goto mismatch;
+                       }
+                   } else {
+                       if (is_wide_instr_in_step_2()) goto mismatch;
+                   }
+                }
                 if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
                 instruction_value -= current_address + 2;
                 if (qualifier == 0 && dc == 'c') {
@@ -1397,9 +1537,13 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
-            /* !!! TODO(pts): Disable this optimization with -O0, bacause NASM doesn't do it. */
-            /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
-            if (p != NULL && qualifier == 0 && /* !has_undefined && */ (((uvalue_t)instruction_value + 0x80) & 0xff00U)) goto mismatch;
+            if (p == NULL || qualifier != 0) {
+            } else if (opt_level == 0) {
+                goto mismatch;  /* Don't optimize this with -O0 (because NASM doesn't do it either). Use the next unoptimized pattern, which is 16-bit. */
+            } else {
+                /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
+                if (/* !has_undefined && */ (((uvalue_t)instruction_value + 0x80) & 0xff00U)) goto mismatch;
+            }
         } else if (dc == 'f') {  /* FAR pointer. */
             if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             p = match_expression(p);
@@ -1434,6 +1578,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
      ** Instruction properly matched, now generate binary
      */
     if (instruction_addressing_segment) emit_byte(instruction_addressing_segment);
+    if (instruction_offset_width == 3) add_wide_instr_in_step_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
@@ -1456,7 +1601,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 dw = 2;
                 c += 0xa0 - 0x88;
                 c ^= 2;
-            } else if ((unsigned char)(c - 0x70) <= 0xfU && qualifier == 0 && (((uvalue_t)instruction_value + 0x80) & ~0xffU)) {  /* Generate 5-byte `near' version of 8-bit relative conditional jump with an inverse. */
+            } else if ((unsigned char)(c - 0x70) <= 0xfU && qualifier == 0 && (((uvalue_t)instruction_value + 0x80) & ~0xffU) && !has_undefined
+                      ) {  /* Generate 5-byte `near' version of 8-bit relative conditional jump with an inverse. */
                 emit_byte(c ^ 1);  /* Conditional jump with negated condition. */
                 emit_byte(3);  /* Skip next 3 bytes if negated condition is true. */
                 c = 0xe9;  /* `jmp near', 2 bytes will follow for encode "b". */
@@ -1506,11 +1652,11 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     } else {
                         c |= instruction_addressing & 0x07;
                         bit += 3;
-                        dw = instruction_offset_width;  /* 1 or 2. */
+                        dw = instruction_offset_width;  /* 1, 2 or 3. 3 means 2 for dw. */
                     }
                 } else { decode_internal_error:  /* assert(...). */
                     message_start(1);
-                    bbprintf(&message_bbb, "decode: internal error (%s)", error_base);
+                    bbprintf(&message_bbb, "ooops: decode (%s)", error_base);
                     message_end();
                     exit(2);
                     break;
@@ -1761,7 +1907,7 @@ static void create_label(void) {
             if (last_label->value != instruction_value) {
 #if DEBUG
                 /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%04x to 0x%04x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
-                if (0) DEBUG3("oops: label '%s' changed value from 0x%04x to 0x%04x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
+                if (opt_level == 0) DEBUG3("oops: label '%s' changed value from 0x%04x to 0x%04x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
                 change = 1;
             }
@@ -2045,7 +2191,7 @@ static void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-        } else if (casematch(part, "%IFDEF")) {
+        } else if (casematch(part, "%IFDEF")) {  /* !!! Disable subsequent definitions (or, even better, undef) for assembler_step == 2. */
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
@@ -2425,6 +2571,7 @@ int main(int argc, char **argv) {
      ** Do first step of assembly
      */
     assembler_step = 1;
+    /* if (opt_level == 0) wide_instr_add_at = NULL; */  /* No need, this is the default. */
     reset_address();
     malloc_init();
     do_assembly(ifname);
@@ -2460,6 +2607,10 @@ int main(int argc, char **argv) {
             }
             assembler_step = 2;
             is_start_address_set = 1;
+            if (opt_level == 0) {
+                /* wide_instr_add_at = NULL; */  /* Keep for reading. */
+                wide_instr_read_at = NULL;
+            }
             reset_address();
             do_assembly(ifname);
 
@@ -2479,8 +2630,9 @@ int main(int argc, char **argv) {
                 close(listing_fd);
             }
             if (change) {
-                change_number++;
-                if (change_number == 5) {
+                if (opt_level == 0) {
+                    message(1, "oops: labels changed");
+                } else if (++change_number == 5) {  /* !! TODO(pts): Make this configurable? What is the limit for NASM? Don't inrement change_number if output size has increased. */
                     message(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
