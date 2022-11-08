@@ -2196,24 +2196,22 @@ static void do_assembly(const char *input_filename) {
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
-            separate();
-            if (find_dollar_label(part) != NULL) {
+            DEBUG1("%%IFDEF macro=(%s)\r\n", p);
+            if (find_dollar_label(p) != NULL) {
                 ;
             } else {
                 avoid_level = level;
             }
-            check_end(p);
         } else if (casematch(part, "%IFNDEF")) {
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
-            separate();
-            if (find_dollar_label(part) == NULL) {
+            DEBUG1("%%IFNDEF macro=(%s)\r\n", p);
+            if (find_dollar_label(p) == NULL) {
                 ;
             } else {
                 avoid_level = level;
             }
-            check_end(p);
         } else if (casematch(part, "%ELSE")) {
             if (level == 1) {
                 message(1, "%ELSE without %IF");
@@ -2250,6 +2248,22 @@ static void do_assembly(const char *input_filename) {
                 goto after_line;
             }
             include = 1;
+        } else if (casematch(part, "%DEFINE")) {
+            p3 = match_label_prefix(p);
+            if (!p3 || !isspace(*p3)) {
+                message(1, "bad macro name");
+            } else {
+                pc = *p3;
+                *(char*)p3++ = '\0';
+                p3 = avoid_spaces(p3);
+                if (0) DEBUG2("%%DEFINE macro=(%s) value=(%s)\r\n", p, p3);
+                if (strcmp(p, p3) != 0) {
+                    message(1, "%DEFINE must be to itself");  /* Only allow `%define NAME NAME', useful after `NAME equ value', for NASM and YASM `%ifdef NAME' comptibility. */
+                } else if (!find_label(p)) {
+                    message(1, "Cannot use undefined labels");
+                }
+                *(char*)p3 = pc;  /* Restore original character for listing_fd. */
+            }
         } else {
             message_start(1);
             bbprintf(&message_bbb, "Unknown preprocessor directive: %s", part);
