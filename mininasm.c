@@ -2577,8 +2577,7 @@ int main(int argc, char **argv) {
     message_flush(NULL);
     if (errors) { do_remove:
         remove(output_filename);
-        if (listing_filename != NULL)
-            remove(listing_filename);
+        /* if (listing_filename != NULL) remove(listing_filename); */  /* Don't remove listing_filename, it may contain useful error messages etc. */
     } else {
         /*
          ** Do second pass of assembly and generate final output
