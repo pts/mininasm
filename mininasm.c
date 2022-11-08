@@ -306,7 +306,8 @@ typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
 static uvalue_t line_number;
 
-static unsigned char assembler_pass;  /* 0 at startup, 1 at offset calculation, >= 2 at code generation. */
+static unsigned short assembler_pass;  /* 0 at startup, 1 at offset calculation, >= 2 at code generation. */
+static unsigned char size_decrease_count;
 static value_t default_start_address;
 static value_t start_address;
 static value_t current_address;
@@ -2431,6 +2432,7 @@ int main(int argc, char **argv) {
     const char *p;
     char *ifname;
     char *listing_filename;
+    value_t prev_address;
 
 #if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
@@ -2588,7 +2590,7 @@ int main(int argc, char **argv) {
             return 1;
         }
         do {
-            ++assembler_pass;
+            if (GET_U16(++assembler_pass) == 0) --assembler_pass;  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
                     message_start(1);
@@ -2603,6 +2605,7 @@ int main(int argc, char **argv) {
                 message_end();
                 return 1;
             }
+            prev_address = current_address;
             is_start_address_set = 1;
             if (opt_level == 0) {
                 /* wide_instr_add_at = NULL; */  /* Keep for reading. */
@@ -2615,7 +2618,8 @@ int main(int argc, char **argv) {
             if (have_labels_changed) {
                 if (opt_level == 0) {
                     message(1, "oops: labels changed");
-                } else if (assembler_pass == 5 + 1) {  /* !! TODO(pts): Make this configurable? What is the limit for NASM? Don't increment assembler_pass if output size has increased. */
+                } else if (current_address > prev_address) {  /* It's OK that the size increases because of overly optimistic optimizations. */
+                } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? What is the limit for NASM? */
                     message(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
