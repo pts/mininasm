@@ -641,17 +641,14 @@ static struct label MY_FAR *find_label(const char *name) {
     return NULL;
 }
 
-static struct label MY_FAR *find_dollar_label(const char *name) {
-    if (name[0] == '$') ++name;
-    return find_label(name);
-}
-
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
-static void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
+static void print_labels_sorted_to_listing_fd(void) {
+    struct label MY_FAR *node = label_list;
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
+    char c;
     /* Morris in-order traversal of binary tree: iterative (non-recursive,
      * so it uses O(1) stack), modifies the tree pointers temporarily, but
      * then restores them, runs in O(n) time.
@@ -665,16 +662,43 @@ static void print_labels_sorted_to_listing_fd(struct label MY_FAR *node) {
         } else {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
-            strcpy_far(global_label, node->name);
+            if ((c = node->name[0]) != ' ' && c != '#') {  /* Skip macro counters. */
 #if CONFIG_VALUE_BITS == 32
 #if IS_VALUE_LONG
-            bbprintf(&message_bbb, "%-20s %04X%04X\r\n", global_label, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
+                bbprintf(&message_bbb, "%-20s %04X%04X\r\n", node->name, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
 #else
-            bbprintf(&message_bbb, "%-20s %08X\r\n", global_label, GET_UVALUE(node->value));
+                bbprintf(&message_bbb, "%-20s %08X\r\n", node->name, GET_UVALUE(node->value));
 #endif
 #else
-            bbprintf(&message_bbb, "%-20s %04X\r\n", global_label, GET_UVALUE(node->value));
+                bbprintf(&message_bbb, "%-20s %04X\r\n", node->name, GET_UVALUE(node->value));
 #endif
+            }
+            node = RBL_GET_RIGHT(node);
+        }
+    }
+}
+
+static char has_macro_counters;
+
+static void reset_macro_counters(void) {
+    struct label MY_FAR *node = label_list;
+    struct label MY_FAR *pre;
+    struct label MY_FAR *pre_right;
+    if (!has_macro_counters) return;
+    /* Morris in-order traversal of binary tree: iterative (non-recursive,
+     * so it uses O(1) stack), modifies the tree pointers temporarily, but
+     * then restores them, runs in O(n) time.
+     */
+    while (!RBL_IS_NULL(node)) {
+        if (RBL_IS_LEFT_NULL(node)) goto do_work;
+        for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
+        if (RBL_IS_NULL(pre_right)) {
+            RBL_SET_RIGHT(pre, node);
+            node = RBL_GET_LEFT(node);
+        } else {
+            RBL_SET_RIGHT(pre, NULL);
+          do_work:  /* Do for each node. */
+            if (node->name[0] == '#') node->value = 0;
             node = RBL_GET_RIGHT(node);
         }
     }
@@ -2046,6 +2070,9 @@ static void do_assembly(const char *input_filename) {
     int got;
     int input_fd;
     char pc;
+    char is_ifndef;
+    struct label MY_FAR *label;
+    struct label MY_FAR *label2;
 
     have_labels_changed = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
@@ -2192,26 +2219,54 @@ static void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-        } else if (casematch(part, "%IFDEF")) {  /* !!! Disable subsequent definitions (or, even better, undef) for assembler_pass > 1. */
+        } else if (casematch(part, "%IFDEF")) {
+            is_ifndef = 0;
+          ifdef_or_ifndef:
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
-            DEBUG1("%%IFDEF macro=(%s)\r\n", p);
-            if (find_dollar_label(p) != NULL) {
-                ;
+            if (0) DEBUG1("%%IFDEF macro=(%s)\r\n", p);
+            p3 = match_label_prefix(p);
+            if (!p3 || *p3 != '\0') {
+                message(1, "bad macro name");
+            } else if (find_label(p) != NULL) {
+                if (assembler_pass > 1) {
+                    pc = *--p;
+                    *(char*)p = ' ';  /* Prefix the macro name with a space. */
+                    if ((label = find_label(p)) == NULL) {
+                        if (0) DEBUG1("oops: missing undefined macro counter: (%s)\r\n", p);
+                    } else {
+                        *(char*)p = '#';
+                        if ((label2 = find_label(p)) == NULL) {
+                            label2 = define_label(p, 0);
+                        }
+                        if (0) DEBUG3("increment2 value2=%u value=%u p=(%s)\r\n", (unsigned)label2->value, (unsigned)label->value, p);
+                        if ((++*(uvalue_t*)&label2->value <= (uvalue_t)label->value) != is_ifndef) {  /* This macro is not defined yet in this pass. */
+                            avoid_level = level;  /* Our %IFDEF or %IFNDEF is false, start hiding. */
+                        }
+                    }
+                    *(char*)p = pc;  /* Restore original character for listing_fd. */
+                }
             } else {
-                avoid_level = level;
+                if (!is_ifndef) avoid_level = level;  /* Our %IFDEF is false, start hiding. */
+                if (assembler_pass == 1) {
+                    has_macro_counters = 1;
+                    pc = *--p;
+                    *(char*)p = ' ';  /* Prefix the macro name with a space. */
+                    if ((label = find_label(p)) == NULL) {
+                        define_label(p, 1);
+                    } else {
+                        if (++*(uvalue_t*)&label->value == 0) {
+                            --*(uvalue_t*)&label->value;
+                            message(1, "too many %IFDEFs");
+                        }
+                    }
+                    *(char*)p = pc;  /* Restore original character for listing_fd. */
+                }
             }
         } else if (casematch(part, "%IFNDEF")) {
-            if (GET_UVALUE(++level) == 0) goto if_too_deep;
-            if (avoid_level != 0 && level >= avoid_level)
-                goto after_line;
-            DEBUG1("%%IFNDEF macro=(%s)\r\n", p);
-            if (find_dollar_label(p) == NULL) {
-                ;
-            } else {
-                avoid_level = level;
-            }
+            is_ifndef = 1;
+            goto ifdef_or_ifndef;
         } else if (casematch(part, "%ELSE")) {
             if (level == 1) {
                 message(1, "%ELSE without %IF");
@@ -2626,6 +2681,7 @@ int main(int argc, char **argv) {
                 wide_instr_read_at = NULL;
             }
             reset_address();
+            reset_macro_counters();
             do_assembly(ifname);
             emit_flush(0);
             close(output_fd);
@@ -2643,7 +2699,7 @@ int main(int argc, char **argv) {
                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " ASSEMBLER PASSES\r\n\r\n", GET_FMT_U_VALUE(assembler_pass));
                 bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
-                print_labels_sorted_to_listing_fd(label_list);
+                print_labels_sorted_to_listing_fd();
                 bbprintf(&message_bbb /* listing_fd */, "\r\n");
                 message_flush(NULL);
                 close(listing_fd);
