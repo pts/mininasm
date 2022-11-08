@@ -45,7 +45,7 @@
 ; !!! add short form: A08F46 with BYTE:  mov al, byte [0x468f]
 ; !!! add short form: A2.... with BYTE:  mov byte [0x468f], al
 ; !!! allow and ignore the -O0 command-line flag
-; !!! predefine some __?NASM_MAJOR?__ or __MININASM__ etc.
+; !!! predefine some __NASM_MAJOR__ or __MININASM__ etc.
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c
 ; implemented in C), compiled with the OpenWatcom C compiler, then
