@@ -32,19 +32,11 @@
 ; * add ax, byte 9. wcc: 05 09 00; wasm: 83 C0 09.
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
-; !!! doc: incompatibility: `jmp near' to `jmp'; by default, nasm still optimizes
-; !!! doc: incompatibility: `call near' to `call' ??
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
-; !!! `jmp <label>' should be `jmp near <label>' by default (just like in `nasm -O0' -- but what if `nasm -O1'?, does it need manual conversion?)
 ; !!! add it: ADD AX, BYTE ...
 ; !!! add it: AND AX, BYTE ...
 ; !!! add it: CMP AX, BYTE ...
 ; !!! add it: SUB AX, BYTE ...
-; !!! add short form: A19748 with WORD:  mov ax, word [0x4897]
-; !!! add short form: A3DC48 with WORD:  mov word [0x48dc],ax
-; !!! add short form: A08F46 with BYTE:  mov al, byte [0x468f]
-; !!! add short form: A2.... with BYTE:  mov byte [0x468f], al
-; !!! allow and ignore the -O0 command-line flag
 ; !!! predefine some __NASM_MAJOR__ or __MININASM__ etc.
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c

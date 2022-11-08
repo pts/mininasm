@@ -805,9 +805,9 @@ define_label_:
 		or byte [es:bx], 1
 
 ;         path->label = label_list;
-		mov ax, [_label_list]  ; !!! mov ax, word [_label_list]
+		mov ax, word [_label_list]
 		mov dx, word [_label_list+2]
-		mov [@$617], ax  ; !!! mov word [@$617], ax
+		mov word [@$617], ax
 		mov word [@$618], dx
 
 ;         for (pathp = path; !RBL_IS_NULL(pathp->label); pathp++) {
@@ -1460,8 +1460,8 @@ match_expression_:
 ;             instruction_value = 0;
 @$44:
 		xor ax, ax
-		mov [_instruction_value], ax  ; !!! no word [...]
-		mov [_instruction_value+2], ax  ; !!! no word [...]
+		mov word [_instruction_value], ax
+		mov word [_instruction_value+2], ax
 
 ;             return NULL;
 		jmp @$160
@@ -1926,9 +1926,9 @@ match_expression_:
 
 ;             match_p += 2;
 ;             value1 = start_address;
-		mov ax, [_start_address]  ; !!! no word [...]
+		mov ax, word [_start_address]
 		mov word [bp-0x10], ax
-		mov ax, [_start_address+2]  ; !!! no word [...]
+		mov ax, word [_start_address+2]
 		mov word [bp-0xe], ax
 
 		inc si
@@ -1944,9 +1944,9 @@ match_expression_:
 
 ;             match_p++;
 ;             value1 = address;
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		mov word [bp-0x10], ax
-		mov ax, [_address+2]  ; !!! no word [...]
+		mov ax, word [_address+2]
 		mov word [bp-0xe], ax
 		jmp SHORT @$90
 
@@ -2031,11 +2031,11 @@ match_expression_:
 		je @$105
 
 ;                     if (expr_name[0] == p2[0] && expr_name[1] == p2[1]) goto match_error;  /* Using a register name as a label is an error. */
-		mov al, [_expr_name]  ; !!! no byte [...]
+		mov al, byte [_expr_name]
 		mov bx, cx
 		cmp al, byte [bx]
 		jne @$104
-		mov al, [_expr_name+1]  ; !!! no byte
+		mov al, byte [_expr_name+1]
 		cmp al, byte [bx+1]
 		je @$97
 
@@ -2567,9 +2567,9 @@ match_expression_:
 ;     instruction_value = value1;
 @$159:
 		mov ax, word [bp-0x10]
-		mov [_instruction_value], ax  ; !!! no word [...]
+		mov word [_instruction_value], ax
 		mov ax, word [bp-0xe]
-		mov [_instruction_value+2], ax  ; !!! no word [...]
+		mov word [_instruction_value+2], ax
 
 ;     return avoid_spaces(match_p);
 		mov ax, si
@@ -2727,8 +2727,8 @@ match_addressing_:
 ;
 ;     instruction_offset = 0;
 		xor ax, ax
-		mov [_instruction_offset], ax  ; !!! no word [...]
-		mov [_instruction_offset+2], ax  ; !!! no word [...]
+		mov word [_instruction_offset], ax
+		mov word [_instruction_offset+2], ax
 
 ;     instruction_offset_width = 0;
 		mov byte [_instruction_offset_width], 0
@@ -2788,7 +2788,7 @@ match_addressing_:
 		mov bl, al
 		xor bh, bh
 		mov al, byte [bx+_reg_to_addressing]
-		mov [_instruction_addressing], al  ; !!! no byte [...]
+		mov byte [_instruction_addressing], al
 		test al, al
 		jne @$176
 @$170:
@@ -2902,9 +2902,9 @@ match_addressing_:
 
 ;                             return NULL;
 @$181:
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
-		mov [_instruction_offset], ax  ; !!! no word [...]
+		mov word [_instruction_offset], ax
 		mov word [_instruction_offset+2], dx
 
 ;                         instruction_offset = instruction_value;
@@ -2921,7 +2921,7 @@ match_addressing_:
 		inc byte [_instruction_offset_width]
 
 ;                         if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
-		mov ax, [_instruction_offset+2]  ; !!! no word [...]
+		mov ax, word [_instruction_offset+2]
 		db 0x83, 0xF8, 0xff  ; !!! cmp ax, BYTE 0xffff
 		jg @$182
 		jne @$184
@@ -3002,9 +3002,9 @@ match_addressing_:
 
 ;                 return NULL;
 ;             instruction_offset = instruction_value;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
-		mov [_instruction_offset], ax  ; !!! no word [...]
+		mov word [_instruction_offset], ax
 		mov word [_instruction_offset+2], dx
 
 ;             if (*p != ']')
@@ -3041,7 +3041,7 @@ match_addressing_:
 ;         *instruction_addressing_p = 0xc0 | reg;
 		mov al, byte [bp-2]
 		or al, 0xc0
-		mov [_instruction_addressing], al  ; !!! no byte [...]
+		mov byte [_instruction_addressing], al
 
 ;     }
 ;     return p;
@@ -3082,7 +3082,7 @@ emit_flush_:
 
 ;         if (write(output_fd, emit_buf, size) != size) {
 @$196:
-		mov ax, [_output_fd]  ; !!! no word [...]
+		mov ax, word [_output_fd]
 		mov bx, cx
 		mov dx, _emit_buf
 		call near write_
@@ -3125,7 +3125,7 @@ emit_write_:
 ;     int emit_free;
 ;     while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
 @$198:
-		mov ax, [_emit_bbb+2]  ; !!! no word [...]
+		mov ax, word [_emit_bbb+2]
 		sub ax, word [_emit_bbb+4]
 		mov word [bp-2], ax
 		cmp dx, ax
@@ -3214,14 +3214,14 @@ emit_bytes_:
 @$202:
 		test bx, bx
 		jle @$200
-		mov ax, [_g]  ; !!! no word [...]
+		mov ax, word [_g]
 		cmp ax, _generated+8
 		je @$200
 		mov di, si
 		mov dx, ax
 		inc si
 		inc ax
-		mov [_g], ax  ; !!! no word [...]
+		mov word [_g], ax
 		mov al, byte [di]
 		mov di, dx
 		mov byte [di], al
@@ -3324,7 +3324,7 @@ match_:
 ;     undefined = 0;
 @$205:
 		xor ax, ax
-		mov [_undefined], ax  ; !!! no word [...]
+		mov word [_undefined], ax
 
 ;     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
 		mov word [bp-8], di
@@ -3557,7 +3557,7 @@ match_:
 		jne @$230
 
 ;                 c = instruction_value - (address + 2);
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		inc ax
 		inc ax
 		mov dx, word [_instruction_value]
@@ -3660,7 +3660,7 @@ match_:
 		jne @$230
 
 ;                 c = instruction_value;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov word [bp-0xe], ax
 
 ;                 if (undefined != 0)
@@ -3710,9 +3710,9 @@ match_:
 ;                 goto mismatch;
 ;             segment_value = instruction_value;
 		mov dx, word [_instruction_value]
-		mov ax, [_instruction_value+2]  ; !!! no word [...]
+		mov ax, word [_instruction_value+2]
 		mov word [@$620], dx
-		mov [@$621], ax  ; !!! no word [...]
+		mov word [@$621], ax
 
 ;             if (*p != ':')
 		cmp byte [si], 0x3a
@@ -3865,7 +3865,7 @@ match_:
 		jne @$256
 
 ;             c = instruction_value;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov word [bp-0xe], ax
 
 ;         } else if (dc == 'j') {
@@ -3877,7 +3877,7 @@ match_:
 		jne @$259
 
 ;             c = instruction_value;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov word [bp-0xe], ax
 
 ;             instruction_offset = instruction_value >> 8;
@@ -3888,7 +3888,7 @@ match_:
 		rcr ax, 1
 		loop @$257
 @$258:
-		mov [_instruction_offset], ax  ; !!! no word [...]
+		mov word [_instruction_offset], ax
 		mov word [_instruction_offset+2], dx
 
 ;             dw = 1;
@@ -3901,7 +3901,7 @@ match_:
 		jne @$261
 
 ;             c = instruction_value - (address + 1);
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		inc ax
 		mov dx, word [_instruction_value]
 		sub dx, ax
@@ -3928,7 +3928,7 @@ match_:
 		jne @$262
 
 ;             c = instruction_value - (address + 2);
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		inc ax
 		inc ax
 		mov dx, word [_instruction_value]
@@ -3948,11 +3948,11 @@ match_:
 		jne @$265
 
 ;             emit_byte(instruction_value);
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		call near emit_byte_
 
 ;             c = instruction_value >> 8;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
 		mov cx, 8
 @$263:
@@ -3962,9 +3962,9 @@ match_:
 		mov word [bp-0xe], ax
 
 ;             instruction_offset = segment_value;
-		mov ax, [@$620]  ; !!! no word [...]
+		mov ax, word [@$620]
 		mov dx, word [@$621]
-		mov [_instruction_offset], ax  ; !!! no word [...]
+		mov word [_instruction_offset], ax
 		mov word [_instruction_offset+2], dx
 
 ;             dw = 2;
@@ -4013,7 +4013,7 @@ match_:
 ;                     c |= instruction_register << (5 - bit);
 		mov cx, 5
 		sub cx, word [bp-0xc]
-		mov al, [_instruction_register]  ; !!! no byte
+		mov al, byte [_instruction_register]
 		xor ah, ah
 		shl ax, cl
 		or word [bp-0xe], ax
@@ -4046,7 +4046,7 @@ match_:
 		jne @$273
 
 ;                         c |= instruction_addressing & 0xc0;
-		mov al, [_instruction_addressing]  ; !!! no byte
+		mov al, byte [_instruction_addressing]
 		and al, 0xc0
 		xor ah, ah
 		or word [bp-0xe], ax
@@ -4059,14 +4059,14 @@ match_:
 
 ;                         c |= instruction_addressing & 0x07;
 @$273:
-		mov al, [_instruction_addressing]  ; !!! no byte
+		mov al, byte [_instruction_addressing]
 		and al, 7
 		xor ah, ah
 		or word [bp-0xe], ax
 
 ;                         bit += 3;
 ;                         dw = instruction_offset_width;  /* 1 or 2. */
-		mov al, [_instruction_offset_width]  ; !!! no byte
+		mov al, byte [_instruction_offset_width]
 		mov byte [bp-4], al
 		jmp SHORT @$268
 
@@ -4111,13 +4111,13 @@ match_:
 
 ;             emit_byte(instruction_offset);
 @$277:
-		mov ax, [_instruction_offset]  ; !!! no word [...]
+		mov ax, word [_instruction_offset]
 		call near emit_byte_
 
 ;             if (dw > 1) emit_byte(instruction_offset >> 8);
 		cmp byte [bp-4], 1
 		jbe @$276
-		mov ax, [_instruction_offset]  ; !!! no word [...]
+		mov ax, word [_instruction_offset]
 		mov dx, word [_instruction_offset+2]
 		mov cx, 8
 @$278:
@@ -4197,8 +4197,8 @@ separate_:
 
 ;     prev_p = p;
 @$283:
-		mov ax, [_p]  ; !!! no word [...]
-		mov [_prev_p], ax  ; !!! no word [...]
+		mov ax, word [_p]
+		mov word [_prev_p], ax
 
 ;     p2 = part;
 		mov bx, _part
@@ -4219,7 +4219,7 @@ separate_:
 
 ;         *p2++ = *p++;
 		lea ax, [si+1]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 		mov al, byte [si]
 		mov byte [bx], al
 		inc bx
@@ -4283,7 +4283,7 @@ message_flush_:
 		mov word [_message_bbb+4], _message_buf
 
 ;         if (listing_fd >= 0) {
-		mov ax, [_listing_fd]  ; !!! no word [...]
+		mov ax, word [_listing_fd]
 		test ax, ax
 		jl @$289
 
@@ -4333,7 +4333,7 @@ message_start_:
 ;         if (GET_UVALUE(++errors) == 0) --errors;  /* Cappped at max uvalue_t. */
 		add word [_errors], BYTE 1
 		adc word [_errors+2], BYTE 0
-		mov ax, [_errors+2]  ; !!! no word [...]
+		mov ax, word [_errors+2]
 		or ax, word [_errors]
 		jne @$293
 		add word [_errors], BYTE -1
@@ -4348,7 +4348,7 @@ message_start_:
 ;         if (GET_UVALUE(++warnings) == 0) --warnings;  /* Cappped at max uvalue_t. */
 		add word [_warnings], BYTE 1
 		adc word [_warnings+2], ax
-		mov ax, [_warnings+2]  ; !!! no word [...]
+		mov ax, word [_warnings+2]
 		or ax, word [_warnings]
 		jne @$293
 		add word [_warnings], BYTE -1
@@ -4357,7 +4357,7 @@ message_start_:
 ;     }
 ;     if (!message_bbb.data) {
 @$293:
-		mov ax, [_message_bbb+6]  ; !!! no word [...]
+		mov ax, word [_message_bbb+6]
 		test ax, ax
 		jne @$294
 
@@ -4407,7 +4407,7 @@ message_start_:
 
 ;     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 		xor ax, ax
-		mov [_message_bbb+6], ax  ; !!! no word [...]
+		mov word [_message_bbb+6], ax
 
 ; }
 		ret
@@ -4429,7 +4429,7 @@ message_:
 
 ;     message_end();
 message_end_:
-		mov ax, [_line_number+2]  ; !!! no word [...]
+		mov ax, word [_line_number+2]
 		or ax, word [_line_number]
 		je @$295
 		push word [_line_number+2]
@@ -4470,10 +4470,10 @@ process_instruction_:
 ;         while (1) {
 ;             p = avoid_spaces(p);
 @$297:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near avoid_spaces_
 		mov bx, ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;             if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
 		mov al, byte [bx]
@@ -4486,7 +4486,7 @@ process_instruction_:
 @$298:
 		mov bx, word [_p]
 		lea ax, [bx+1]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 		mov al, byte [bx]
 		mov byte [bp-2], al
 
@@ -4539,7 +4539,7 @@ process_instruction_:
 @$303:
 		mov dx, bx
 		sub dx, word [_p]
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near emit_bytes_
 
 ;                 }
@@ -4552,9 +4552,9 @@ process_instruction_:
 
 ;                 p = match_expression(p);
 @$305:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -4572,7 +4572,7 @@ process_instruction_:
 ;                 }
 ;                 emit_byte(instruction_value);
 @$307:
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		call near emit_byte_
 
 ;             }
@@ -4590,7 +4590,7 @@ process_instruction_:
 		mov ax, bx
 		call near avoid_spaces_
 		mov bx, ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (*p == '\0') break;
 		cmp byte [bx], 0
@@ -4631,9 +4631,9 @@ process_instruction_:
 ;         while (1) {
 ;             p = match_expression(p);
 @$312:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;             if (p == NULL) {
 		test ax, ax
@@ -4643,11 +4643,11 @@ process_instruction_:
 ;                 break;
 ;             }
 ;             emit_byte(instruction_value);
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		call near emit_byte_
 
 ;             emit_byte(instruction_value >> 8);
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
 		mov cx, 8
 @$313:
@@ -4662,11 +4662,11 @@ process_instruction_:
 		je @$314
 
 ;                 emit_byte(instruction_value >> 16);
-		mov ax, [_instruction_value+2]  ; !!! no word [...]
+		mov ax, word [_instruction_value+2]
 		call near emit_byte_
 
 ;                 emit_byte(instruction_value >> 24);
-		mov al, [_instruction_value+3]  ; !!! no byte
+		mov al, byte [_instruction_value+3]
 		cbw
 		call near emit_byte_
 
@@ -4686,7 +4686,7 @@ process_instruction_:
 		mov ax, bx
 		call near avoid_spaces_
 		mov bx, ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (*p == '\0') break;
 		cmp byte [bx], 0
@@ -4775,7 +4775,7 @@ process_instruction_:
 		mov dx, bx
 		mov ax, cx
 		call near match_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;         if (p == NULL) {
 		test ax, ax
@@ -4824,11 +4824,11 @@ reset_address_:
 		push dx
 
 ;     address = start_address = default_start_address;
-		mov ax, [_default_start_address]  ; !!! no word [...]
+		mov ax, word [_default_start_address]
 		mov dx, word [_default_start_address+2]
-		mov [_start_address], ax  ; !!! no word [...]
+		mov word [_start_address], ax
 		mov word [_start_address+2], dx
-		mov [_address], ax  ; !!! no word [...]
+		mov word [_address], ax
 		mov word [_address+2], dx
 
 ; }
@@ -4885,7 +4885,7 @@ incbin_:
 
 ;     g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
 		xor ax, ax
-		mov [_g], ax  ; !!! no word [...]
+		mov word [_g], ax
 
 ;     while ((size = read(input_fd, message_buf, sizeof(message_buf))) > 0) {
 @$326:
@@ -5014,15 +5014,15 @@ assembly_push_:
 		mov byte [bx+0x10], 0
 
 ;     strcpy(assembly_p->input_filename, input_filename);
-		mov ax, [_assembly_p]  ; !!! no word [...]
+		mov ax, word [_assembly_p]
 		db 0x83, 0xC0, 0x11  ; !!! add ax, BYTE 0x11
 		call near strcpy_
 
 ;     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
-		mov ax, [_assembly_p]  ; !!! no word [...]
+		mov ax, word [_assembly_p]
 		db 0x83, 0xC0, 0x12  ; !!! add ax, BYTE 0x12
 		add ax, cx
-		mov [_assembly_p], ax  ; !!! no word [...]
+		mov word [_assembly_p], ax
 
 ; #if !CONFIG_CPU_UNALIGN
 ;     for (; extra_nul_count > 0; --extra_nul_count, *(char*)assembly_p = '\0', assembly_p = (struct assembly_info*)((char*)(assembly_p) + 1)) {}
@@ -5048,7 +5048,7 @@ assembly_pop_:
 
 ;     assembly_p = aip;
 @$331:
-		mov [_assembly_p], ax  ; !!! no word [...]
+		mov word [_assembly_p], ax
 
 ;     p = (char*)aip;
 ;     if (*--p != '\0') {
@@ -5186,8 +5186,8 @@ do_assembly_:
 ;     line_number = 0;  /* Global variable. */
 @$335:
 		xor ax, ax
-		mov [_line_number], ax  ; !!! no word [...]
-		mov [_line_number+2], ax  ; !!! no word [...]
+		mov word [_line_number], ax
+		mov word [_line_number+2], ax
 
 ;     if (!(aip = assembly_push(input_filename))) {
 		mov ax, word [bp-0x16]
@@ -5210,8 +5210,8 @@ do_assembly_:
 ;     line_number = 0;  /* Global variable. */
 @$336:
 		xor ax, ax
-		mov [_line_number], ax  ; !!! no word [...]
-		mov [_line_number+2], ax  ; !!! no word [...]
+		mov word [_line_number], ax
+		mov word [_line_number+2], ax
 
 ;     if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
 		lea bx, [si+0x11]
@@ -5285,8 +5285,8 @@ do_assembly_:
 ;     line_number = aip->line_number;
 		mov ax, word [si+0xc]
 		mov dx, word [si+0xe]
-		mov [_line_number], ax  ; !!! no word [...]
-		mov [_line_number+2], dx  ; !!! no word [...]
+		mov word [_line_number], ax
+		mov word [_line_number+2], dx
 
 ;
 ;     global_label[0] = '\0';
@@ -5306,9 +5306,9 @@ do_assembly_:
 
 ;         for (p = line = linep; p != line_rend && *p != '\n'; ++p) {}
 		mov word [bp-0xa], ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 @$342:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-8]
 		je @$343
 		mov bx, ax
@@ -5320,7 +5320,7 @@ do_assembly_:
 
 ;         if (p == line_rend) {
 @$343:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-8]
 		jne @$349
 
@@ -5339,14 +5339,14 @@ do_assembly_:
 ;                 for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
 		mov dx, _line_buf
 		mov ax, word [bp-0xa]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 @$344:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-8]
 		je @$346
 		mov bx, ax
 		inc ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 		mov al, byte [bx]
 		mov bx, dx
 		mov byte [bx], al
@@ -5416,7 +5416,7 @@ do_assembly_:
 
 ;             for (; p != line_rend && *p != '\n'; ++p) {}
 @$353:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-8]
 		je @$354
 		mov bx, ax
@@ -5428,7 +5428,7 @@ do_assembly_:
 
 ;             if (p == line_rend) goto line_too_long;
 @$354:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-8]
 		je @$351
 
@@ -5439,7 +5439,7 @@ do_assembly_:
 		mov byte [bx], 0
 
 ;         linep = (char*)p + 1;
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		inc ax
 		mov word [bp-0xe], ax
 
@@ -5449,7 +5449,7 @@ do_assembly_:
 @$356:
 		add word [_line_number], BYTE 1
 		adc word [_line_number+2], BYTE 0
-		mov ax, [_line_number+2]  ; !!! no word [...]
+		mov ax, word [_line_number+2]
 		or ax, word [_line_number]
 		jne @$357
 		add word [_line_number], BYTE -1
@@ -5458,11 +5458,11 @@ do_assembly_:
 ;         p = line;
 @$357:
 		mov ax, word [bp-0xa]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;         while (*p) {
 @$358:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		mov bx, ax
 		cmp byte [bx], 0
 		je @$362
@@ -5475,7 +5475,7 @@ do_assembly_:
 
 ;                 p++;
 		inc ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 while (*p && *p != '\'' && *(p - 1) != '\\')
 @$359:
@@ -5495,7 +5495,7 @@ do_assembly_:
 
 ;             } else if (*p == '"' && *(p - 1) != '\\') {
 @$360:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		mov bx, ax
 		cmp byte [bx], 0x22
 		jne @$363
@@ -5504,7 +5504,7 @@ do_assembly_:
 
 ;                 p++;
 		inc ax
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 while (*p && *p != '"' && *(p - 1) != '\\')
 @$361:
@@ -5560,7 +5560,7 @@ do_assembly_:
 
 ;         if (p != line && *(p - 1) == '\r')
 @$366:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		cmp ax, word [bp-0xa]
 		je @$367
 		mov bx, ax
@@ -5574,7 +5574,7 @@ do_assembly_:
 
 ;         if (p - line >= MAX_SIZE) { line_too_long:
 @$367:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		sub ax, word [bp-0xa]
 		cmp ax, 0x100
 		jl @$369
@@ -5589,7 +5589,7 @@ do_assembly_:
 ;
 ;         base = address;
 @$369:
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		mov word [bp-0x14], ax
 
 ;         g = generated;
@@ -5602,7 +5602,7 @@ do_assembly_:
 ;         while (1) {
 ;             p = line;
 		mov ax, word [bp-0xa]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;             separate();
 		call near separate_
@@ -5692,9 +5692,9 @@ do_assembly_:
 		jne @$380
 
 ;                         p = match_expression(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                         if (p == NULL) {
 		test ax, ax
@@ -5746,7 +5746,7 @@ do_assembly_:
 		mov cx, word [_instruction_value+2]
 		mov ax, _name
 		call near define_label_
-		mov [_last_label], ax  ; !!! no word [...]
+		mov word [_last_label], ax
 		mov word [_last_label+2], dx
 
 ;                                 }
@@ -5803,7 +5803,7 @@ do_assembly_:
 ;                                     last_label->value = instruction_value;
 @$384:
 		les bx, [_last_label]
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
 		mov word [es:bx+5], ax
 		mov word [es:bx+7], dx
@@ -5825,7 +5825,7 @@ do_assembly_:
 ; #endif
 ;                         first_time = 0;
 		xor ax, ax
-		mov [_first_time], ax  ; !!! no word [...]
+		mov word [_first_time], ax
 
 ;                         reset_address();
 		call near reset_address_
@@ -5872,7 +5872,7 @@ do_assembly_:
 		mov cx, word [_address+2]
 		mov ax, _name
 		call near define_label_
-		mov [_last_label], ax  ; !!! no word [...]
+		mov word [_last_label], ax
 		mov word [_last_label+2], dx
 
 ;                         }
@@ -5927,7 +5927,7 @@ do_assembly_:
 ;                             last_label->value = address;
 @$393:
 		les bx, [_last_label]
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		mov dx, word [_address+2]
 		mov word [es:bx+5], ax
 		mov word [es:bx+7], dx
@@ -5981,12 +5981,12 @@ do_assembly_:
 ;                 undefined = 0;
 @$397:
 		xor ax, ax
-		mov [_undefined], ax  ; !!! no word [...]
+		mov word [_undefined], ax
 
 ;                 p = match_expression(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -6012,7 +6012,7 @@ do_assembly_:
 ;                 }
 ;                 if (GET_UVALUE(instruction_value) != 0) {
 @$401:
-		mov ax, [_instruction_value+2]  ; !!! no word [...]
+		mov ax, word [_instruction_value+2]
 		or ax, word [_instruction_value]
 @$402:
 		jne @$404
@@ -6027,7 +6027,7 @@ do_assembly_:
 
 ;                 }
 @$404:
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 @$405:
 		call near check_end_
 @$406:
@@ -6274,9 +6274,9 @@ do_assembly_:
 		jne @$426
 
 ;                 p = avoid_spaces(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near avoid_spaces_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (memcmp(p, "8086", 4) != 0)
 		mov bx, 4
@@ -6300,16 +6300,16 @@ do_assembly_:
 		jne @$433
 
 ;                 p = avoid_spaces(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near avoid_spaces_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -6362,11 +6362,11 @@ do_assembly_:
 		call near separate_
 
 ;                 check_end(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near check_end_
 
 ;                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-		mov al, [_part]  ; !!! no byte
+		mov al, byte [_part]
 		cmp al, 0x22
 		je @$434
 		cmp al, 0x27
@@ -6406,11 +6406,11 @@ do_assembly_:
 		call near separate_
 
 ;                 check_end(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near check_end_
 
 ;                 if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-		mov al, [_part]  ; !!! no byte
+		mov al, byte [_part]
 		cmp al, 0x22
 		je @$438
 		cmp al, 0x27
@@ -6447,16 +6447,16 @@ do_assembly_:
 		jne @$446
 
 ;                 p = avoid_spaces(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near avoid_spaces_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -6479,16 +6479,16 @@ do_assembly_:
 
 ;                         first_time = 0;
 		xor ax, ax
-		mov [_first_time], ax  ; !!! no word [...]
+		mov word [_first_time], ax
 
 ;                         address = instruction_value;
-		mov ax, [_instruction_value]  ; !!! no word [...]
+		mov ax, word [_instruction_value]
 		mov dx, word [_instruction_value+2]
-		mov [_address], ax  ; !!! no word [...]
+		mov word [_address], ax
 		mov word [_address+2], dx
 
 ;                         start_address = instruction_value;
-		mov [_start_address], ax  ; !!! no word [...]
+		mov word [_start_address], ax
 		mov word [_start_address+2], dx
 
 ;                         base = address;
@@ -6500,7 +6500,7 @@ do_assembly_:
 ;                         if (instruction_value < address) {
 @$444:
 		mov dx, word [_instruction_value]
-		mov ax, [_instruction_value+2]  ; !!! no word [...]
+		mov ax, word [_instruction_value+2]
 		cmp ax, word [_address+2]
 		jl @$445
 		jne @$447
@@ -6521,7 +6521,7 @@ do_assembly_:
 ;                             while (address < instruction_value)
 @$447:
 		mov dx, word [_address]
-		mov ax, [_address+2]  ; !!! no word [...]
+		mov ax, word [_address+2]
 		cmp ax, word [_instruction_value+2]
 		jl @$450
 		je @$449
@@ -6553,16 +6553,16 @@ do_assembly_:
 		jne @$456
 
 ;                 p = avoid_spaces(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near avoid_spaces_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 undefined = 0;
 		mov word [_undefined], 0
 
 ;                 p = match_expression(p);
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -6580,7 +6580,7 @@ do_assembly_:
 ;                 } else {
 ;                     align = address / instruction_value;
 @$453:
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		mov dx, word [_address+2]
 		mov bx, word [_instruction_value]
 		mov cx, word [_instruction_value+2]
@@ -6623,7 +6623,7 @@ do_assembly_:
 ; #endif
 ;                 first_time = 0;
 		xor ax, ax
-		mov [_first_time], ax  ; !!! no word [...]
+		mov word [_first_time], ax
 
 ;                 reset_address();
 		call near reset_address_
@@ -6641,12 +6641,12 @@ do_assembly_:
 		jne @$462
 
 ;                 undefined = 0;
-		mov [_undefined], ax  ; !!! no word [...]
+		mov word [_undefined], ax
 
 ;                 p = match_expression(p);
-		mov ax, [_p]  ; !!! no word [...]
+		mov ax, word [_p]
 		call near match_expression_
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 
 ;                 if (p == NULL) {
 		test ax, ax
@@ -6683,7 +6683,7 @@ do_assembly_:
 ;             }
 ;             base = address;
 @$462:
-		mov ax, [_address]  ; !!! no word [...]
+		mov ax, word [_address]
 		mov word [bp-0x14], ax
 
 ;             g = generated;
@@ -6758,7 +6758,7 @@ do_assembly_:
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
 		lea ax, [bx+1]
-		mov [_p], ax  ; !!! no word [...]
+		mov word [_p], ax
 		mov al, byte [bx]
 		xor ah, ah
 		push ax
@@ -6796,7 +6796,7 @@ do_assembly_:
 ;             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
 @$470:
 		push word [bp-0xa]
-		mov ax, [_line_number]  ; !!! no word [...]
+		mov ax, word [_line_number]
 		mov dx, word [_line_number+2]
 		call near get_fmt_u_value_
 		push ax
@@ -6863,7 +6863,7 @@ do_assembly_:
 
 ;             aip->line_number = line_number;
 		mov dx, word [_line_number]
-		mov ax, [_line_number+2]  ; !!! no word [...]
+		mov ax, word [_line_number+2]
 		mov word [si+0xc], dx
 		mov word [si+0xe], ax
 
@@ -6995,14 +6995,14 @@ main_:
 		mov word [bp-2], ax
 
 ;     output_filename = NULL;
-		mov [_output_filename], ax  ; !!! no word [...]
+		mov word [_output_filename], ax
 
 ;     listing_filename = NULL;
-		mov [_listing_filename], ax  ; !!! no word [...]
+		mov word [_listing_filename], ax
 
 ;     default_start_address = 0;
-		mov [_default_start_address], ax  ; !!! no word [...]
-		mov [_default_start_address+2], ax  ; !!! no word [...]
+		mov word [_default_start_address], ax
+		mov word [_default_start_address+2], ax
 
 ;     c = 1;
 		mov si, 1
@@ -7030,7 +7030,7 @@ main_:
 		jne @$483
 
 ;                         default_start_address = 0;
-		mov [_default_start_address], ax  ; !!! no word [...]
+		mov word [_default_start_address], ax
 
 ;                     } else if (strcmp(argv[c], "com") == 0) {
 		jmp SHORT @$486
@@ -7066,7 +7066,7 @@ main_:
 @$485:
 		mov word [_default_start_address], 0x100
 @$486:
-		mov [_default_start_address+2], ax  ; !!! no word [...]
+		mov word [_default_start_address+2], ax
 
 ;                     c++;
 @$487:
@@ -7105,7 +7105,7 @@ main_:
 ;                     output_filename = argv[c];
 @$490:
 		mov ax, word [bx]
-		mov [_output_filename], ax  ; !!! no word [...]
+		mov word [_output_filename], ax
 
 ;                     c++;
 @$491:
@@ -7169,7 +7169,7 @@ main_:
 ;                     listing_filename = argv[c];
 @$497:
 		mov ax, word [bx]
-		mov [_listing_filename], ax  ; !!! no word [...]
+		mov word [_listing_filename], ax
 		jmp SHORT @$491
 @$498:
 		jmp @$510
@@ -7220,7 +7220,7 @@ main_:
 
 ;                     undefined = 0;
 		xor ax, ax
-		mov [_undefined], ax  ; !!! no word [...]
+		mov word [_undefined], ax
 		lea ax, [bx+1]
 		call near match_expression_
 
@@ -7326,21 +7326,21 @@ main_:
 ;     assembler_step = 1;
 @$511:
 		mov ax, 1
-		mov [_assembler_step], ax  ; !!! no word [...]
+		mov word [_assembler_step], ax
 
 ;     first_time = 1;
-		mov [_first_time], ax  ; !!! no word [...]
+		mov word [_first_time], ax
 
 ;     malloc_init();
 		mov ax, ds
 		add ax, ___sd_top__
-		mov [___malloc_struct__+4], ax  ; !!! no word [...]
+		mov word [___malloc_struct__+4], ax
 		mov ax, cs
 		dec ax
 		mov es, ax
 		inc ax
 		add ax, word [es:3]
-		mov [___malloc_struct__], ax  ; !!! no word [...]
+		mov word [___malloc_struct__], ax
 
 ;     do_assembly(ifname);
 		mov ax, word [bp-2]
@@ -7351,17 +7351,17 @@ main_:
 		call near message_flush_
 
 ;     if (errors) { do_remove:
-		mov ax, [_errors+2]  ; !!! no word [...]
+		mov ax, word [_errors+2]
 		or ax, word [_errors]
 		je @$514
 
 ;         remove(output_filename);
 @$512:
-		mov ax, [_output_filename]  ; !!! no word [...]
+		mov ax, word [_output_filename]
 		call near remove_
 
 ;         if (listing_filename != NULL)
-		mov ax, [_listing_filename]  ; !!! no word [...]
+		mov ax, word [_listing_filename]
 		test ax, ax
 		je @$513
 
@@ -7387,23 +7387,23 @@ main_:
 ;         }
 ;         change_number = 0;
 @$515:
-		mov [_change_number], ax  ; !!! no word [...]
+		mov word [_change_number], ax
 
 ;         do {
 ;             change = 0;
 @$516:
 		xor ax, ax
-		mov [_change], ax  ; !!! no word [...]
+		mov word [_change], ax
 
 ;             if (listing_filename != NULL) {
-		mov ax, [_listing_filename]  ; !!! no word [...]
+		mov ax, word [_listing_filename]
 		test ax, ax
 		je @$517
 
 ;                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
 		mov dx, 0x1a4
 		call near creat_
-		mov [_listing_fd], ax  ; !!! no word [...]
+		mov word [_listing_fd], ax
 		test ax, ax
 		jge @$517
 
@@ -7422,10 +7422,10 @@ main_:
 ;             }
 ;             if ((output_fd = creat(output_filename, 0644)) < 0) {
 @$517:
-		mov ax, [_output_filename]  ; !!! no word [...]
+		mov ax, word [_output_filename]
 		mov dx, 0x1a4
 		call near creat_
-		mov [_output_fd], ax  ; !!! no word [...]
+		mov word [_output_fd], ax
 		test ax, ax
 		jge @$518
 
@@ -7449,9 +7449,9 @@ main_:
 		mov word [_first_time], 1
 
 ;             address = start_address;
-		mov ax, [_start_address]  ; !!! no word [...]
+		mov ax, word [_start_address]
 		mov dx, word [_start_address+2]
-		mov [_address], ax  ; !!! no word [...]
+		mov word [_address], ax
 		mov word [_address+2], dx
 
 ;             do_assembly(ifname);
@@ -7468,7 +7468,7 @@ main_:
 		jne @$521
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
-		mov ax, [_errors]  ; !!! no word [...]
+		mov ax, word [_errors]
 		mov dx, word [_errors+2]
 		call near get_fmt_u_value_
 		push ax
@@ -7480,7 +7480,7 @@ main_:
 		add sp, BYTE 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n\r\n", GET_FMT_U_VALUE(warnings));
-		mov ax, [_warnings]  ; !!! no word [...]
+		mov ax, word [_warnings]
 		mov dx, word [_warnings+2]
 		call near get_fmt_u_value_
 		push ax
@@ -7492,7 +7492,7 @@ main_:
 		add sp, BYTE 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
-		mov ax, [_bytes]  ; !!! no word [...]
+		mov ax, word [_bytes]
 		mov dx, word [_bytes+2]
 		call near get_fmt_u_value_
 		push ax
@@ -7505,7 +7505,7 @@ main_:
 
 ;                 if (label_list != NULL) {
 		mov dx, word [_label_list]
-		mov ax, [_label_list+2]  ; !!! no word [...]
+		mov ax, word [_label_list+2]
 		test ax, ax
 		jne @$520
 		test dx, dx
@@ -7523,7 +7523,7 @@ main_:
 		add sp, BYTE 6
 
 ;                     print_labels_sorted_to_listing_fd(label_list);
-		mov ax, [_label_list]  ; !!! no word [...]
+		mov ax, word [_label_list]
 		mov dx, word [_label_list+2]
 		call near print_labels_sorted_to_listing_fd_
 
@@ -7535,7 +7535,7 @@ main_:
 		call near emit_flush_
 
 ;             close(output_fd);
-		mov ax, [_output_fd]  ; !!! no word [...]
+		mov ax, word [_output_fd]
 		call near close_
 
 ;             if (listing_filename != NULL) {
@@ -7547,7 +7547,7 @@ main_:
 		call near message_flush_
 
 ;                 close(listing_fd);
-		mov ax, [_listing_fd]  ; !!! no word [...]
+		mov ax, word [_listing_fd]
 		call near close_
 
 ;             }
@@ -7572,14 +7572,14 @@ main_:
 ;             }
 ;             if (errors) goto do_remove;
 @$523:
-		mov ax, [_errors+2]  ; !!! no word [...]
+		mov ax, word [_errors+2]
 		or ax, word [_errors]
 		je @$524
 		jmp @$512
 
 ;         } while (change) ;
 @$524:
-		mov ax, [_change]  ; !!! no word [...]
+		mov ax, word [_change]
 		test ax, ax
 		je @$525
 		jmp @$516
