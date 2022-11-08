@@ -306,7 +306,7 @@ typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
 static uvalue_t line_number;
 
-static char assembler_step;  /* (0 or) 1 or 2. */ /* !! Change many variables from int to char. */
+static unsigned char assembler_pass;  /* 0 at startup, 1 at offset calculation, >= 2 at code generation. */
 static value_t default_start_address;
 static value_t start_address;
 static value_t current_address;
@@ -338,7 +338,6 @@ static uvalue_t errors;
 static uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
 static uvalue_t bytes;
 static int change;
-static int change_number;  /* !! TODO(pts): Merge assembler_step to this variable. */
 
 #if CONFIG_DOSMC_PACKED
 _Packed  /* Disable extra aligment byte at the end of `struct label'. */
@@ -965,7 +964,7 @@ static const char *match_expression(const char *match_p) {
             if (label == NULL) {
                 /*value1 = 0;*/
                 has_undefined = 1;
-                if (assembler_step == 2) {
+                if (assembler_pass > 1) {
                     message_start(1);
                     /* This will be printed twice for `jmp', but once for `jc'. */
                     bbprintf(&message_bbb, "Undefined label '%s'", expr_name);
@@ -991,7 +990,7 @@ static const char *match_expression(const char *match_p) {
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
                     if (GET_UVALUE(value2) == 0) {
-                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
+                        if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             message(1, "division by zero");
                         value2 = 1;
                     }
@@ -1000,7 +999,7 @@ static const char *match_expression(const char *match_p) {
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
                     if (GET_UVALUE(value2) == 0) {
-                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
+                        if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             message(1, "modulo by zero");
                         value2 = 1;
                     }
@@ -1045,7 +1044,7 @@ static const char *match_expression(const char *match_p) {
                          * To get deterministic output, we disallow shift amounts with more than 5 bits.
                          * NASM has nondeterministic output, depending on the host architecture (32-bit mode or 64-bit mode).
                          */
-                        if (assembler_step == 2)  /* This also implies !has_undefined, if there is no bug. */
+                        if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             message(1, "shift by larger than 31");
                         value2 = 0;
 #if !CONFIG_SHIFT_OK_31
@@ -1135,12 +1134,12 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
 
 /* --- Recording of wide sources for -O0
  *
- * In assembler_step == 1, add_wide_source_in_step_1(...) for all jump
+ * In assembler_pass == 1, add_wide_source_in_pass_1(...) for all jump
  * sources which were guessed as `jmp near', and for all effective address
  * offsets which were guessed as 16-bit, both
  *  because they had undefined labels,
  *
- * In assembler_step == 2, these sources are used to force the jump to
+ * In assembler_pass > 1, these sources are used to force the jump to
  * `jmp near' and he effective address to 16-bit, thus the instruction won't
  * get optimized to a smaller size (e.g. from `jmp near' to `jmp short'),
  * which is a requirement for -O0.
@@ -1166,7 +1165,7 @@ static uvalue_t MY_FAR *wide_instr_read_at;
  ** Must be called with strictly increasing fpos values. Thus calling it with
  ** the same fpos multiple times is not allowed.
  */
-static void add_wide_instr_in_step_1(void) {
+static void add_wide_instr_in_pass_1(void) {
     /* TODO(pts): Optimize this function for size in __DOSMC__. */
     const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
     struct wide_instr_block MY_FAR *new_block;
@@ -1199,7 +1198,7 @@ static void add_wide_instr_in_step_1(void) {
  ** Must be called with increasing fpos values. Thus calling it with the same
  ** fpos multiple times is OK.
  */
-static char is_wide_instr_in_step_2(void) {
+static char is_wide_instr_in_pass_2(void) {
     /* TODO(pts): Optimize this function for size in __DOSMC__. */
     const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
     uvalue_t MY_FAR *vp;
@@ -1311,14 +1310,14 @@ static const char *match_addressing(const char *p, int width) {
                         reg = 0;  /* Make sure it's not BP, as checked below. */
                         instruction_offset = GET_U16(instruction_value);  /* Higher bits are ignored. */
                       set_width:
-                        if (opt_level == 0) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_step == 1. This is similar to NASM. */
-                           if (assembler_step == 1) {
+                        if (opt_level == 0) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
+                           if (assembler_pass == 1) {
                                if (has_undefined) {
-                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_step_1() should be called later if this match is taken. */
+                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1() should be called later if this match is taken. */
                                    goto set_16bit_offset;
                                }
                            } else {
-                               if (is_wide_instr_in_step_2()) goto force_16bit_offset;
+                               if (is_wide_instr_in_pass_2()) goto force_16bit_offset;
                            }
                         }
                         if (instruction_offset != 0 || reg == 5 /* BP only */) {
@@ -1409,7 +1408,7 @@ static void emit_write(const char *s, int size) {
 
 static void emit_bytes(const char *s, int size)  {
     current_address += size;
-    if (assembler_step == 2) {
+    if (assembler_pass > 1) {
         emit_write(s, size);
         bytes += size;
         if (g != NULL) {
@@ -1507,14 +1506,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL) {
-                if (qualifier == 0 && opt_level == 0 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_step == 1. This is similar to NASM. */
-                   if (assembler_step == 1) {
+                if (qualifier == 0 && opt_level == 0 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
+                   if (assembler_pass == 1) {
                        if (has_undefined) {
-                           add_wide_instr_in_step_1();
+                           add_wide_instr_in_pass_1();
                            goto mismatch;
                        }
                    } else {
-                       if (is_wide_instr_in_step_2()) goto mismatch;
+                       if (is_wide_instr_in_pass_2()) goto mismatch;
                    }
                 }
                 if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
@@ -1578,7 +1577,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
      ** Instruction properly matched, now generate binary
      */
     if (instruction_addressing_segment) emit_byte(instruction_addressing_segment);
-    if (instruction_offset_width == 3) add_wide_instr_in_step_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
+    if (instruction_offset_width == 3) add_wide_instr_in_pass_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
@@ -1617,12 +1616,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             dw = 1;  /* TODO(pts): Optimize this and below as ++dw. */
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
-            if (assembler_step == 2 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
+            if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
                 message(1, "short jump too long");
             c = instruction_value;
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
-            if (assembler_step == 2 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
+            if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
                 message(1, "near jump too long");
             c = instruction_value;
             instruction_offset = c >> 8;
@@ -1889,7 +1888,7 @@ static void incbin(const char *fname) {
  */
 static void create_label(void) {
     struct label MY_FAR *last_label;
-    if (assembler_step == 1) {
+    if (assembler_pass == 1) {
         if (find_label(part)) {
             message_start(1);
             bbprintf(&message_bbb, "Redefined label '%s'", part);
@@ -2028,7 +2027,7 @@ static const char *get_fmt_04x_high_value(unsigned u) {
 #endif
 
 /*
- ** Do an assembler step
+ ** Do an assembler pass.
  */
 static void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
@@ -2191,7 +2190,7 @@ static void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-        } else if (casematch(part, "%IFDEF")) {  /* !!! Disable subsequent definitions (or, even better, undef) for assembler_step == 2. */
+        } else if (casematch(part, "%IFDEF")) {  /* !!! Disable subsequent definitions (or, even better, undef) for assembler_pass > 1. */
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
@@ -2336,7 +2335,7 @@ static void do_assembly(const char *input_filename) {
                 if (instruction_value != default_start_address) {
                     default_start_address = instruction_value;
                     if (is_address_used) {
-                        /* change = 1; */  /* The start_address change will take effect in the next pass. Not needed, because we do `assember_step == 2' anyway. */
+                        /* change = 1; */  /* The start_address change will take effect in the next pass. Not needed, because we do `assembler_step > 1' anyway. */
                     } else {
                         reset_address();
                     }
@@ -2383,7 +2382,7 @@ static void do_assembly(const char *input_filename) {
             }
         }
       after_line:
-        if (assembler_step == 2 && listing_fd >= 0) {
+        if (assembler_pass > 1 && listing_fd >= 0) {
             bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(line_address));
             p = generated;
             while (p < g) {
@@ -2568,9 +2567,9 @@ int main(int argc, char **argv) {
     }
 
     /*
-     ** Do first step of assembly
+     ** Do first pass of assembly, calculating offsets and labels only.
      */
-    assembler_step = 1;
+    assembler_pass = 1;
     /* if (opt_level == 0) wide_instr_add_at = NULL; */  /* No need, this is the default. */
     reset_address();
     malloc_init();
@@ -2582,13 +2581,13 @@ int main(int argc, char **argv) {
             remove(listing_filename);
     } else {
         /*
-         ** Do second step of assembly and generate final output
+         ** Do second pass of assembly and generate final output
          */
         if (output_filename == NULL) {
             message(1, "No output filename provided");
             return 1;
         }
-        change_number = 0;
+        ++assembler_pass;
         do {
             change = 0;
             if (listing_filename != NULL) {
@@ -2605,7 +2604,6 @@ int main(int argc, char **argv) {
                 message_end();
                 return 1;
             }
-            assembler_step = 2;
             is_start_address_set = 1;
             if (opt_level == 0) {
                 /* wide_instr_add_at = NULL; */  /* Keep for reading. */
@@ -2632,7 +2630,7 @@ int main(int argc, char **argv) {
             if (change) {
                 if (opt_level == 0) {
                     message(1, "oops: labels changed");
-                } else if (++change_number == 5) {  /* !! TODO(pts): Make this configurable? What is the limit for NASM? Don't inrement change_number if output size has increased. */
+                } else if (assembler_pass == 5 + 1) {  /* !! TODO(pts): Make this configurable? What is the limit for NASM? Don't increment assembler_pass if output size has increased. */
                     message(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
