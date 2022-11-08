@@ -575,7 +575,7 @@ RBL_GET_LEFT_:
 		mov cl, 4
 		mov si, ax
 		sar si, cl
-		and si, BYTE 0xe
+		and si, BYTE 0xe  ; !!! Will the mininasm optimizer do it (and all other capital BYTE modifiers) automatically?
 		mov es, word [es:bx+1]
 		mov ax, si
 		mov dx, es
@@ -719,12 +719,12 @@ define_label_:
 ;     /* Allocate label */
 ;     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
 		call near strlen_
-		db 0x83, 0xC0, 0xa  ; !!! add ax, BYTE 0xa
+		add ax, BYTE 0xa
 		mov cl, 4
 		mov si, ___malloc_struct__+2
 		add ax, word [si]
 		mov dx, ax
-		db 0x83, 0xE0, 0xf  ; !!! and ax, BYTE 0xf
+		and ax, BYTE 0xf
 		shr dx, cl
 		add dx, word [si+2]
 		cmp dx, word [si-2]
@@ -821,7 +821,7 @@ define_label_:
 ;             const char less = pathp->less = strcmp_far(label->name, pathp->label->name) < 0;
 		add bx, BYTE 9
 		mov ax, word [bp-6]
-		db 0x83, 0xC0, 9  ; !!! add ax, BYTE 9
+		add ax, BYTE 9
 		mov dx, word [bp-4]
 		call near strcmp_far_
 		test ax, ax
@@ -1397,7 +1397,7 @@ match_expression_:
 		cmp al, 0x28
 		jne @$45
 		mov ax, word [bp-0xe]
-		db 0x83, 0xF8, 0xff  ; !!! cmp ax, BYTE 0xffff
+		cmp ax, BYTE 0xffff | -0x10000
 		jg @$40
 		jne @$45
 		; `| -0x1000' to prevent NASM warning: signed byte value exceeds bounds
@@ -1619,7 +1619,7 @@ match_expression_:
 		mov al, byte [bp-4]
 		xor ah, ah
 		xor dx, dx
-		db 0x83, 0xC0, 0xd4  ; !!! add ax, BYTE 0xffd4 | -0x10000
+		add ax, BYTE 0xffd4 | -0x10000
 		adc dx, BYTE -1
 		add word [bp-0x10], ax
 		adc word [bp-0xe], dx
@@ -1667,7 +1667,7 @@ match_expression_:
 		mov al, byte [bx+1]
 		xor ah, ah
 		call near tolower_
-		db 0x83, 0xF8, 0x62  ; !!! cmp ax, BYTE 0x62
+		cmp ax, BYTE 0x62
 		jne @$77
 
 ;             match_p += 2;
@@ -1719,7 +1719,7 @@ match_expression_:
 		mov al, byte [si+1]
 		xor ah, ah
 		call near tolower_
-		db 0x83, 0xF8, 0x78  ; !!! cmp ax, BYTE 0x78
+		cmp ax, BYTE 0x78
 		jne @$82
 
 ;             match_p += 2;
@@ -1775,7 +1775,7 @@ match_expression_:
 		mov al, byte [si+1]
 		xor ah, ah
 		call near tolower_
-		db 0x83, 0xF8, 0x6f  ; !!! cmp ax, BYTE 0x6f
+		cmp ax, BYTE 0x6f
 		jne @$85
 
 ;             match_p += 2;
@@ -2922,7 +2922,7 @@ match_addressing_:
 
 ;                         if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
 		mov ax, word [_instruction_offset+2]
-		db 0x83, 0xF8, 0xff  ; !!! cmp ax, BYTE 0xffff
+		cmp ax, BYTE 0xffff | -0x10000
 		jg @$182
 		jne @$184
 		cmp word [_instruction_offset], BYTE 0xff80 | -0x10000
@@ -3670,9 +3670,9 @@ match_:
 ;                     goto mismatch;
 ;                 if (undefined == 0 && (c < -128 || c > 127))
 		jne @$230
-		db 0x83, 0xF8, 0x80  ; !!! cmp ax, BYTE 0xff80
+		cmp ax, BYTE 0xff80 | -0x10000
 		jl @$234
-		db 0x83, 0xF8, 0x7f  ; !!! cmp ax, BYTE 0x7f
+		cmp ax, BYTE 0x7f
 		jmp @$229
 
 ;                     goto mismatch;
@@ -3721,8 +3721,8 @@ match_:
 
 ;                 goto mismatch;
 @$239:
-		db 0x83, 0xE8, 0x61  ; !!! sub ax, BYTE 0x61
-		db 0x83, 0xF8, 0x19  ; !!! cmp ax, BYTE 0x19
+		sub ax, BYTE 0x61
+		cmp ax, BYTE 0x19
 		jbe @$250
 
 ;             p = match_expression(p + 1);
@@ -3827,11 +3827,11 @@ match_:
 
 ;             c = dc - '0';
 		xor ah, ah
-		db 0x83, 0xE8, 0x30  ; !!! sub ax, BYTE 0x30
+		sub ax, BYTE 0x30
 		mov word [bp-0xe], ax
 
 ;             if (c > 9) c -= 7;
-		db 0x83, 0xF8, 9  ; !!! cmp ax, BYTE 9
+		cmp ax, BYTE 9
 		jle @$252
 		sub word [bp-0xe], BYTE 7
 
@@ -5015,12 +5015,12 @@ assembly_push_:
 
 ;     strcpy(assembly_p->input_filename, input_filename);
 		mov ax, word [_assembly_p]
-		db 0x83, 0xC0, 0x11  ; !!! add ax, BYTE 0x11
+		add ax, BYTE 0x11
 		call near strcpy_
 
 ;     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
 		mov ax, word [_assembly_p]
-		db 0x83, 0xC0, 0x12  ; !!! add ax, BYTE 0x12
+		add ax, BYTE 0x12
 		add ax, cx
 		mov word [_assembly_p], ax
 
@@ -6811,7 +6811,7 @@ do_assembly_:
 ;         if (include == 1) {
 @$471:
 		mov ax, word [bp-0x12]
-		db 0x83, 0xF8, 1  ; !!! cmp ax, BYTE 1
+		cmp ax, BYTE 1
 		jne @$473
 
 ;             if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
@@ -6883,7 +6883,7 @@ do_assembly_:
 
 ;         } else if (include == 2) {
 @$473:
-		db 0x83, 0xF8, 2  ; !!! cmp ax, BYTE 2
+		cmp ax, BYTE 2
 		je @$475
 @$474:
 		jmp @$341
@@ -6972,7 +6972,7 @@ main_:
 ;      ** If ran without arguments then show usage
 ;      */
 ;     if (argc == 1) {
-		db 0x83, 0xF8, 1  ; !!! cmp ax, BYTE 1
+		cmp ax, BYTE 1
 		jne @$481
 
 ;         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
@@ -7078,7 +7078,7 @@ main_:
 @$488:
 		mov cx, dx
 		inc cx
-		db 0x83, 0xF8, 0x6f  ; !!! cmp ax, BYTE 0x6f
+		cmp ax, BYTE 0x6f
 		jne @$495
 
 ;                 c++;
@@ -7129,7 +7129,7 @@ main_:
 		mov bx, dx
 		shl bx, 1
 		add bx, word [bp-6]
-		db 0x83, 0xF8, 0x66  ; !!! cmp ax, BYTE 0x66
+		cmp ax, BYTE 0x66
 		jne @$488
 		mov si, dx
 		cmp dx, word [bp-4]
@@ -7142,7 +7142,7 @@ main_:
 		call near message_
 		jmp @$526
 @$495:
-		db 0x83, 0xF8, 0x6c  ; !!! cmp ax, BYTE 0x6c
+		cmp ax, BYTE 0x6c
 		jne @$500
 
 ;                 c++;
@@ -7180,7 +7180,7 @@ main_:
 ;                 }
 ;             } else if (d == 'd') {  /* Define label */
 @$500:
-		db 0x83, 0xF8, 0x64  ; !!! cmp ax, BYTE 0x64
+		cmp ax, BYTE 0x64
 		jne @$507
 
 ;                 p = argv[c] + 2;
@@ -7908,7 +7908,7 @@ printi_:
 
 ;       t += letbase - '0' - 10;
 		mov ax, word [bp+0xc]
-		db 0x83, 0xE8, 0x3a  ; !!! sub ax, BYTE 0x3a
+		sub ax, BYTE 0x3a
 		add dx, ax
 
 ;     *--s = t + '0';
