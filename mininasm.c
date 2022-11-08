@@ -337,7 +337,7 @@ static char generated[8];
 static uvalue_t errors;
 static uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
 static uvalue_t bytes;
-static int change;
+static char have_labels_changed;
 
 #if CONFIG_DOSMC_PACKED
 _Packed  /* Disable extra aligment byte at the end of `struct label'. */
@@ -1908,7 +1908,7 @@ static void create_label(void) {
                 /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%04x to 0x%04x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
                 if (opt_level == 0) DEBUG3("oops: label '%s' changed value from 0x%04x to 0x%04x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
-                change = 1;
+                have_labels_changed = 1;
             }
             last_label->value = instruction_value;
         }
@@ -2046,6 +2046,7 @@ static void do_assembly(const char *input_filename) {
     int input_fd;
     char pc;
 
+    have_labels_changed = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
 
   do_assembly_push:
@@ -2586,9 +2587,8 @@ int main(int argc, char **argv) {
             message(1, "No output filename provided");
             return 1;
         }
-        ++assembler_pass;
         do {
-            change = 0;
+            ++assembler_pass;
             if (listing_filename != NULL) {
                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
                     message_start(1);
@@ -2610,31 +2610,28 @@ int main(int argc, char **argv) {
             }
             reset_address();
             do_assembly(ifname);
-
-            if (listing_fd >= 0 && change == 0) {
-                bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n\r\n", GET_FMT_U_VALUE(warnings));
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
-                if (label_list != NULL) {
-                    bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
-                    print_labels_sorted_to_listing_fd(label_list);
-                }
-            }
             emit_flush(0);
             close(output_fd);
-            if (listing_filename != NULL) {
-                message_flush(NULL);
-                close(listing_fd);
-            }
-            if (change) {
+            if (have_labels_changed) {
                 if (opt_level == 0) {
                     message(1, "oops: labels changed");
                 } else if (assembler_pass == 5 + 1) {  /* !! TODO(pts): Make this configurable? What is the limit for NASM? Don't increment assembler_pass if output size has increased. */
                     message(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
+            if (listing_fd >= 0) {
+                bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n", GET_FMT_U_VALUE(warnings));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " ASSEMBLER PASSES\r\n\r\n", GET_FMT_U_VALUE(assembler_pass));
+                bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
+                print_labels_sorted_to_listing_fd(label_list);
+                bbprintf(&message_bbb /* listing_fd */, "\r\n");
+                message_flush(NULL);
+                close(listing_fd);
+            }
             if (errors) goto do_remove;
-        } while (change) ;
+        } while (have_labels_changed);
         return 0;
     }
 
