@@ -951,9 +951,10 @@ static const char *match_expression(const char *match_p) {
             }
             c = match_p[0];
             if (islabel(c)) {
-                if (!isxdigit(c)) goto bad_label;
+                if ((c | 32) != 'h' && !isxdigit(c)) goto bad_label;
                 match_p = p2;
                 shift = 1;
+                value1 = 0;
                 goto parse_hex;
             }
         } else if (c == '$') {
