@@ -324,7 +324,12 @@ static unsigned char instruction_register;
 
 static value_t instruction_value;
 
-static int opt_level;  /* The default of 0 is equivalent to `nasm -O0', which is the default for NASM 0.98.39, but not for newer NASMs (which default to multipass optimization). */
+/*
+ ** -O0: 2-pass, assume longest on undefined label, exactly the same as NASM 0.98.39 and 0.99.06 default and -O0. This is the default.
+ ** -O1: Currently same as -O0. It will be 2-pass, assume longest on undefined label, make it as shorts as possble without looking forward.
+ ** -Ox == -OX == -O3 == -O9: full, multipass optimization, make it as short as possible, same as NASM 0.98.39 -O9 and newer NASM 2.x default.
+ */
+static int opt_level;
 
 #define MAX_SIZE        256
 
@@ -1384,7 +1389,7 @@ static const char *match_addressing(const char *p, int width) {
                         reg = 0;  /* Make sure it's not BP, as checked below. */
                         instruction_offset = GET_U16(instruction_value);  /* Higher bits are ignored. */
                       set_width:
-                        if (opt_level == 0) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
+                        if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
                            if (assembler_pass == 1) {
                                if (has_undefined) {
                                    instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1() should be called later if this match is taken. */
@@ -1580,7 +1585,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL) {
-                if (qualifier == 0 && opt_level == 0 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
+                if (qualifier == 0 && opt_level <= 1 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
                    if (assembler_pass == 1) {
                        if (has_undefined) {
                            add_wide_instr_in_pass_1();
@@ -1611,7 +1616,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p == NULL || qualifier != 0) {
-            } else if (opt_level == 0) {
+            } else if (opt_level <= 1) {
                 goto mismatch;  /* Don't optimize this with -O0 (because NASM doesn't do it either). Use the next unoptimized pattern, which is 16-bit. */
             } else {
                 /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
@@ -1984,8 +1989,8 @@ static void create_label(void) {
         } else {
             if (last_label->value != instruction_value) {
 #if DEBUG
-                /* if (0 && DEBUG && opt_level == 0) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%x to 0x%x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
-                if (opt_level == 0) DEBUG3("oops: label '%s' changed value from 0x%x to 0x%x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
+                /* if (0 && DEBUG && opt_level <= 1) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%x to 0x%x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
+                if (opt_level <= 1) DEBUG3("oops: label '%s' changed value from 0x%x to 0x%x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
                 have_labels_changed = 1;
             }
@@ -2716,10 +2721,10 @@ int main(int argc, char **argv) {
                 if (d == '\0' || argv[c][3] != '\0') { bad_opt_level:
                     message(1, "bad optimization argument");
                     return 1;
-                } else if (d == '0') {
-                    opt_level = 0;  /* No optimization, same as NASM 0.98.39 and 0.99.06 default. */
+                } else if (d + 0U - '0' <= 1U) {
+                    opt_level = d - '0';
                 } else if (d == 'x' || d == 'X' || d == '3' || d == '9') {
-                    opt_level = 9;  /* Full, multipass optimization, same as newer NASM 2.x default. */
+                    opt_level = 9;
                 } else {
                     goto bad_opt_level;
                 }
@@ -2801,7 +2806,7 @@ int main(int argc, char **argv) {
      ** Do first pass of assembly, calculating offsets and labels only.
      */
     assembler_pass = 1;
-    /* if (opt_level == 0) wide_instr_add_at = NULL; */  /* No need, this is the default. */
+    /* if (opt_level <= 1) wide_instr_add_at = NULL; */  /* No need, this is the default. */
     reset_address();
     malloc_init();
     do_assembly(ifname);
@@ -2835,7 +2840,7 @@ int main(int argc, char **argv) {
             }
             prev_address = current_address;
             is_start_address_set = 1;
-            if (opt_level == 0) {
+            if (opt_level <= 1) {
                 /* wide_instr_add_at = NULL; */  /* Keep for reading. */
                 wide_instr_read_at = NULL;
             }
@@ -2845,7 +2850,7 @@ int main(int argc, char **argv) {
             emit_flush(0);
             close(output_fd);
             if (have_labels_changed) {
-                if (opt_level == 0) {
+                if (opt_level <= 1) {
                     message(1, "oops: labels changed");
                 } else if (current_address > prev_address) {  /* It's OK that the size increases because of overly optimistic optimizations. */
                 } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? What is the limit for NASM? */
