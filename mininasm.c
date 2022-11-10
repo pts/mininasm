@@ -2254,7 +2254,7 @@ static void unset_macro(char *name1) {
     const char name1c = *name1;
     const char *p3;
     struct label MY_FAR *label;
-    if (!isalpha(name1[1]) || (p3 = match_label_prefix(name1 + 1)) == NULL || *p3 != '\0') {
+    if (!(isalpha(name1[1]) || name1[1] == '_') || (p3 = match_label_prefix(name1 + 1)) == NULL || *p3 != '\0') {
          message(1, "bad macro name");
          return;
     }
@@ -2290,7 +2290,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
 
     value = avoid_spaces(value);  /* Before we change *name_end, in case name_end == value. */
     *name_end = '\0';
-    if (!isalpha(name1[1]) || (p3 = match_label_prefix(name1 + 1)) != name_end) {
+    if (!(isalpha(name1[1]) || name1[1] == '_') || (p3 = match_label_prefix(name1 + 1)) != name_end) {
          message(1, "bad macro name");
          goto do_return;
     }
@@ -2537,7 +2537,7 @@ static void do_assembly(const char *input_filename) {
                 goto after_line;
             if (0) DEBUG1("%%IFDEF macro=(%s)\r\n", p);
             p3 = match_label_prefix(p);
-            if (!p3 || *p3 != '\0' || !isalpha(*p)) {
+            if (!p3 || *p3 != '\0' || !(isalpha(*p) || *p == '_')) {
                 message(1, "bad macro name");
             } else {
                 pc = *--p;
