@@ -33,10 +33,6 @@
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
 ; !!! BYTE and SHORT added manually after WASM --> NASM conversion
-; !!! add it: ADD AX, BYTE ...
-; !!! add it: AND AX, BYTE ...
-; !!! add it: CMP AX, BYTE ...
-; !!! add it: SUB AX, BYTE ...
 ; !!! predefine some __NASM_MAJOR__ or __MININASM__ etc.
 ; !!! add comparison operator support to match_expression
 ;
@@ -102,9 +98,9 @@
 ;   returning.
 ;
 
-bits 16
-cpu 8086
-org 0x100  ; DOS .com file is loaded at CS:0x100.
+		bits 16
+		cpu 8086
+		org 0x100  ; DOS .com file is loaded at CS:0x100.
 
 ; --- Startup code.
 ;

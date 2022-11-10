@@ -42,6 +42,8 @@ $NASM -f bin -O0 -o minonasm.com minonasm.nasm
 cmp mininasm_debug47.com.good minonasm.com
 ./mininasm -f bin -o minonas1.com minonasm.nasm
 cmp mininasm_debug47.com.good minonas1.com
+./mininasm -f bin -O9 -o minonas1o9.com minonasm.nasm
+cmp mininasm_debug47.com.good minonas1o9.com
 cat minnnasm.nasm >minnnasm.na  # DOS 8.3 character limit on filename extension.
 ./kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.na
 # Check that it's self-hosting: when it compiles itself, it produces the golden good binary.
@@ -49,5 +51,12 @@ cmp mininasm_debug47.com.good minnnas2.com
 cat minonasm.nasm >minonasm.na  # DOS 8.3 character limit on filename extension.
 ./kvikdos mininasm.com -f bin -o minonas3.com minonasm.na
 cmp mininasm_debug47.com.good minonas3.com
+./kvikdos mininasm.com -f bin -O9 -o minona93.com minonasm.na
+cmp mininasm_debug47.com.good minona93.com
+
+$NASM -f bin -O9 -o minpnasmo9.com minpnasm.nasm
+cmp mininasm_debug47.com.good minpnasmo9.com
+./mininasm -f bin -O9 -o minpnas4o9.com minpnasm.nasm
+cmp mininasm_debug47.com.good minpnas4o9.com
 
 : "$0" OK.

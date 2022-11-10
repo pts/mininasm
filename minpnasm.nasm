@@ -1,16 +1,15 @@
 ;
-; minonasm.nasm: non-self-hosting, NASM-compatible assembler for DOS 8086, targeting 8086
-; by pts@fazekas.hu at Fri Nov  4 19:44:03 CET 2022
+; minpnasm.nasm: non-self-hosting, NASM-compatible assembler for DOS 8086, targeting 8086
+; by pts@fazekas.hu at Thu Nov 10 02:19:06 CET 2022
 ;
-; minonasm.nasm is a non-self-hosting source code version of minnnasm.nasm:
+; minpnasm.nasm is a non-self-hosting source code version of minnnasm.nasm:
 ; it can be compiled by mininasm, but not minnnasm, and it should produce an
-; bit-by-bit identical executable binary (minnnasm.com and minonasm.com).
+; bit-by-bit identical executable binary (minnnasm.com and minpnasm.com).
 ; It can be used for testing new features of mininasm.
 ;
-; For compilation with mininasm and NASM, miopnasm.nasm needs any
-; optimization flag, it has been tested and it works with -O0 and -O9.
+; For compilation with mininasm and NASM, minpnasm.nasm needs the -O9 optimization flag.
 ;
-; This version of minonasm.com (15341 bytes) is equivalent to mininasm.com in
+; This version of minpnasm.com (15341 bytes) is equivalent to mininasm.com in
 ; https://github.com/pts/mininasm/blob/2ea02b8b7dd1c1d451a0ee8bc691170825794ef9/mininasm.c
 ; It's not bit-by-bit identical, because the OpenWatcom C compiler, WASM and
 ; NASM generate different but equivalent machine code.
@@ -578,7 +577,7 @@ RBL_GET_LEFT_:
 		mov cl, 4
 		mov si, ax
 		sar si, cl
-		and si, BYTE 0xe  ; !!! Will the mininasm optimizer do it (and all other capital BYTE modifiers) automatically?
+		and si, 0xe
 		mov es, word [es:bx+1]
 		mov ax, si
 		mov dx, es
@@ -631,7 +630,7 @@ RBL_SET_LEFT_:
 		mov word [es:si+1], cx
 
 ;     label->left_right_ofs = (label->left_right_ofs & 0x1f) | (FP_OFF(ptr) & 0xe) << 4;  /* This assumes that 0 <= FP_OFF(ptr) <= 15. */
-		and bx, BYTE 0xe
+		and bx, 0xe
 		mov cl, 4
 		shl bx, cl
 		mov cl, byte [es:si]
@@ -713,7 +712,7 @@ define_label_:
 		push di
 		push bp
 		mov bp, sp
-		sub sp, BYTE 0x14
+		sub sp, 0x14
 		mov di, ax
 		mov word [bp-0x10], cx
 
@@ -722,12 +721,12 @@ define_label_:
 ;     /* Allocate label */
 ;     label = (struct label MY_FAR*)malloc_far((size_t)&((struct label*)0)->name + 1 + strlen(name));
 		call near strlen_
-		add ax, BYTE 0xa
+		add ax, 0xa
 		mov cl, 4
 		mov si, ___malloc_struct__+2
 		add ax, word [si]
 		mov dx, ax
-		and ax, BYTE 0xf
+		and ax, 0xf
 		shr dx, cl
 		add dx, word [si+2]
 		cmp dx, word [si-2]
@@ -738,7 +737,7 @@ define_label_:
 @$3:
 		xor ax, ax
 		xor dx, dx
-		jmp SHORT @$5
+		jmp @$5
 @$4:
 		xchg word [si], ax
 		xchg word [si+2], dx
@@ -822,15 +821,15 @@ define_label_:
 		je @$12
 
 ;             const char less = pathp->less = strcmp_far(label->name, pathp->label->name) < 0;
-		add bx, BYTE 9
+		add bx, 9
 		mov ax, word [bp-6]
-		add ax, BYTE 9
+		add ax, 9
 		mov dx, word [bp-4]
 		call near strcmp_far_
 		test ax, ax
 		jge @$8
 		mov dl, 1
-		jmp SHORT @$9
+		jmp @$9
 @$8:
 		xor dl, dl
 @$9:
@@ -842,7 +841,7 @@ define_label_:
 		mov ax, word [si]
 		mov dx, word [si+2]
 		call near RBL_GET_LEFT_
-		jmp SHORT @$11
+		jmp @$11
 @$10:
 		mov ax, word [si]
 		mov dx, word [si+2]
@@ -852,8 +851,8 @@ define_label_:
 		mov word [si+8], dx
 
 ;         }
-		add si, BYTE 6
-		jmp SHORT @$7
+		add si, 6
+		jmp @$7
 
 ;         pathp->label = label;
 @$12:
@@ -865,7 +864,7 @@ define_label_:
 
 ;         while (pathp-- != path) {
 		mov ax, si
-		sub si, BYTE 6
+		sub si, 6
 		cmp ax, @$617
 		jne @$14
 		jmp @$21
@@ -997,7 +996,7 @@ define_label_:
 		or byte [es:di], 1
 
 ;                      } else {
-		jmp SHORT @$20
+		jmp @$20
 
 ;                          struct label MY_FAR *tlabel;
 ;                          tlabel = RBL_GET_RIGHT(clabel);
@@ -1125,7 +1124,7 @@ find_label_:
 ;     explore = label_list;
 		mov di, word [_label_list]
 		mov si, word [_label_list+2]
-		jmp SHORT @$25
+		jmp @$25
 
 ;     while (!RBL_IS_NULL(explore)) {
 ;         c = strcmp_far(name, explore->name);
@@ -1154,14 +1153,14 @@ find_label_:
 		call near strcmp_far_
 		test ax, ax
 		jne @$23
-		jmp SHORT @$28
+		jmp @$28
 
 ;             explore = RBL_GET_RIGHT(explore);
 @$26:
 		mov ax, di
 		mov dx, si
 		call near RBL_GET_RIGHT_
-		jmp SHORT @$24
+		jmp @$24
 
 ;     }
 ;     return NULL;
@@ -1213,7 +1212,7 @@ print_labels_sorted_to_listing_fd_:
 
 ;         if (RBL_IS_LEFT_NULL(node)) goto do_print;
 		mov es, ax
-		cmp word [es:si+1], BYTE 0
+		cmp word [es:si+1], 0
 		je @$35
 
 ;         for (pre = RBL_GET_LEFT(node); pre_right = RBL_GET_RIGHT(pre), !RBL_IS_NULL(pre_right) && pre_right != node; pre = pre_right) {}
@@ -1252,7 +1251,7 @@ print_labels_sorted_to_listing_fd_:
 		call near RBL_GET_LEFT_
 
 ;         } else {
-		jmp SHORT @$31
+		jmp @$31
 
 ;             RBL_SET_RIGHT(pre, NULL);
 @$34:
@@ -1286,7 +1285,7 @@ print_labels_sorted_to_listing_fd_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 0xa
+		add sp, 0xa
 
 ; #else
 ;             bbprintf(&message_bbb, "%-20s %08x\r\n", global_label, GET_UVALUE(node->value));
@@ -1323,7 +1322,7 @@ avoid_spaces_:
 
 ;         p++;
 		inc bx
-		jmp SHORT @$36
+		jmp @$36
 
 ;     return p;
 ; }
@@ -1410,7 +1409,7 @@ match_expression_:
 		lea si, [bx+1]
 		add word [bp-0x10], BYTE -1
 		adc word [bp-0xe], BYTE -1
-		jmp SHORT @$39
+		jmp @$39
 @$41:
 		jmp @$64
 
@@ -1630,7 +1629,7 @@ match_expression_:
 ;                 else if (match_p[0] == '~') { value1 += (value_t)c - ('-' - 1); goto do_switch_pm; }  /* Either ++value1 or --value1. */
 @$67:
 		xor byte [bp-4], 6
-		jmp SHORT @$66
+		jmp @$66
 
 ;                 else { break; }
 ;             }
@@ -1652,7 +1651,7 @@ match_expression_:
 ;               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
 @$70:
 		mov byte [di], 3
-		jmp SHORT @$69
+		jmp @$69
 
 ;               value1 += value2;
 @$71:
@@ -1711,7 +1710,7 @@ match_expression_:
 		inc si
 
 ;             }
-		jmp SHORT @$73
+		jmp @$73
 @$76:
 		jmp @$108
 
@@ -1769,7 +1768,7 @@ match_expression_:
 ;             }
 @$81:
 		inc si
-		jmp SHORT @$78
+		jmp @$78
 
 ;         } else if (c == '0' && tolower(match_p[1]) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
 @$82:
@@ -1810,7 +1809,7 @@ match_expression_:
 
 ;             }
 		inc si
-		jmp SHORT @$83
+		jmp @$83
 
 ;         } else if (c == '$' && isdigit(match_p[1])) {  /* Hexadecimal */
 @$85:
@@ -1864,7 +1863,7 @@ match_expression_:
 
 ;                 }
 ;             }
-		jmp SHORT @$88
+		jmp @$88
 
 ;             if (match_p[0] == '\0') {
 @$89:
@@ -1918,7 +1917,7 @@ match_expression_:
 
 ;             }
 		inc si
-		jmp SHORT @$92
+		jmp @$92
 
 ;         } else if (c == '$' && match_p[1] == '$') { /* Start address */
 @$93:
@@ -1951,7 +1950,7 @@ match_expression_:
 		mov word [bp-0x10], ax
 		mov ax, word [_address+2]
 		mov word [bp-0xe], ax
-		jmp SHORT @$90
+		jmp @$90
 
 ;         } else if (isalpha(c) || c == '_' || c == '.') {  /* Start of label. */
 @$96:
@@ -1988,7 +1987,7 @@ match_expression_:
 
 ;                     p2++;
 		inc cx
-		jmp SHORT @$99
+		jmp @$99
 
 ;             }
 ;             while (isalpha(match_p[0]) || isdigit(match_p[0]) || match_p[0] == '_' || match_p[0] == '.')
@@ -2016,7 +2015,7 @@ match_expression_:
 		mov byte [bx], al
 		inc si
 		inc cx
-		jmp SHORT @$100
+		jmp @$100
 
 ;             *p2 = '\0';
 @$102:
@@ -2046,7 +2045,7 @@ match_expression_:
 @$104:
 		inc cx
 		inc cx
-		jmp SHORT @$103
+		jmp @$103
 
 ;             }
 ;             label = find_label(expr_name);
@@ -2088,7 +2087,7 @@ match_expression_:
 		call near message_end_
 
 ;                 }
-		jmp SHORT @$108
+		jmp @$108
 
 ;             } else {
 ;                 value1 = label->value;
@@ -2111,7 +2110,7 @@ match_expression_:
 @$108:
 		cmp byte [bp-2], 5
 		ja @$114
-		jmp SHORT @$111
+		jmp @$111
 
 ;             while (1) {
 ;                 match_p = avoid_spaces(match_p);
@@ -2153,7 +2152,7 @@ match_expression_:
 ;                     match_p++;
 ;                     MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
 		mov byte [di], 0xb
-		jmp SHORT @$112
+		jmp @$112
 @$114:
 		jmp near @$122
 
@@ -2185,7 +2184,7 @@ match_expression_:
 		mov bx, cx
 		mov cx, word [bp-6]
 		call near __U4D
-		jmp SHORT @$110
+		jmp @$110
 
 ;                 } else if (c == '%') {  /* Modulo operator. */
 @$118:
@@ -2196,7 +2195,7 @@ match_expression_:
 ;                     MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
 		mov byte [di], 0xc
 
-		jmp SHORT @$112
+		jmp @$112
 
 ;                     if (GET_UVALUE(value2) == 0) {
 @$119:
@@ -2275,7 +2274,7 @@ match_expression_:
 		mov word [bp-0xe], ax
 
 ;                 } else if (c == '-') {  /* Subtract operator. */
-		jmp SHORT @$123
+		jmp @$123
 @$127:
 		cmp byte [bp-4], 0x2d
 		jne @$129
@@ -2283,7 +2282,7 @@ match_expression_:
 ;                     match_p++;
 ;                     MATCH_CASEI_LEVEL_TO_VALUE2(14, 5);
 		mov byte [di], 0xe
-		jmp SHORT @$124
+		jmp @$124
 
 ;                     value1 -= value2;
 ;                 } else {
@@ -2292,7 +2291,7 @@ match_expression_:
 @$128:
 		mov word [bp-0x10], dx
 		mov word [bp-0xe], bx
-		jmp SHORT @$123
+		jmp @$123
 
 ;             }
 ;         }
@@ -2344,12 +2343,12 @@ match_expression_:
 		mov byte [bp-4], 1
 
 ;                     } else {
-		jmp SHORT @$137
+		jmp @$137
 
 ;                         MATCH_CASEI_LEVEL_TO_VALUE2(16, 4);
 @$135:
 		mov byte [di], 0x10
-		jmp SHORT @$133
+		jmp @$133
 
 ;                         c = 0;
 @$136:
@@ -2389,9 +2388,9 @@ match_expression_:
 ; #endif
 ; #endif  /* CONFIG_SHIFT_OK_31 */
 ;                     } else {
-		jmp SHORT @$130
+		jmp @$130
 @$139:
-		jmp SHORT @$146
+		jmp @$146
 
 ; #if CONFIG_SHIFT_SIGNED
 ;                         value1 = c ? GET_VALUE( value1) << GET_UVALUE(value2) : GET_VALUE( value1) >> GET_UVALUE(value2);  /* Sign-extend value1 to CONFIG_VALUE_BITS. */
@@ -2408,7 +2407,7 @@ match_expression_:
 		rcl dx, 1
 		loop @$141
 @$142:
-		jmp SHORT @$145
+		jmp @$145
 @$143:
 		mov ax, word [bp-0x10]
 		mov dx, word [bp-0xe]
@@ -2479,7 +2478,7 @@ match_expression_:
 		and word [bp-0xe], ax
 
 ;             }
-		jmp SHORT @$147
+		jmp @$147
 
 ;         }
 ;         if (level <= 1) {
@@ -2505,7 +2504,7 @@ match_expression_:
 		mov al, byte [bp-2]
 		mov byte [di+1], al
 		mov byte [bp-2], 2
-		jmp SHORT @$148
+		jmp @$148
 
 ;                     value1 ^= value2;
 ;                 } else {
@@ -2517,7 +2516,7 @@ match_expression_:
 		xor word [bp-0xe], ax
 
 ;             }
-		jmp SHORT @$153
+		jmp @$153
 
 ;         }
 ;         if (level == 0) {  /* Top tier. */
@@ -2545,7 +2544,7 @@ match_expression_:
 		mov byte [bp-2], 1
 
 		lea si, [bx+1]
-		jmp SHORT @$149
+		jmp @$149
 
 ;                     value1 |= value2;
 ;                 } else {
@@ -2557,7 +2556,7 @@ match_expression_:
 		or word [bp-0xe], ax
 
 ;             }
-		jmp SHORT @$156
+		jmp @$156
 
 ;         }
 ;     }
@@ -2684,14 +2683,14 @@ match_register_:
 
 ;             return p + 2;
 		lea ax, [si+2]
-		jmp SHORT @$168
+		jmp @$168
 
 ;         }
 ;     }
 @$166:
 		inc bx
 		inc bx
-		jmp SHORT @$165
+		jmp @$165
 
 ;     return NULL;
 @$167:
@@ -2884,9 +2883,9 @@ match_addressing_:
 		lea si, [bx+1]
 
 ;                     } else if (*p == '+' || *p == '-') {
-		jmp SHORT @$176
+		jmp @$176
 @$178:
-		jmp SHORT @$186
+		jmp @$186
 @$179:
 		cmp al, 0x2b
 		je @$180
@@ -2942,7 +2941,7 @@ match_addressing_:
 		or byte [di], 0x40
 
 ;                         } else {
-		jmp SHORT @$191
+		jmp @$191
 
 ;                             ++instruction_offset_width;
 @$184:
@@ -2952,9 +2951,9 @@ match_addressing_:
 		or byte [di], 0x80
 
 ;                         }
-		jmp SHORT @$191
+		jmp @$191
 @$185:
-		jmp SHORT @$192
+		jmp @$192
 
 ;                     } else {    /* Syntax error */
 ;                         return NULL;
@@ -2981,7 +2980,7 @@ match_addressing_:
 		jne @$181
 
 ;                         return NULL;
-		jmp SHORT @$192
+		jmp @$192
 
 ;                     instruction_offset = instruction_value;
 ;                     if (*p != ']')
@@ -3027,7 +3026,7 @@ match_addressing_:
 		inc si
 
 ;         }
-		jmp SHORT @$191
+		jmp @$191
 
 ;     } else {    /* Register */
 ;         p = match_register(p, width, &reg);
@@ -3108,7 +3107,7 @@ emit_flush_:
 		mov word [_emit_bbb+4], _emit_buf
 
 ;     }
-		jmp SHORT @$195
+		jmp @$195
 
 ; }
 ;
@@ -3157,7 +3156,7 @@ emit_write_:
 		call near emit_flush_
 
 ;     }
-		jmp SHORT @$198
+		jmp @$198
 
 ; #ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
 ;     emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, size);
@@ -3229,7 +3228,7 @@ emit_bytes_:
 		mov di, dx
 		mov byte [di], al
 		dec bx
-		jmp SHORT @$202
+		jmp @$202
 
 ;         }
 ;     }
@@ -3376,7 +3375,7 @@ match_:
 		mov cx, 0x10
 
 ;             } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
-		jmp SHORT @$210
+		jmp @$210
 @$207:
 		jmp @$248
 @$208:
@@ -3437,7 +3436,7 @@ match_:
 
 ;                 if (qualifier == 8) goto mismatch;
 		cmp cx, BYTE 8
-		jmp SHORT @$218
+		jmp @$218
 @$215:
 		jmp @$245
 
@@ -3457,7 +3456,7 @@ match_:
 		mov ax, si
 		call near match_register_
 		test ax, ax
-		jmp SHORT @$211
+		jmp @$211
 
 ;                 goto match_addressing_8;
 ;             } else /*if (dc == 'm')*/ {
@@ -3475,7 +3474,7 @@ match_:
 
 @$219:
 		mov dx, 0x10
-		jmp SHORT @$213
+		jmp @$213
 
 ;                 goto match_addressing_16;
 ;             }
@@ -3492,7 +3491,7 @@ match_:
 		cmp byte [bp-6], 0x71
 		jne @$222
 		xor dx, dx
-		jmp SHORT @$223
+		jmp @$223
 @$222:
 		mov dx, 0x10
 @$223:
@@ -3611,7 +3610,7 @@ match_:
 
 ;                 p = NULL;
 ;             } else {
-		jmp SHORT @$232
+		jmp @$232
 @$234:
 		jmp @$245
 
@@ -3720,7 +3719,7 @@ match_:
 ;             if (*p != ':')
 		cmp byte [si], 0x3a
 		jne @$245
-		jmp SHORT @$242
+		jmp @$242
 
 ;                 goto mismatch;
 @$239:
@@ -3749,7 +3748,7 @@ match_:
 		mov ax, si
 		call near avoid_spaces_
 		mov si, ax
-		jmp SHORT @$240
+		jmp @$240
 
 @$242:
 		lea ax, [si+1]
@@ -3923,7 +3922,7 @@ match_:
 		mov dx, @$541
 		mov ax, 1
 		call near message_
-		jmp SHORT @$264
+		jmp @$264
 
 ;         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
 @$261:
@@ -3942,7 +3941,7 @@ match_:
 		mov al, byte [bp-0xd]
 		cbw
 		cwd
-		jmp SHORT @$258
+		jmp @$258
 
 ;             dw = 1;
 ;         } else if (dc == 'f') {  /* Far (16+16 bit) jump or call. */
@@ -3987,7 +3986,7 @@ match_:
 		mov word [bp-0xc], ax
 
 		dec di
-		jmp SHORT @$270
+		jmp @$270
 
 ;                 dc = *pattern_and_encode++;
 ;                 if (dc == 'z') {  /* Zero. */
@@ -4002,7 +4001,7 @@ match_:
 		mov dx, 0x80
 		sar dx, cl
 		or word [bp-0xe], dx
-		jmp SHORT @$271
+		jmp @$271
 
 ;                     bit++;
 ;                 } else if (dc == 'r') {  /* Register field. */
@@ -4039,7 +4038,7 @@ match_:
 		jne @$266
 @$271:
 		mov word [bp-0xc], ax
-		jmp SHORT @$269
+		jmp @$269
 @$272:
 		cmp al, 0x64
 		jne @$274
@@ -4058,7 +4057,7 @@ match_:
 		add word [bp-0xc], BYTE 2
 
 ;                     } else {
-		jmp SHORT @$269
+		jmp @$269
 
 ;                         c |= instruction_addressing & 0x07;
 @$273:
@@ -4071,7 +4070,7 @@ match_:
 ;                         dw = instruction_offset_width;  /* 1 or 2. */
 		mov al, byte [_instruction_offset_width]
 		mov byte [bp-4], al
-		jmp SHORT @$268
+		jmp @$268
 
 ;                     }
 ;                 } else { decode_internal_error:  /* assert(...). */
@@ -4128,7 +4127,7 @@ match_:
 		rcr ax, 1
 		loop @$278
 		call near emit_byte_
-		jmp SHORT @$276
+		jmp @$276
 
 ;         }
 ;     }
@@ -4166,7 +4165,7 @@ to_lowercase_:
 		inc bx
 
 ;     }
-		jmp SHORT @$280
+		jmp @$280
 
 ; }
 ;
@@ -4196,7 +4195,7 @@ separate_:
 
 ;         p++;
 		inc word [_p]
-		jmp SHORT @$282
+		jmp @$282
 
 ;     prev_p = p;
 @$283:
@@ -4226,7 +4225,7 @@ separate_:
 		mov al, byte [si]
 		mov byte [bx], al
 		inc bx
-		jmp SHORT @$284
+		jmp @$284
 
 ;     *p2 = '\0';
 @$285:
@@ -4250,7 +4249,7 @@ separate_:
 
 ;         p++;
 		inc word [_p]
-		jmp SHORT @$286
+		jmp @$286
 
 ; }
 ;
@@ -4341,7 +4340,7 @@ message_start_:
 		jne @$293
 		add word [_errors], BYTE -1
 		adc word [_errors+2], BYTE -1
-		jmp SHORT @$293
+		jmp @$293
 
 ;     } else {
 ;         msg_prefix = "Warning: ";
@@ -4443,7 +4442,7 @@ message_end_:
 		push ax
 		call near bbprintf_
 		add sp, BYTE 8
-		jmp SHORT @$296
+		jmp @$296
 
 ; }
 ;
@@ -4502,7 +4501,7 @@ process_instruction_:
 		cmp al, byte [bp-2]
 		je @$300
 		inc bx
-		jmp SHORT @$299
+		jmp @$299
 
 ;                 p3 = p2;
 @$300:
@@ -4518,7 +4517,7 @@ process_instruction_:
 		call near message_
 
 ;                 } else {
-		jmp SHORT @$304
+		jmp @$304
 
 ;                     p3 = avoid_spaces(p3 + 1);
 @$301:
@@ -4534,9 +4533,9 @@ process_instruction_:
 		test al, al
 		je @$303
 		dec word [_p]
-		jmp SHORT @$305
+		jmp @$305
 @$302:
-		jmp SHORT @$311
+		jmp @$311
 
 ;                     emit_bytes(p, p2 - p);
 @$303:
@@ -4551,7 +4550,7 @@ process_instruction_:
 		mov word [_p], cx
 
 ;             } else { db_expr:
-		jmp SHORT @$308
+		jmp @$308
 
 ;                 p = match_expression(p);
 @$305:
@@ -4694,7 +4693,7 @@ process_instruction_:
 ;                 if (*p == '\0') break;
 		cmp byte [bx], 0
 		jne @$312
-		jmp SHORT @$310
+		jmp @$310
 
 ;                 continue;
 ;             }
@@ -4737,7 +4736,7 @@ process_instruction_:
 
 ;                 goto after_matches;
 @$318:
-		jmp SHORT @$324
+		jmp @$324
 
 ;             }
 ;             if (strcmp(part, p2) == 0) break;
@@ -4761,7 +4760,7 @@ process_instruction_:
 		inc bx
 		cmp byte [si], 0
 		jne @$321
-		jmp SHORT @$316
+		jmp @$316
 
 ;         }
 ;         while (*p2++ != '\0') {}  /* Skip over instruction name. */
@@ -4798,7 +4797,7 @@ process_instruction_:
 		push ax
 		call near bbprintf_
 		add sp, BYTE 8
-		jmp SHORT @$317
+		jmp @$317
 
 ;             message_end();
 ;             break;
@@ -4905,7 +4904,7 @@ incbin_:
 		call near emit_bytes_
 
 ;     }
-		jmp SHORT @$326
+		jmp @$326
 
 ;     if (size < 0) {
 @$327:
@@ -4988,7 +4987,7 @@ assembly_push_:
 		cmp ax, 0x200
 		jb @$329
 		xor bx, bx
-		jmp SHORT @$330
+		jmp @$330
 
 ;     assembly_p->level = 1;
 @$329:
@@ -5106,9 +5105,7 @@ get_fmt_u_value_:
 
 ;     static char buf[sizeof(u) * 3 + 1];  /* Long enough for a decimal representation. */
 ;     char *p = buf + sizeof(buf) - 1;
-		;mov word [bp-BYTE 2], @$622  ; !!! Syntax error with BYTE, generates longer instruction without BYTE in NASM 0.98.39.
-		db 0xC7, 0x46, -2
-		dw @$622
+		mov word [bp-2], @$622
 
 ;     *p = '\0';
 		mov byte [@$622], 0
@@ -5268,7 +5265,7 @@ do_assembly_:
 ;         bbprintf(&message_bbb, "cannot seek in '%s'", input_filename);
 		push word [bp-0x16]
 		mov ax, @$559
-		jmp SHORT @$337
+		jmp @$337
 
 ;         message_end();
 ;         return;
@@ -5319,7 +5316,7 @@ do_assembly_:
 		je @$343
 		inc bx
 		mov word [_p], bx
-		jmp SHORT @$342
+		jmp @$342
 
 ;         if (p == line_rend) {
 @$343:
@@ -5328,10 +5325,7 @@ do_assembly_:
 		jne @$349
 
 ;             if (line != line_buf) {
-		;mov word [bp-BYTE 2], @$622  ; !!! Syntax error with BYTE, generates longer instruction without BYTE in NASM 0.98.39.
-		;cmp word [bp-BYTE 0xa], _line_buf  ; !!! Syntax error with BYTE, generates longer instruction without BYTE in NASM 0.98.39.
-		db 0x81, 0x7E, -0xa
-		dw _line_buf
+		cmp word [bp-0xa], _line_buf
 		je @$347
 
 ;                 if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;  /* Too much copy per line (thus too slow). This won't be triggered, because the `>= MAX_SIZE' check triggers first. */
@@ -5354,7 +5348,7 @@ do_assembly_:
 		mov bx, dx
 		mov byte [bx], al
 		inc dx
-		jmp SHORT @$344
+		jmp @$344
 @$345:
 		jmp @$476
 
@@ -5364,9 +5358,7 @@ do_assembly_:
 		mov word [_p], dx
 
 ;                 line = linep = line_buf;
-		;mov word [bp-BYTE 0xa], _line_buf  ; !!! Syntax error with BYTE, generates longer instruction without BYTE in NASM 0.98.39.
-		db 0xC7, 0x46, -0xa,
-		dw _line_buf
+		mov word [bp-0xa], _line_buf
 
 ;             }
 ;             if ((got = read(input_fd, line_rend, line_buf + sizeof(line_buf) - line_rend)) < 0) {
@@ -5386,9 +5378,9 @@ do_assembly_:
 		call near message_
 
 ;                 break;
-		jmp SHORT @$345
+		jmp @$345
 @$349:
-		jmp SHORT @$355
+		jmp @$355
 
 ;             }
 ;             if (got == 0) {  /* End of file (EOF). */
@@ -5408,7 +5400,7 @@ do_assembly_:
 		mov word [bp-0xe], 0
 
 ;               goto after_line_read;
-		jmp SHORT @$356
+		jmp @$356
 @$351:
 		jmp @$368
 
@@ -5427,7 +5419,7 @@ do_assembly_:
 		je @$354
 		inc bx
 		mov word [_p], bx
-		jmp SHORT @$353
+		jmp @$353
 
 ;             if (p == line_rend) goto line_too_long;
 @$354:
@@ -5494,7 +5486,7 @@ do_assembly_:
 ;                     p++;
 		inc bx
 		mov word [_p], bx
-		jmp SHORT @$359
+		jmp @$359
 
 ;             } else if (*p == '"' && *(p - 1) != '\\') {
 @$360:
@@ -5523,9 +5515,9 @@ do_assembly_:
 ;                     p++;
 		inc bx
 		mov word [_p], bx
-		jmp SHORT @$361
+		jmp @$361
 @$362:
-		jmp SHORT @$366
+		jmp @$366
 
 ;             } else if (*p == ';') {
 @$363:
@@ -5542,7 +5534,7 @@ do_assembly_:
 ;                     p++;
 		inc bx
 		mov word [_p], bx
-		jmp SHORT @$364
+		jmp @$364
 
 ;                 break;
 ;             }
@@ -5652,7 +5644,7 @@ do_assembly_:
 		call near strcat_
 
 ;                 } else {
-		jmp SHORT @$374
+		jmp @$374
 @$371:
 		jmp @$464
 @$372:
@@ -5755,7 +5747,7 @@ do_assembly_:
 ;                                 }
 		jmp @$404
 @$380:
-		jmp SHORT @$385
+		jmp @$385
 
 ;                             } else {
 ;                                 last_label = find_label(name);
@@ -5781,7 +5773,7 @@ do_assembly_:
 		mov ax, _name
 		push ax
 		mov ax, @$565
-		jmp SHORT @$378
+		jmp @$378
 
 ;                                     message_end();
 ;                                 } else {
@@ -5867,7 +5859,7 @@ do_assembly_:
 		call near message_end_
 
 ;                         } else {
-		jmp SHORT @$394
+		jmp @$394
 
 ;                             last_label = define_label(name, address);
 @$389:
@@ -5879,7 +5871,7 @@ do_assembly_:
 		mov word [_last_label+2], dx
 
 ;                         }
-		jmp SHORT @$394
+		jmp @$394
 
 ;                     } else {
 ;                         last_label = find_label(name);
@@ -5905,7 +5897,7 @@ do_assembly_:
 		mov ax, _name
 		push ax
 		mov ax, @$565
-		jmp SHORT @$388
+		jmp @$388
 
 ;                             message_end();
 ;                         } else {
@@ -5999,9 +5991,9 @@ do_assembly_:
 		mov dx, @$550
 
 ;                 } else if (undefined) {
-		jmp SHORT @$400
+		jmp @$400
 @$398:
-		jmp SHORT @$407
+		jmp @$407
 @$399:
 		cmp word [_undefined], BYTE 0
 		je @$401
@@ -6079,7 +6071,7 @@ do_assembly_:
 
 ;                     ;
 ;                 } else {
-		jmp SHORT @$402
+		jmp @$402
 
 ;                     avoid_level = level;
 ;                 }
@@ -6137,7 +6129,7 @@ do_assembly_:
 ;                     avoid_level = level;
 ;                 }
 @$415:
-		jmp SHORT @$412
+		jmp @$412
 
 ;                 check_end(p);
 ;                 break;
@@ -6189,7 +6181,7 @@ do_assembly_:
 		xor di, di
 
 ;                 } else if (avoid_level == 0) {
-		jmp SHORT @$414
+		jmp @$414
 @$419:
 		mov ax, word [bp-4]
 		or ax, di
@@ -6290,7 +6282,7 @@ do_assembly_:
 
 ;                     message(1, "Unsupported processor requested");
 		mov dx, @$578
-		jmp SHORT @$430
+		jmp @$430
 
 ;                 break;
 ;             }
@@ -6321,7 +6313,7 @@ do_assembly_:
 ;                     message(1, "Bad expression");
 @$427:
 		mov dx, @$550
-		jmp SHORT @$430
+		jmp @$430
 
 ;                 } else if (undefined) {
 @$428:
@@ -6346,7 +6338,7 @@ do_assembly_:
 ;                     message(1, "Unsupported BITS requested");
 @$432:
 		mov dx, @$580
-		jmp SHORT @$430
+		jmp @$430
 
 ;                 } else {
 ;                     check_end(p);
@@ -6385,7 +6377,7 @@ do_assembly_:
 ;                     message(1, "Missing quotes on %include");
 @$435:
 		mov dx, @$582
-		jmp SHORT @$430
+		jmp @$430
 
 ;                     break;
 ;                 }
@@ -6519,7 +6511,7 @@ do_assembly_:
 ;                         } else {
 		jmp @$404
 @$446:
-		jmp SHORT @$451
+		jmp @$451
 
 ;                             while (address < instruction_value)
 @$447:
@@ -6538,7 +6530,7 @@ do_assembly_:
 @$450:
 		xor ax, ax
 		call near emit_byte_
-		jmp SHORT @$447
+		jmp @$447
 
 ;
 ;                         }
@@ -6610,7 +6602,7 @@ do_assembly_:
 @$455:
 		mov ax, 0x90
 		call near emit_byte_
-		jmp SHORT @$454
+		jmp @$454
 
 ;                     check_end(p);
 ;                 }
@@ -6661,7 +6653,7 @@ do_assembly_:
 		mov ax, cx
 @$459:
 		call near message_
-		jmp SHORT @$464
+		jmp @$464
 
 ;                     break;
 ;                 }
@@ -6672,7 +6664,7 @@ do_assembly_:
 
 ;                     message(1, "Cannot use undefined labels");
 		mov dx, @$568
-		jmp SHORT @$458
+		jmp @$458
 
 ;                     break;
 ;                 }
@@ -6713,7 +6705,7 @@ do_assembly_:
 		dec cx
 
 ;             }
-		jmp SHORT @$463
+		jmp @$463
 
 ;             break;
 ;         }
@@ -6737,7 +6729,7 @@ do_assembly_:
 		add sp, BYTE 4
 
 ;             else
-		jmp SHORT @$466
+		jmp @$466
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "%04X  ", base);
 @$465:
@@ -6773,9 +6765,9 @@ do_assembly_:
 		add sp, BYTE 6
 
 ;             }
-		jmp SHORT @$467
+		jmp @$467
 @$468:
-		jmp SHORT @$471
+		jmp @$471
 
 ;             while (p < generated + sizeof(generated)) {
 @$469:
@@ -6794,7 +6786,7 @@ do_assembly_:
 		inc word [_p]
 
 ;             }
-		jmp SHORT @$469
+		jmp @$469
 
 ;             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
 @$470:
@@ -6877,16 +6869,14 @@ do_assembly_:
 		mov byte [bx+_part-1], 0
 
 ;             input_filename = part + 1;
-		;mov word [bp-BYTE 0x16], _part+1  ; !!! Syntax error with BYTE, generates longer instruction without BYTE in NASM 0.98.39.
-		db 0xC7, 0x46, -0x16
-		dw _part+1
+		mov word [bp-0x16], _part+1
 
 ;             goto do_assembly_push;
 		jmp @$335
 
 ;         } else if (include == 2) {
 @$473:
-		cmp ax, BYTE 2
+		cmp ax, 2
 		je @$475
 @$474:
 		jmp @$341
@@ -6903,14 +6893,14 @@ do_assembly_:
 		call near incbin_
 
 ;         }
-		jmp SHORT @$474
+		jmp @$474
 
 ;     }
 ;     if (level != 1) {
 @$476:
-		cmp word [bp-2], BYTE 0
+		cmp word [bp-2], 0
 		jne @$477
-		cmp word [bp-6], BYTE 1
+		cmp word [bp-6], 1
 		je @$479
 
 ;         message(1, "pending %IF at end of file");
@@ -6975,7 +6965,7 @@ main_:
 ;      ** If ran without arguments then show usage
 ;      */
 ;     if (argc == 1) {
-		cmp ax, BYTE 1
+		cmp ax, 1
 		jne @$481
 
 ;         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
@@ -7036,7 +7026,7 @@ main_:
 		mov word [_default_start_address], ax
 
 ;                     } else if (strcmp(argv[c], "com") == 0) {
-		jmp SHORT @$486
+		jmp @$486
 @$483:
 		mov ax, word [bx]
 		mov dx, @$598
@@ -7058,7 +7048,7 @@ main_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 6
+		add sp, 6
 
 ;                         message_end();
 		call near message_end_
@@ -7077,11 +7067,11 @@ main_:
 
 ;                 }
 ;             } else if (d == 'o') {  /* Object file name */
-		jmp SHORT @$492
+		jmp @$492
 @$488:
 		mov cx, dx
 		inc cx
-		cmp ax, BYTE 0x6f
+		cmp ax, 0x6f
 		jne @$495
 
 ;                 c++;
@@ -7091,17 +7081,17 @@ main_:
 
 ;                     message(1, "no argument for -o");
 		mov dx, @$600
-		jmp SHORT @$494
+		jmp @$494
 
 ;                     return 1;
 ;                 } else if (output_filename != NULL) {
 @$489:
-		cmp word [_output_filename], BYTE 0
+		cmp word [_output_filename], 0
 		je @$490
 
 ;                     message(1, "already a -o argument is present");
 		mov dx, @$601
-		jmp SHORT @$494
+		jmp @$494
 
 ;                     return 1;
 ;                 } else {
@@ -7132,7 +7122,7 @@ main_:
 		mov bx, dx
 		shl bx, 1
 		add bx, word [bp-6]
-		cmp ax, BYTE 0x66
+		cmp ax, 0x66
 		jne @$488
 		mov si, dx
 		cmp dx, word [bp-4]
@@ -7145,7 +7135,7 @@ main_:
 		call near message_
 		jmp @$526
 @$495:
-		cmp ax, BYTE 0x6c
+		cmp ax, 0x6c
 		jne @$500
 
 ;                 c++;
@@ -7155,17 +7145,17 @@ main_:
 
 ;                     message(1, "no argument for -l");
 		mov dx, @$602
-		jmp SHORT @$494
+		jmp @$494
 
 ;                     return 1;
 ;                 } else if (listing_filename != NULL) {
 @$496:
-		cmp word [_listing_filename], BYTE 0
+		cmp word [_listing_filename], 0
 		je @$497
 
 ;                     message(1, "already a -l argument is present");
 		mov dx, @$603
-		jmp SHORT @$494
+		jmp @$494
 
 ;                     return 1;
 ;                 } else {
@@ -7173,7 +7163,7 @@ main_:
 @$497:
 		mov ax, word [bx]
 		mov word [_listing_filename], ax
-		jmp SHORT @$491
+		jmp @$491
 @$498:
 		jmp @$510
 @$499:
@@ -7183,7 +7173,7 @@ main_:
 ;                 }
 ;             } else if (d == 'd') {  /* Define label */
 @$500:
-		cmp ax, BYTE 0x64
+		cmp ax, 0x64
 		jne @$507
 
 ;                 p = argv[c] + 2;
@@ -7208,7 +7198,7 @@ main_:
 		inc bx
 
 ;                 }
-		jmp SHORT @$501
+		jmp @$501
 
 ;                 if (*p == '=') {
 @$502:
@@ -7234,17 +7224,17 @@ main_:
 
 ;                         message(1, "Bad expression");
 		mov dx, @$550
-		jmp SHORT @$494
+		jmp @$494
 
 ;                         return 1;
 ;                     } else if (undefined) {
 @$505:
-		cmp word [_undefined], BYTE 0
+		cmp word [_undefined], 0
 		je @$506
 
 ;                         message(1, "Cannot use undefined labels");
 		mov dx, @$568
-		jmp SHORT @$494
+		jmp @$494
 
 ;                         return 1;
 ;                     } else {
@@ -7263,7 +7253,7 @@ main_:
 
 ;                     }
 ;                 }
-		jmp SHORT @$503
+		jmp @$503
 
 ;                 c++;
 ;             } else {
@@ -7283,7 +7273,7 @@ main_:
 ;         } else {
 ;             if (ifname != NULL) {
 @$508:
-		cmp word [bp-2], BYTE 0
+		cmp word [bp-2], 0
 		je @$509
 
 ;                 message_start(1);
@@ -7313,7 +7303,7 @@ main_:
 ;
 ;     if (ifname == NULL) {
 @$510:
-		cmp word [bp-2], BYTE 0
+		cmp word [bp-2], 0
 		jne @$511
 
 ;         message(1, "No input filename provided");
@@ -7379,7 +7369,7 @@ main_:
 ;          */
 ;         if (output_filename == NULL) {
 @$514:
-		cmp word [_output_filename], BYTE 0
+		cmp word [_output_filename], 0
 		jne @$515
 
 ;             message(1, "No output filename provided");
@@ -7463,11 +7453,11 @@ main_:
 
 ;
 ;             if (listing_fd >= 0 && change == 0) {
-		cmp word [_listing_fd], BYTE 0
+		cmp word [_listing_fd], 0
 		jge @$519
 		jmp near @$521
 @$519:
-		cmp word [_change], BYTE 0
+		cmp word [_change], 0
 		jne @$521
 
 ;                 bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
@@ -7480,7 +7470,7 @@ main_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 6
+		add sp, 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n\r\n", GET_FMT_U_VALUE(warnings));
 		mov ax, word [_warnings]
@@ -7492,7 +7482,7 @@ main_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 6
+		add sp, 6
 
 ;                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
 		mov ax, word [_bytes]
@@ -7504,7 +7494,7 @@ main_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 6
+		add sp, 6
 
 ;                 if (label_list != NULL) {
 		mov dx, word [_label_list]
@@ -7523,7 +7513,7 @@ main_:
 		mov ax, _message_bbb
 		push ax
 		call near bbprintf_
-		add sp, BYTE 6
+		add sp, 6
 
 ;                     print_labels_sorted_to_listing_fd(label_list);
 		mov ax, word [_label_list]
@@ -7542,7 +7532,7 @@ main_:
 		call near close_
 
 ;             if (listing_filename != NULL) {
-		cmp word [_listing_filename], BYTE 0
+		cmp word [_listing_filename], 0
 		je @$522
 
 ;                 message_flush(NULL);
@@ -7556,14 +7546,14 @@ main_:
 ;             }
 ;             if (change) {
 @$522:
-		cmp word [_change], BYTE 0
+		cmp word [_change], 0
 		je @$523
 
 ;                 change_number++;
 		inc word [_change_number]
 
 ;                 if (change_number == 5) {
-		cmp word [_change_number], BYTE 5
+		cmp word [_change_number], 5
 		jne @$523
 
 ;                     message(1, "Aborted: Couldn't stabilize moving label");
@@ -7691,7 +7681,7 @@ bbwrite1_:
 		call word [bx+8]
 
 ;   }
-		jmp SHORT @@$1
+		jmp @@$1
 
 ;   *bbb->p++ = c;
 @@$2:
@@ -7738,7 +7728,7 @@ prints_:
 		je @@$4
 		inc ax
 		inc di
-		jmp SHORT @@$3
+		jmp @@$3
 
 ;     if (len >= width) width = 0;
 @@$4:
@@ -7747,7 +7737,7 @@ prints_:
 		xor bx, bx
 
 ;     else width -= len;
-		jmp SHORT @@$6
+		jmp @@$6
 @@$5:
 		sub bx, ax
 
@@ -7778,7 +7768,7 @@ prints_:
 
 ;     }
 		dec bx
-		jmp SHORT @@$8
+		jmp @@$8
 
 ;   }
 ;   for (; *string ; ++string) {
@@ -7798,7 +7788,7 @@ prints_:
 
 ;   }
 		inc si
-		jmp SHORT @@$9
+		jmp @@$9
 
 ;   for (; width > 0; --width) {
 @@$10:
@@ -7815,7 +7805,7 @@ prints_:
 
 ;   }
 		dec bx
-		jmp SHORT @@$10
+		jmp @@$10
 
 ;   return pc;
 ; }
@@ -7837,7 +7827,7 @@ printi_:
 		push di
 		push bp
 		mov bp, sp
-		sub sp, BYTE 0x12
+		sub sp, 0x12
 		mov di, ax
 		mov word [bp-6], bx
 
@@ -7874,7 +7864,7 @@ printi_:
 @@$12:
 		test cx, cx
 		je @@$13
-		cmp word [bp-6], BYTE 0xa
+		cmp word [bp-6], 0xa
 		jne @@$13
 		test dx, dx
 		jge @@$13
@@ -7906,12 +7896,12 @@ printi_:
 		div word [bp-6]
 
 ;     if (t >= 10)
-		cmp dx, BYTE 0xa
+		cmp dx, 0xa
 		jl @@$15
 
 ;       t += letbase - '0' - 10;
 		mov ax, word [bp+0xc]
-		sub ax, BYTE 0x3a
+		sub ax, 0x3a
 		add dx, ax
 
 ;     *--s = t + '0';
@@ -7928,16 +7918,16 @@ printi_:
 		mov bx, ax
 
 ;   }
-		jmp SHORT @@$14
+		jmp @@$14
 
 ;
 ;   if (neg) {
 @@$16:
-		cmp word [bp-4], BYTE 0
+		cmp word [bp-4], 0
 		je @@$18
 
 ;     if (width &&(pad & PAD_ZERO)) {
-		cmp word [bp+8], BYTE 0
+		cmp word [bp+8], 0
 		je @@$17
 		test byte [bp+0xa], 2
 		je @@$17
@@ -7955,7 +7945,7 @@ printi_:
 
 ;     }
 ;     else {
-		jmp SHORT @@$18
+		jmp @@$18
 
 ;       *--s = '-';
 @@$17:
@@ -8051,7 +8041,7 @@ print_:
 		inc si
 
 ;       }
-		jmp SHORT @@$21
+		jmp @@$21
 
 ;       for (; *format >= '0' && *format <= '9'; ++format) {
 @@$22:
@@ -8075,7 +8065,7 @@ print_:
 
 ;       }
 		inc si
-		jmp SHORT @@$22
+		jmp @@$22
 @@$23:
 		jmp @@$42
 @@$24:
@@ -8097,7 +8087,7 @@ print_:
 		test bx, bx
 		je @@$26
 		mov dx, bx
-		jmp SHORT @@$27
+		jmp @@$27
 @@$25:
 		jmp @@$39
 @@$26:
@@ -8131,7 +8121,7 @@ print_:
 @@$32:
 		mov ax, word [bp-6]
 		call near printi_
-		jmp SHORT @@$29
+		jmp @@$29
 
 ;         continue;
 ;       }
@@ -8150,7 +8140,7 @@ print_:
 		mov dx, word [bx-2]
 		xor cx, cx
 		mov bx, 0x10
-		jmp SHORT @@$32
+		jmp @@$32
 
 ;         continue;
 ;       }
@@ -8161,7 +8151,7 @@ print_:
 
 ;         pc += printi(bbb, va_arg(args, int), 16, 0, width, pad, 'A');
 		mov ax, 0x41
-		jmp SHORT @@$34
+		jmp @@$34
 
 ;         continue;
 ;       }
@@ -8178,7 +8168,7 @@ print_:
 		mov word [bp-2], bx
 		mov dx, word [bx-2]
 		xor cx, cx
-		jmp SHORT @@$31
+		jmp @@$31
 
 ;         continue;
 ;       }
@@ -8202,7 +8192,7 @@ print_:
 
 ;           ++pc;
 ;         } else {
-		jmp SHORT @@$40
+		jmp @@$40
 
 ;           scr[1] = '\0';
 @@$38:
@@ -8211,7 +8201,7 @@ print_:
 ;           pc += prints(bbb, scr, width, pad);
 		mov bx, dx
 		lea dx, [bp-4]
-		jmp SHORT @@$28
+		jmp @@$28
 
 ;         }
 ;         continue;
@@ -8276,7 +8266,7 @@ bbsprintf_:
 		push dx
 		push bp
 		mov bp, sp
-		sub sp, BYTE 0xa
+		sub sp, 0xa
 
 ;   int result;
 ;   struct bbprintf_buf bbb;
@@ -8303,7 +8293,7 @@ bbsprintf_:
 ;   return result;
 ; }
 		mov sp, bp
-		jmp SHORT @@$43
+		jmp @@$43
 
 
 ; --- C library functions based on https://github.com/pts/dosmc/tree/master/dosmclib
