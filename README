@@ -160,6 +160,34 @@ binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and mininas
 is to improve the compatibility of mininasm with NASM: it's source code is
 relatively complex NASM-compatible assembly code.
 
+Info about other assemblers:
+
+* x86 assembler and linker comparison: https://pmwiki.xaver.me/drdoswiki/index.php?n=Main.DevelAsm
+
+* x86 assembler comparison: https://www.japheth.de/JWasm/AsmCmp.html
+
+* PC-72 assembler a72.com: https://github.com/swanlizard/a72
+
+  Discussion: https://www.bttr-software.de/forum/board_entry.php?id=17005
+
+  Open source, tiny, can create .com and .bin only.
+
+  A 8086 assembler without bells, whistles, gongs, or macros. It's a
+  bare-bones single-segment symbolic assembler that will take standard
+  Intel-format assembly and turn it into a COM file executable under DOS.
+  R.Swan writes: "I wrote it for my own sake because I wanted to write
+  assembly without having to use a bunch of directives and extraneous garbage
+  in order to even just start writing, and to have binary code I could fully
+  control and predict." Released to the public domain.
+
+* Some other assemblers (source and binary download) targeting DOS:
+  http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/devel/asm/
+
+* JWasm is an assembler compatible with MASM v6.
+
+  Latest JWasm releases (v2.16pre2 on 2022-07-28):
+  https://github.com/Baron-von-Riedesel/JWasm/releases
+
 Below is a copy of the README of Tinyasm.
 
 ,--------.,--.
