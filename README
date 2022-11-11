@@ -151,14 +151,15 @@ following changes:
   consistently. (In Tinyasm, only `%' is signed.)
 * (Otherwise, tinasm should behave identically to Tinyasm.)
 
-The mininasm repository also contains minnnasm (source code: minnnasm.nasm),
+The mininasm repository also contains minnnasm (source code:
+https://github.com/pts/mininasm/blob/master/minnnasm.nasm),
 which is a full-featured self-hosting fork of mininasm for DOS 8086 only,
 implemented in a subset of NASM assembly language, thus it's able to compile
 (assemble) itself on DOS: by doing so it produces a DOS .com executable
-binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and mininasm
-(https://github.com/pts/mininasm). One of the development goals of minnnasm
-is to improve the compatibility of mininasm with NASM: it's source code is
-relatively complex NASM-compatible assembly code.
+binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and
+mininasm (https://github.com/pts/mininasm). One of the development goals of
+minnnasm is to improve the compatibility of mininasm with NASM: it's source
+code is relatively complex NASM-compatible assembly code.
 
 Info about other assemblers:
 
@@ -166,7 +167,7 @@ Info about other assemblers:
 
 * x86 assembler comparison: https://www.japheth.de/JWasm/AsmCmp.html
 
-* PC-72 assembler a72.com: https://github.com/swanlizard/a72
+* PC-72 assembler A72 a72.com: https://github.com/swanlizard/a72
 
   Discussion: https://www.bttr-software.de/forum/board_entry.php?id=17005
 
@@ -183,10 +184,70 @@ Info about other assemblers:
 * Some other assemblers (source and binary download) targeting DOS:
   http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/devel/asm/
 
+* Many more assemblers listed here:
+  https://board.flatassembler.net/topic.php?t=5949
+
 * JWasm is an assembler compatible with MASM v6.
 
   Latest JWasm releases (v2.16pre2 on 2022-07-28):
   https://github.com/Baron-von-Riedesel/JWasm/releases
+
+Known self-hosting assemblers (i.e. those which can compile their own assembly
+source code) for x86:
+
+* FASM: https://flatassembler.net/
+
+* Asmc: https://github.com/nidud/asmc
+
+* LZASM (closed source):
+  http://web.archive.org/web/20071024143102/http://lzasm.hotbox.ru/
+
+* A86 (closed source): https://eji.com/a86/
+
+* NGSAM (closed source): http://www.bestdiskrecovery.com/ (link broken),
+  http://www.bestdiskrecovery.com/ngasm/index.html (link broken)
+
+* A72: https://github.com/swanlizard/a72
+
+* Venski assembler:
+  http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/devel/asm/venksi/
+
+* Wolfware Assembler:
+  http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/devel/asm/wasm/mitlicense/
+
+* minnnasm.nasm in mininasm:
+  https://github.com/pts/mininasm/blob/master/minnnasm.nasm
+
+* TMA:
+  https://www.sac.sk/download/utilprog/ta980705.zip
+  https://www.sac.sk/download/utilprog/ta980717.zip
+
+* intasm == intelasm == Intel Assembler:
+  http://exmortis.narod.ru/comp_src/intasm52.zip
+
+* XASM:
+  https://www.sac.sk/download/utilprog/xasm312.zip
+  https://web.archive.org/web/20070823101949/http://xasm.webpark.pl/xasm/files/xasm312.zip
+  https://web.archive.org/web/20060813152752/http://xasm.webpark.pl/xasm/files/xasm2pde.zip
+
+  Both XASM 3.x and 2.x are self-hosting. The source code of XASM 2.3 has been
+  released along with the binary in xasm2pde.zip.
+
+* Rosasm by René Tournois (Betov): (all download links dead)
+
+  Runs on Win32, targets Win32 (32 bits). IDE only, no command-line.
+
+Not self-hosting assemblers:
+
+* NASM (open source, written in C).
+
+* YASM (open source, written in C).
+
+* WASM (open source, written in C).
+
+* JWasm (open source, written in C).
+
+* vasm (open source, written in C).
 
 Below is a copy of the README of Tinyasm.
 
