@@ -417,6 +417,7 @@ static const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
 extern struct bbprintf_buf message_bbb;
 
 static void message(int error, const char *message);
+static void message1str(int error, const char *pattern, const char *data);
 static void message_start(int error);
 static void message_end(void);
 
@@ -1005,10 +1006,7 @@ static const char *match_expression(const char *match_p) {
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
-                    message_start(1);
-                    /* This will be printed twice for `jmp', but once for `jc'. */
-                    bbprintf(&message_bbb, "Undefined label '%s'", p3);
-                    message_end();
+                    message1str(1, "Undefined label '%s'", p3);
                 }
             } else {
                 value1 = label->value;
@@ -1832,9 +1830,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                         dw = instruction_offset_width;  /* 1, 2 or 3. 3 means 2 for dw. */
                     }
                 } else { decode_internal_error:  /* assert(...). */
-                    message_start(1);
-                    bbprintf(&message_bbb, "ooops: decode (%s)", error_base);
-                    message_end();
+                    message1str(1, "ooops: decode (%s)", error_base);
                     exit(2);
                     break;
                 }
@@ -1930,6 +1926,15 @@ static void message(int error, const char *message) {
 }
 
 /*
+ ** Shortcut to make the executable program smaller for __DOSMC__.
+ */
+static void message1str(int error, const char *pattern, const char *data) {
+    message_start(error);
+    bbprintf(&message_bbb, pattern, data);
+    message_end();
+}
+
+/*
  ** Process an instruction
  */
 static void process_instruction(void) {
@@ -2003,9 +2008,7 @@ static void process_instruction(void) {
         p2 = instruction_set;
         for (;;) {
             if (*p2 == '\0') {
-                message_start(1);
-                bbprintf(&message_bbb, "Unknown instruction '%s'", part);
-                message_end();
+                message1str(1, "Unknown instruction '%s'", part);
                 goto after_matches;
             }
             if (casematch(part, p2)) break;  /* Match actual instruction mnemonic name (part) against candidate from instruction_set (p2). */
@@ -2042,9 +2045,7 @@ static void incbin(const char *fname) {
     int size;
 
     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
-        message_start(1);
-        bbprintf(&message_bbb, "Error: Cannot open '%s' for input", fname);
-        message_end();
+        message1str(1, "Error: Cannot open '%s' for input", fname);
         return;
     }
 
@@ -2054,9 +2055,7 @@ static void incbin(const char *fname) {
         emit_bytes(message_buf, size);
     }
     if (size < 0) {
-        message_start(1);
-        bbprintf(&message_bbb, "Error: Error reading from '%s'", fname);
-        message_end();
+        message1str(1, "Error: Error reading from '%s'", fname);
     }
     close(input_fd);
 }
@@ -2074,15 +2073,11 @@ static void create_label(void) {
             RBL_SET_DELETED_0(last_label);
             last_label->value = instruction_value;
         } else {
-            message_start(1);
-            bbprintf(&message_bbb, "Redefined label '%s'", global_label);
-            message_end();
+            message1str(1, "Redefined label '%s'", global_label);
         }
     } else {
         if (last_label == NULL) {
-            message_start(1);
-            bbprintf(&message_bbb, "oops: label '%s' not found", global_label);
-            message_end();
+            message1str(1, "oops: label '%s' not found", global_label);
         } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %undef-ined macro. */
             goto do_undelete;
         } else {
@@ -2405,15 +2400,11 @@ static void do_assembly(const char *input_filename) {
     line_number = 0;  /* Global variable. */
     filename_for_message = aip->input_filename;
     if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
-        message_start(1);
-        bbprintf(&message_bbb, "cannot open '%s' for input", aip->input_filename);
-        message_end();
+        message1str(1, "cannot open '%s' for input", aip->input_filename);
         return;
     }
     if (aip->file_offset != 0 && lseek(input_fd, aip->file_offset, SEEK_SET) != aip->file_offset) {
-        message_start(1);
-        bbprintf(&message_bbb, "cannot seek in '%s'", input_filename);
-        message_end();
+        message1str(1, "cannot seek in '%s'", input_filename);
         return;
     }
     level = aip->level;
@@ -2509,7 +2500,7 @@ static void do_assembly(const char *input_filename) {
         } else if (p[0] != '%') {
             if (avoid_level != 0 && level >= avoid_level) {
 #if DEBUG
-                if (0) { message_start(1); bbprintf(&message_bbb, "Avoiding '%s'", line); message_end(); }
+                if (0) message1str(1, "Avoiding '%s'", line);
 #endif
                 goto after_line;
             }
@@ -2583,9 +2574,7 @@ static void do_assembly(const char *input_filename) {
             check_end(p);
         } else if (casematch(part, "%IF*") || casematch(part, "%ELIF*")) {
             /* We report this even if skipped. */
-            message_start(1);
-            bbprintf(&message_bbb, "Unknown preprocessor condition: %s", part);
-            message_end();
+            message1str(1, "Unknown preprocessor condition: %s", part);
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
         } else if (casematch(part, "%INCLUDE")) {
@@ -2602,9 +2591,7 @@ static void do_assembly(const char *input_filename) {
         } else if (casematch(part, "%UNDEF")) {
             unset_macro((char*)p - 1);
         } else {
-            message_start(1);
-            bbprintf(&message_bbb, "Unknown preprocessor directive: %s", part);
-            message_end();
+            message1str(1, "Unknown preprocessor directive: %s", part);
         }
         goto after_line;
       not_preproc:
@@ -2838,15 +2825,12 @@ int main(int argc, char **argv) {
                     goto bad_opt_level;
                 }
             } else if (argv[0][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
-                message_start(1);
-                bbprintf(&message_bbb, "flag too long: %s", argv[0]);  /* Example: `-fbin' should be `-f bin'. */
-                goto flag_error;
+                message1str(1, "flag too long: %s", argv[0]);  /* Example: `-fbin' should be `-f bin'. */
+                return 1;
             } else if (d == 'f') { /* Format */
                 if (*++argv == NULL) {
                   error_no_argument:
-                    message_start(1);
-                    bbprintf(&message_bbb, "no argument for %s", argv[-1]);
-                    message_end();
+                    message1str(1, "no argument for %s", argv[-1]);
                     return 1;
                 } else {
                     if (casematch(argv[0], "BIN")) {
@@ -2856,9 +2840,7 @@ int main(int argc, char **argv) {
                         default_start_address = 0x100;
                         is_start_address_set = 1;
                     } else {
-                        message_start(1);
-                        bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[0]);
-                        message_end();
+                        message1str(1, "only 'bin', 'com' supported for -f (it is '%s')", argv[0]);
                         return 1;
                     }
                 }
@@ -2882,18 +2864,13 @@ int main(int argc, char **argv) {
                     listing_filename = argv[0];
                 }
             } else {
-                message_start(1);
-                bbprintf(&message_bbb, "unknown argument %s", argv[0]);
-              flag_error:
-                message_end();
+                message1str(1, "unknown argument %s", argv[0]);
                 return 1;
             }
         } else {
             if (0) DEBUG1("ifname=(%s)\n", argv[0]);
             if (ifname != NULL) {
-                message_start(1);
-                bbprintf(&message_bbb, "more than one input file name: %s", argv[0]);
-                message_end();
+                message1str(1, "more than one input file name: %s", argv[0]);
                 return 1;
             } else {
                 ifname = argv[0];
@@ -2930,16 +2907,12 @@ int main(int argc, char **argv) {
             if (GET_U16(++assembler_pass) == 0) --assembler_pass;  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
-                    message_start(1);
-                    bbprintf(&message_bbb, "couldn't open '%s' as listing file", output_filename);
-                    message_end();
+                    message1str(1, "couldn't open '%s' as listing file", output_filename);
                     return 1;
                 }
             }
             if ((output_fd = creat(output_filename, 0644)) < 0) {
-                message_start(1);
-                bbprintf(&message_bbb, "couldn't open '%s' as output file", output_filename);
-                message_end();
+                message1str(1, "couldn't open '%s' as output file", output_filename);
                 return 1;
             }
             prev_address = current_address;
