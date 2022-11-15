@@ -101,6 +101,8 @@ Differences between mininasm and NASM:
 
 * `section' definitions are not supported.
 
+* The optional `offset' and `size' arguments of `incbin' are not supported.
+
 Similarities with NASM:
 
 * Local labels are supported, and should start with period.

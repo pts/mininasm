@@ -2487,6 +2487,7 @@ static void do_assembly(const char *input_filename) {
         MESSAGE1STR(1, "cannot open '%s' for input", aip->input_filename);
         return;
     }
+    if (0) DEBUG2("seeking to %d in file: %s\n", (int)aip->file_offset, aip->input_filename);
     if (aip->file_offset != 0 && lseek(input_fd, aip->file_offset, SEEK_SET) != aip->file_offset) {
         MESSAGE1STR(1, "cannot seek in '%s'", input_filename);
         return;
@@ -2660,11 +2661,16 @@ static void do_assembly(const char *input_filename) {
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
         } else if (casematch(part, "%INCLUDE")) {
-            check_end(p = separate(p));
-            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                MESSAGE(1, "Missing quotes on %include");
+            pc = *p++;
+            if (pc != '"' && pc != '\'') {
+              missing_quotes_in_include:
+                MESSAGE(1, "Missing quotes in %INCLUDE");
                 goto after_line;
             }
+            for (p3 = p; *p != '\0' && *p != pc; ++p) {}
+            if (*p == '\0') goto missing_quotes_in_include;
+            if (!check_end(p + 1)) goto after_line;
+            liner = (char*)p;
             include = 1;
         } else if ((pc = casematch(part, "%DEFINE")) || casematch(part, "%ASSIGN")) {
             for (p3 = p; *p3 != '\0' && !isspace(*p3); ++p3) {}
@@ -2727,11 +2733,16 @@ static void do_assembly(const char *input_filename) {
                 check_end(p);
             }
         } else if (casematch(part, "INCBIN")) {
-            check_end(p = separate(p));
-            if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                MESSAGE(1, "Missing quotes on incbin");
+            pc = *p++;
+            if (pc != '"' && pc != '\'') {
+              missing_quotes_in_incbin:
+                MESSAGE(1, "Missing quotes in INCBIN");
                 goto after_line;
             }
+            for (p3 = p; *p != '\0' && *p != pc; ++p) {}
+            if (*p == '\0') goto missing_quotes_in_incbin;
+            if (!check_end(p + 1)) goto after_line;  /* !! TODO(pts): Add optional offset and size arguments. */
+            liner = (char*)p;
             include = 2;
         } else if (casematch(part, "ORG")) {
             p = match_expression(p);
@@ -2815,7 +2826,7 @@ static void do_assembly(const char *input_filename) {
             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
         }
         if (include == 1) {
-            if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
+            if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {  /* !!! TODO(pts): Seek offset is wrong. */
                 MESSAGE(1, "Cannot seek in source file");
                 goto close_return;
             }
@@ -2823,12 +2834,12 @@ static void do_assembly(const char *input_filename) {
             aip->level = level;
             aip->avoid_level = avoid_level;
             aip->line_number = line_number;
-            part[strlen(part) - 1] = '\0';
-            input_filename = part + 1;
+            *liner = '\0';
+            input_filename = p3;
             goto do_assembly_push;
         } else if (include == 2) {
-            part[strlen(part) - 1] = '\0';
-            incbin(part + 1);
+            *liner = '\0';  /* OK, we've already written the line to listing_fd. */
+            incbin(p3);
         }
     }
     if (level != 1) {
