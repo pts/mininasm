@@ -2775,12 +2775,12 @@ static char mininasm_macro_name[] = " __MININASM__";
  ** Main program
  */
 int main(int argc, char **argv) {
-    int c;
     int d;
     const char *p;
     char *ifname;
     char *listing_filename;
     value_t prev_address;
+    (void)argc;
 
 #if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
@@ -2796,7 +2796,7 @@ int main(int argc, char **argv) {
     /*
      ** If ran without arguments then show usage
      */
-    if (argc == 1) {
+    if (*++argv == NULL) {
         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
         (void)!write(2, msg, sizeof(msg));
         return 1;
@@ -2810,20 +2810,19 @@ int main(int argc, char **argv) {
     listing_filename = NULL;
     /* default_start_address = 0; */  /* Default. */
     /* is_start_address_set = 0; */  /* Default. */
-    c = 1;
     malloc_init();
     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "1", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ 1'. */
-    while (c < argc) {  /* !! TODO(pts): Use ++argv instead of c. */
-        if (argv[c][0] == '-') {    /* All arguments start with dash */
-            d = argv[c][1] | 32;  /* Flags characters are case insensitive. */
+    while (argv[0] != NULL) {
+        if (0) DEBUG1("arg=(%s)\n", argv[0]);
+        if (argv[0][0] == '-') {    /* All arguments start with dash */
+            d = argv[0][1] | 32;  /* Flags characters are case insensitive. */
             if (d == 'd') {  /* Define macro: -DNAME and -DNAME=VALUE. -DNAME is not allowed, because macros with an empty values are nt allowed. */
-                for (p = argv[c] + 2; *p != '\0' && *p != '='; ++p) {}
-                set_macro(argv[c] + 1, (char*)p, p + (*p == '='), MACRO_SET_DEFINE_CMDLINE);
+                for (p = argv[0] + 2; *p != '\0' && *p != '='; ++p) {}
+                set_macro(argv[0] + 1, (char*)p, p + (*p == '='), MACRO_SET_DEFINE_CMDLINE);
                 if (errors) return 1;
-                c++;
-            } else if (argv[c][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
-                d = argv[c][2];
-                if (d == '\0' || argv[c][3] != '\0') { bad_opt_level:
+            } else if (argv[0][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
+                d = argv[0][2];
+                if (d == '\0' || argv[0][3] != '\0') { bad_opt_level:
                     message(1, "bad optimization argument");
                     return 1;
                 } else if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
@@ -2836,73 +2835,69 @@ int main(int argc, char **argv) {
                 } else {
                     goto bad_opt_level;
                 }
-                c++;
-            } else if (argv[c][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
+            } else if (argv[0][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
                 message_start(1);
-                bbprintf(&message_bbb, "flag too long: %s", argv[c]);  /* Example: `-fbin' should be `-f bin'. */
+                bbprintf(&message_bbb, "flag too long: %s", argv[0]);  /* Example: `-fbin' should be `-f bin'. */
                 goto flag_error;
             } else if (d == 'f') { /* Format */
-                c++;
-                if (c >= argc) {
-                    message(1, "no argument for -f");
+                if (*++argv == NULL) {
+                  error_no_argument:
+                    message_start(1);
+                    bbprintf(&message_bbb, "no argument for %s", argv[-1]);
+                    message_end();
                     return 1;
                 } else {
-                    if (casematch(argv[c], "BIN")) {
+                    if (casematch(argv[0], "BIN")) {
                         default_start_address = 0;
                         is_start_address_set = 0;
-                    } else if (casematch(argv[c], "COM")) {
+                    } else if (casematch(argv[0], "COM")) {
                         default_start_address = 0x100;
                         is_start_address_set = 1;
                     } else {
                         message_start(1);
-                        bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[c]);
+                        bbprintf(&message_bbb, "only 'bin', 'com' supported for -f (it is '%s')", argv[0]);
                         message_end();
                         return 1;
                     }
-                    c++;
                 }
             } else if (d == 'o') {  /* Object file name */
-                c++;
-                if (c >= argc) {
-                    message(1, "no argument for -o");
-                    return 1;
+                if (*++argv == NULL) {
+                    goto error_no_argument;
                 } else if (output_filename != NULL) {
                     message(1, "already a -o argument is present");
                     return 1;
                 } else {
-                    output_filename = argv[c];
-                    c++;
+                    output_filename = argv[0];
                 }
             } else if (d == 'l') {  /* Listing file name */
-                c++;
-                if (c >= argc) {
-                    message(1, "no argument for -l");
+                if (*++argv == NULL) {
+                    goto error_no_argument;
                     return 1;
                 } else if (listing_filename != NULL) {
                     message(1, "already a -l argument is present");
                     return 1;
                 } else {
-                    listing_filename = argv[c];
-                    c++;
+                    listing_filename = argv[0];
                 }
             } else {
                 message_start(1);
-                bbprintf(&message_bbb, "unknown argument %s", argv[c]);
+                bbprintf(&message_bbb, "unknown argument %s", argv[0]);
               flag_error:
                 message_end();
                 return 1;
             }
         } else {
+            if (0) DEBUG1("ifname=(%s)\n", argv[0]);
             if (ifname != NULL) {
                 message_start(1);
-                bbprintf(&message_bbb, "more than one input file name: %s", argv[c]);
+                bbprintf(&message_bbb, "more than one input file name: %s", argv[0]);
                 message_end();
                 return 1;
             } else {
-                ifname = argv[c];
+                ifname = argv[0];
             }
-            c++;
         }
+        ++argv;
     }
 
     if (ifname == NULL) {
