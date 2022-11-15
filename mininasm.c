@@ -2463,7 +2463,6 @@ static void do_assembly(const char *input_filename) {
     value_t times;
     value_t line_address;
     char include;  /* 0, 1 or 2. */
-    value_t align;
     int got;
     int input_fd;
     char pc;
@@ -2761,18 +2760,23 @@ static void do_assembly(const char *input_filename) {
                 }
             }
         } else if (casematch(part, "ALIGN")) {
-            p = avoid_spaces(p);
             p = match_expression(p);
             if (p == NULL) {
                 MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
                 MESSAGE(1, "Cannot use undefined labels");
             } else {
-                check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
                 /* NASM 0.98.39 does the wrong thing if instruction_value is not a power of 2. Newer NASMs report an error. mininasm just works. */
-                align = (uvalue_t)current_address / instruction_value * instruction_value + instruction_value;
-                while (current_address != align)
+                times = ((uvalue_t)current_address / instruction_value + 1) * instruction_value - current_address;
+                p = avoid_spaces(p);
+                if (p[0] == ',') {
+                    ++p;
+                    goto do_times;  /* This doesn't work correctly if the instruction at `p' doesn't emit exiacty 1 byte. That's fine, same as for NASM. */
+                }
+                check_end(p);
+                for (; (uvalue_t)times != 0; --times) {
                     emit_byte(0x90);
+                }
             }
         } else {
             times = 1;
@@ -2787,6 +2791,7 @@ static void do_assembly(const char *input_filename) {
                     goto after_line;
                 }
                 times = instruction_value;
+              do_times:
                 p = separate(p3 = p);
             }
             line_address = current_address;
