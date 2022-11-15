@@ -337,7 +337,7 @@ static unsigned char do_opt_segreg;  /* -OG. */
 
 #define MAX_SIZE        256
 
-static char part[MAX_SIZE];  /* !! TODO(pts): Get rid of this buffer, save memory. */
+static char instr_name[MAX_SIZE];  /* Assembly instruction mnemonic name or preprocessor directive name. !! TODO(pts): Get rid of this buffer, save memory. */
 static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
@@ -1913,14 +1913,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
 
 /*
  ** Separate a portion of entry up to the first space.
- ** First word gets copied to `part', and `p' is advanced after it, and the
+ ** First word gets copied to `instr_name', and `p' is advanced after it, and the
  ** new p is returned.
  */
 static const char *separate(const char *p) {
     char *p2;
 
     for (; *p == ' '; ++p) {}
-    p2 = part;
+    p2 = instr_name;
     for (; *p && *p != ' '; *p2++ = *p++) {}
     *p2 = '\0';
     for (; *p == ' '; ++p) {}
@@ -2025,7 +2025,7 @@ static void process_instruction(const char *p) {
     char c;
 
     p = separate(p);
-    if (casematch(part, "DB")) {  /* Define 8-bit byte. */
+    if (casematch(instr_name, "DB")) {  /* Define 8-bit byte. */
         while (1) {
             p = avoid_spaces(p);
             if (*p == '\'' || *p == '"') {    /* ASCII text, quoted. */
@@ -2058,9 +2058,9 @@ static void process_instruction(const char *p) {
             }
         }
         return;
-    } else if ((c = casematch(part, "DW")) /* Define 16-bit word. */
+    } else if ((c = casematch(instr_name, "DW")) /* Define 16-bit word. */
 #if CONFIG_VALUE_BITS == 32
-               || casematch(part, "DD")  /* Define 32-bit quadword. */
+               || casematch(instr_name, "DD")  /* Define 32-bit quadword. */
               ) {
 #endif
         while (1) {
@@ -2088,14 +2088,14 @@ static void process_instruction(const char *p) {
         }
         return;
     }
-    while (part[0]) {   /* Match against instruction set */
+    while (instr_name[0]) {   /* Match against instruction set. */
         p2 = instruction_set;
         for (;;) {
             if (*p2 == '\0') {
-                MESSAGE1STR(1, "Unknown instruction '%s'", part);
+                MESSAGE1STR(1, "Unknown instruction '%s'", instr_name);
                 goto after_matches;
             }
-            if (casematch(part, p2)) break;  /* Match actual instruction mnemonic name (part) against candidate from instruction_set (p2). */
+            if (casematch(instr_name, p2)) break;  /* Match actual instruction mnemonic name (instr_name) against candidate from instruction_set (p2). */
             while (*p2++ != '\0') {}  /* Skip over instruction name. !! TODO(pts): Remove duplication. */
             while (*p2++ != '\0') {}  /* Skip over pattern_and_encode. */
         }
@@ -2104,7 +2104,7 @@ static void process_instruction(const char *p) {
         p = match(p, p2);
         if (p == NULL) {
             MESSAGE_START(1);
-            bbprintf(&message_bbb, "Error in instruction '%s %s'", part, p3);
+            bbprintf(&message_bbb, "Error in instruction '%s %s'", instr_name, p3);
             message_end();
             break;
         }
@@ -2592,7 +2592,7 @@ static void do_assembly(const char *input_filename) {
 
         /* Process preprocessor directive. Labels are not allowed here. */
         p = separate(p);
-        if (casematch(part, "%IF")) {
+        if (casematch(instr_name, "%IF")) {
             if (GET_UVALUE(++level) == 0) { if_too_deep:
                 MESSAGE(1, "%IF too deep");
                 goto close_return;
@@ -2613,7 +2613,7 @@ static void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-        } else if (casematch(part, "%IFDEF")) {
+        } else if (casematch(instr_name, "%IFDEF")) {
             is_ifndef = 0;
           ifdef_or_ifndef:
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
@@ -2631,10 +2631,10 @@ static void do_assembly(const char *input_filename) {
                 }
                 *(char*)p = pc;  /* Restore original character for listing_fd. */
             }
-        } else if (casematch(part, "%IFNDEF")) {
+        } else if (casematch(instr_name, "%IFNDEF")) {
             is_ifndef = 1;
             goto ifdef_or_ifndef;
-        } else if (casematch(part, "%ELSE")) {
+        } else if (casematch(instr_name, "%ELSE")) {
             if (level == 1) {
                 MESSAGE(1, "%ELSE without %IF");
                 goto close_return;
@@ -2647,7 +2647,7 @@ static void do_assembly(const char *input_filename) {
                 avoid_level = level;
             }
             check_end(p);
-        } else if (casematch(part, "%ENDIF")) {
+        } else if (casematch(instr_name, "%ENDIF")) {
             if (avoid_level == level)
                 avoid_level = 0;
             if (--level == 0) {
@@ -2655,12 +2655,12 @@ static void do_assembly(const char *input_filename) {
                 goto close_return;
             }
             check_end(p);
-        } else if (casematch(part, "%IF*") || casematch(part, "%ELIF*")) {
+        } else if (casematch(instr_name, "%IF*") || casematch(instr_name, "%ELIF*")) {
             /* We report this even if skipped. */
-            MESSAGE1STR(1, "Unknown preprocessor condition: %s", part);
+            MESSAGE1STR(1, "Unknown preprocessor condition: %s", instr_name);
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
-        } else if (casematch(part, "%INCLUDE")) {
+        } else if (casematch(instr_name, "%INCLUDE")) {
             pc = *p++;
             if (pc != '"' && pc != '\'') {
               missing_quotes_in_include:
@@ -2672,13 +2672,13 @@ static void do_assembly(const char *input_filename) {
             if (!check_end(p + 1)) goto after_line;
             liner = (char*)p;
             include = 1;
-        } else if ((pc = casematch(part, "%DEFINE")) || casematch(part, "%ASSIGN")) {
+        } else if ((pc = casematch(instr_name, "%DEFINE")) || casematch(instr_name, "%ASSIGN")) {
             for (p3 = p; *p3 != '\0' && !isspace(*p3); ++p3) {}
             set_macro((char*)p - 1, (char*)p3, p3, pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN);
-        } else if (casematch(part, "%UNDEF")) {
+        } else if (casematch(instr_name, "%UNDEF")) {
             unset_macro((char*)p - 1);
         } else {
-            MESSAGE1STR(1, "Unknown preprocessor directive: %s", part);
+            MESSAGE1STR(1, "Unknown preprocessor directive: %s", instr_name);
         }
         goto after_line;
       not_preproc:
@@ -2717,11 +2717,11 @@ static void do_assembly(const char *input_filename) {
             goto after_line;
         }
         p = separate(p3 = p);
-        if (casematch(part, "USE16")) {
-        } else if (casematch(part, "CPU")) {
+        if (casematch(instr_name, "USE16")) {
+        } else if (casematch(instr_name, "CPU")) {
             if (!casematch(p, "8086"))
                 MESSAGE(1, "Unsupported processor requested");
-        } else if (casematch(part, "BITS")) {
+        } else if (casematch(instr_name, "BITS")) {
             p = match_expression(p);
             if (p == NULL) {
                 MESSAGE(1, "Bad expression");
@@ -2732,7 +2732,7 @@ static void do_assembly(const char *input_filename) {
             } else {
                 check_end(p);
             }
-        } else if (casematch(part, "INCBIN")) {
+        } else if (casematch(instr_name, "INCBIN")) {
             pc = *p++;
             if (pc != '"' && pc != '\'') {
               missing_quotes_in_incbin:
@@ -2744,7 +2744,7 @@ static void do_assembly(const char *input_filename) {
             if (!check_end(p + 1)) goto after_line;  /* !! TODO(pts): Add optional offset and size arguments. */
             liner = (char*)p;
             include = 2;
-        } else if (casematch(part, "ORG")) {
+        } else if (casematch(instr_name, "ORG")) {
             p = match_expression(p);
             if (p != NULL) check_end(p);
             if (p == NULL) {
@@ -2767,7 +2767,7 @@ static void do_assembly(const char *input_filename) {
                     }
                 }
             }
-        } else if (casematch(part, "ALIGN")) {
+        } else if (casematch(instr_name, "ALIGN")) {
             p = match_expression(p);
             if (p == NULL) {
                 MESSAGE(1, "Bad expression");
@@ -2788,7 +2788,7 @@ static void do_assembly(const char *input_filename) {
             }
         } else {
             times = 1;
-            if (casematch(part, "TIMES")) {
+            if (casematch(instr_name, "TIMES")) {
                 p3 = match_expression(p);
                 if (p3 == NULL) {
                     MESSAGE(1, "Bad expression");
