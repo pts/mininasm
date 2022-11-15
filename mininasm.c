@@ -333,6 +333,7 @@ static value_t instruction_value;
  */
 static unsigned char opt_level;
 static unsigned char do_opt_lea;  /* -OL. */
+static unsigned char do_opt_segreg;  /* -OG. */
 
 #define MAX_SIZE        256
 
@@ -1797,7 +1798,21 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             goto done;
         }
     }
-    if (instruction_addressing_segment) emit_byte(instruction_addressing_segment);
+    if (instruction_addressing_segment) {
+        if (do_opt_segreg) {
+            if ((unsigned char)instruction_addressing >= 0xc0) goto omit_segreg;  /* If there is a register (rather than effective address) in the addressing. */
+            c = instruction_addressing;
+            if (c == 0x06 /* [immesiate] */) {
+                c = 0x3e /* DS */;
+            } else {
+                c &= 7;
+                c = (c == 0x02 || c == 0x03 || c == 0x06) ? 0x36 /* SS */ : 0x3e /* DS */;  /* If it contains BP, then it's [SS:...] by default, otherwise [DS:...]. */
+            }
+            if ((unsigned char)instruction_addressing_segment == (unsigned char)c) goto omit_segreg;  /* If the default segment register is used. */
+        }
+        emit_byte(instruction_addressing_segment);
+      omit_segreg: ;
+    }
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
@@ -2892,9 +2907,11 @@ int main(int argc, char **argv) {
                     opt_level = 9;
                 } else if (d == 'l') {  /* -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */
                     do_opt_lea = 1;
-                    /* !! TODO(pts): Add -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
+                } else if (d == 'g') {  /* -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
+                    do_opt_segreg = 1;
                 } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equilvalent to `-O9 -OL -OG'. */
                     do_opt_lea = 1;
+                    do_opt_segreg = 1;
                     goto set_opt_level_9;
                 } else {
                     goto bad_opt_level;
