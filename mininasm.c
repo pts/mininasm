@@ -2018,12 +2018,13 @@ static void message1str(const char *pattern, const char *data)
 }
 
 /*
- ** Process an instruction with mnemonic name in `part' and argments starting at `p'.
+ ** Process an instruction `p' (starting with mnemonic name).
  */
 static void process_instruction(const char *p) {
     const char *p2 = NULL, *p3;
     char c;
 
+    p = separate(p);
     if (casematch(part, "DB")) {  /* Define 8-bit byte. */
         while (1) {
             p = avoid_spaces(p);
@@ -2771,7 +2772,7 @@ static void do_assembly(const char *input_filename) {
                 p = avoid_spaces(p);
                 if (p[0] == ',') {
                     ++p;
-                    goto do_times;  /* This doesn't work correctly if the instruction at `p' doesn't emit exiacty 1 byte. That's fine, same as for NASM. */
+                    goto do_instruction_with_times;  /* This doesn't work correctly if the instruction at `p' doesn't emit exiacty 1 byte. That's fine, same as for NASM. */
                 }
                 check_end(p);
                 for (; (uvalue_t)times != 0; --times) {
@@ -2781,8 +2782,8 @@ static void do_assembly(const char *input_filename) {
         } else {
             times = 1;
             if (casematch(part, "TIMES")) {
-                p = match_expression(p);
-                if (p == NULL) {
+                p3 = match_expression(p);
+                if (p3 == NULL) {
                     MESSAGE(1, "Bad expression");
                     goto after_line;
                 }
@@ -2791,14 +2792,13 @@ static void do_assembly(const char *input_filename) {
                     goto after_line;
                 }
                 times = instruction_value;
-              do_times:
-                p = separate(p3 = p);
             }
+            p = p3;
+          do_instruction_with_times:
             line_address = current_address;
             g = generated_ptr;
-            while ((uvalue_t)times != 0) {
-                process_instruction(separate(p3));
-                times--;
+            for (; (uvalue_t)times != 0; --times) {
+                process_instruction(p);
             }
         }
       after_line:
