@@ -342,8 +342,14 @@ static char *global_label_end;
 static char *g;
 static char generated[8];
 
+#ifndef CONFIG_SUPPORT_WARNINGS
+#define CONFIG_SUPPORT_WARNINGS 0
+#endif
+
 static uvalue_t errors;
-static uvalue_t warnings;  /* !! remove this, currently there are no possible warnings */
+#if CONFIG_SUPPORT_WARNINGS
+static uvalue_t warnings;
+#endif
 static uvalue_t bytes;
 static char have_labels_changed;
 
@@ -416,9 +422,21 @@ static const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
 /* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf message_bbb;
 
+#if CONFIG_SUPPORT_WARNINGS
 static void message(int error, const char *message);
 static void message1str(int error, const char *pattern, const char *data);
 static void message_start(int error);
+#define MESSAGE message
+#define MESSAGE1STR message1str
+#define MESSAGE_START message_start
+#else
+static void message(const char *message);
+static void message1str(const char *pattern, const char *data);
+static void message_start(void);
+#define MESSAGE(error, message_str) message(message_str)
+#define MESSAGE1STR(error, pattern, data) message1str(pattern, data)
+#define MESSAGE_START(error) message_start()
+#endif
 static void message_end(void);
 
 #ifdef __DESMET__
@@ -536,7 +554,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #endif  /* CONFIG_DOSMC_PACKED. */
 
 static void fatal_out_of_memory(void) {
-    message(1, "Out of memory");  /* Only applies dynamically allocated memory (malloc(...)), e.g. for labels and wide instructions. */
+    MESSAGE(1, "Out of memory");  /* Only applies dynamically allocated memory (malloc(...)), e.g. for labels and wide instructions. */
     exit(1);
 }
 
@@ -866,7 +884,7 @@ static const char *match_expression(const char *match_p) {
         value1 = value2;
         match_p = avoid_spaces(match_p);
         if (match_p[0] != ')') {
-            message(1, "Missing close paren");
+            MESSAGE(1, "Missing close paren");
           match_error:
             instruction_value = 0;
             return NULL;
@@ -883,7 +901,7 @@ static const char *match_expression(const char *match_p) {
       do_push:
         msp->value1 = value1;
         if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) { too_deep:
-            message(1, "Expression too deep");  /* Stack overflow in match stack. */
+            MESSAGE(1, "Expression too deep");  /* Stack overflow in match stack. */
             goto match_error;
         }
       do_match:
@@ -956,7 +974,7 @@ static const char *match_expression(const char *match_p) {
                 }
             }
             if (match_p[0] == '\0') {
-                message(1, "Missing close quote");
+                MESSAGE(1, "Missing close quote");
                 goto match_error;
             } else {
                 ++match_p;
@@ -981,7 +999,7 @@ static const char *match_expression(const char *match_p) {
                 is_address_used = 1;
                 value1 = start_address;
                 if (islabel(match_p[0])) { bad_label:
-                    message(1, "bad label");
+                    MESSAGE(1, "bad label");
                 }
             } else if (isdigit(c)) {
                 /* This is nasm syntax, notice no letter is allowed after $ */
@@ -1006,7 +1024,7 @@ static const char *match_expression(const char *match_p) {
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
-                    message1str(1, "Undefined label '%s'", p3);
+                    MESSAGE1STR(1, "Undefined label '%s'", p3);
                 }
             } else {
                 value1 = label->value;
@@ -1030,7 +1048,7 @@ static const char *match_expression(const char *match_p) {
                     MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
                     if (GET_UVALUE(value2) == 0) {
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
-                            message(1, "division by zero");
+                            MESSAGE(1, "division by zero");
                         value2 = 1;
                     }
                     value1 = GET_UVALUE(value1) / GET_UVALUE(value2);
@@ -1039,7 +1057,7 @@ static const char *match_expression(const char *match_p) {
                     MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
                     if (GET_UVALUE(value2) == 0) {
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
-                            message(1, "modulo by zero");
+                            MESSAGE(1, "modulo by zero");
                         value2 = 1;
                     }
                     value1 = GET_UVALUE(value1) % GET_UVALUE(value2);
@@ -1084,7 +1102,7 @@ static const char *match_expression(const char *match_p) {
                          * NASM has nondeterministic output, depending on the host architecture (32-bit mode or 64-bit mode).
                          */
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
-                            message(1, "shift by larger than 31");
+                            MESSAGE(1, "shift by larger than 31");
                         value2 = 0;
 #if !CONFIG_SHIFT_OK_31
                     } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(value2) > 15) {
@@ -1251,7 +1269,7 @@ static void add_wide_instr_in_pass_1(void) {
 #if DEBUG
     if (wide_instr_add_at != NULL && wide_instr_add_at[-1] >= fpos) {
         DEBUG1("oops: added non-strictly-increasing wide instruction at fpos=0x%x\r\n", (unsigned)fpos);
-        message(1, "oops: bad wide position");
+        MESSAGE(1, "oops: bad wide position");
         return;
     }
 #endif
@@ -1288,7 +1306,7 @@ static char is_wide_instr_in_pass_2(void) {
             return 1;
         } else if (fpos <= *wide_instr_read_at) { bad_instr_order:
             DEBUG2("oops: bad instr order fpos=0x%x added=0x%x\r\n", (unsigned)fpos, (unsigned)*wide_instr_read_at);
-            message(1, "oops: bad instr order");
+            MESSAGE(1, "oops: bad instr order");
             goto return_0;
         }
         vp = wide_instr_read_at + 1;
@@ -1457,7 +1475,7 @@ static void emit_flush(struct bbprintf_buf *bbb) {
     (void)bbb;  /* emit_bbb. */
     if (size) {
         if (write(output_fd, emit_buf, size) != size) {
-            message(1, "error writing to output file");
+            MESSAGE(1, "error writing to output file");
             exit(3);
         }
         emit_bbb.p = emit_buf;
@@ -1511,7 +1529,7 @@ static void emit_byte(int byte) {  /* Changing `c' to `char' would increase the 
 static const char *check_end(const char *p) {
     p = avoid_spaces(p);
     if (*p) {
-        message(1, "extra characters at end of line");
+        MESSAGE(1, "extra characters at end of line");
         return NULL;
     }
     return p;
@@ -1793,12 +1811,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
-                message(1, "short jump too long");
+                MESSAGE(1, "short jump too long");
             c = instruction_value;
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
-                message(1, "near jump too long");  /* !! TODO(pts): Make this work in the default case of `jmp near' jumping across 32 KiB .. 64 KiB, it will just wrap around. */
+                MESSAGE(1, "near jump too long");  /* !! TODO(pts): Make this work in the default case of `jmp near' jumping across 32 KiB .. 64 KiB, it will just wrap around. */
             c = instruction_value;
             instruction_offset = c >> 8;
             dw = 1;
@@ -1830,7 +1848,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                         dw = instruction_offset_width;  /* 1, 2 or 3. 3 means 2 for dw. */
                     }
                 } else { decode_internal_error:  /* assert(...). */
-                    message1str(1, "ooops: decode (%s)", error_base);
+                    MESSAGE1STR(1, "ooops: decode (%s)", error_base);
                     exit(2);
                     break;
                 }
@@ -1874,7 +1892,7 @@ static void message_flush(struct bbprintf_buf *bbb) {
         if (listing_fd >= 0) {
             if (write(listing_fd, message_buf, size) != size) {
                 listing_fd = -1;
-                message(1, "error writing to listing file");
+                MESSAGE(1, "error writing to listing file");
                 exit(3);
             }
         }
@@ -1890,19 +1908,28 @@ static const char *filename_for_message;
  ** Generate a message
  ** !! Remove `error' argument, warning not supported yet.
  */
-static void message_start(int error) {
+#if CONFIG_SUPPORT_WARNINGS
+static void message_start(int error)
+#else
+static void message_start(void)
+#endif
+{
     const char *msg_prefix;
     if (!message_bbb.data) {
         message_flush(NULL);  /* Flush listing_fd. */
         message_bbb.data = (void*)1;
     }
+#if CONFIG_SUPPORT_WARNINGS
     if (error) {
+#endif
         msg_prefix = "error: ";
         if (GET_UVALUE(++errors) == 0) --errors;  /* Cappped at max uvalue_t. */
+#if CONFIG_SUPPORT_WARNINGS
     } else {
         msg_prefix = "warning: ";
         if (GET_UVALUE(++warnings) == 0) --warnings;  /* Cappped at max uvalue_t. */
     }
+#endif
     if (line_number) {
         bbprintf(&message_bbb, "%s:%u: %s", filename_for_message, (unsigned)line_number, msg_prefix);
     } else {
@@ -1919,8 +1946,13 @@ static void message_end(void) {
     message_bbb.data = (void*)0;  /* Write subsequent bytes to listing_fd only (no stderr). */
 }
 
-static void message(int error, const char *message) {
-    message_start(error);
+#if CONFIG_SUPPORT_WARNINGS
+static void message(int error, const char *message)
+#else
+static void message(const char *message)
+#endif
+{
+    MESSAGE_START(error);
     bbprintf(&message_bbb, "%s", message);
     message_end();
 }
@@ -1928,8 +1960,13 @@ static void message(int error, const char *message) {
 /*
  ** Shortcut to make the executable program smaller for __DOSMC__.
  */
-static void message1str(int error, const char *pattern, const char *data) {
-    message_start(error);
+#if CONFIG_SUPPORT_WARNINGS
+static void message1str(int error, const char *pattern, const char *data)
+#else
+static void message1str(const char *pattern, const char *data)
+#endif
+{
+    MESSAGE_START(error);
     bbprintf(&message_bbb, pattern, data);
     message_end();
 }
@@ -1949,7 +1986,7 @@ static void process_instruction(void) {
                 for (p2 = p; *p2 != '\0' && *p2 != c; ++p2) {}
                 p3 = p2;
                 if (*p3 == '\0') {
-                    message(1, "Missing close quote");
+                    MESSAGE(1, "Missing close quote");
                 } else {
                     p3 = avoid_spaces(p3 + 1);
                     if (*p3 != ',' && *p3 != '\0') { --p; goto db_expr; }
@@ -1959,7 +1996,7 @@ static void process_instruction(void) {
             } else { db_expr:
                 p = match_expression(p);
                 if (p == NULL) {
-                    message(1, "Bad expression");
+                    MESSAGE(1, "Bad expression");
                     break;
                 }
                 emit_byte(instruction_value);
@@ -1982,7 +2019,7 @@ static void process_instruction(void) {
         while (1) {
             p = match_expression(p);
             if (p == NULL) {
-                message(1, "Bad expression");
+                MESSAGE(1, "Bad expression");
                 break;
             }
             emit_byte(instruction_value);
@@ -2008,7 +2045,7 @@ static void process_instruction(void) {
         p2 = instruction_set;
         for (;;) {
             if (*p2 == '\0') {
-                message1str(1, "Unknown instruction '%s'", part);
+                MESSAGE1STR(1, "Unknown instruction '%s'", part);
                 goto after_matches;
             }
             if (casematch(part, p2)) break;  /* Match actual instruction mnemonic name (part) against candidate from instruction_set (p2). */
@@ -2019,7 +2056,7 @@ static void process_instruction(void) {
         p3 = p;
         p = match(p, p2);
         if (p == NULL) {
-            message_start(1);
+            MESSAGE_START(1);
             bbprintf(&message_bbb, "Error in instruction '%s %s'", part, p3);
             message_end();
             break;
@@ -2045,7 +2082,7 @@ static void incbin(const char *fname) {
     int size;
 
     if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
-        message1str(1, "Error: Cannot open '%s' for input", fname);
+        MESSAGE1STR(1, "Error: Cannot open '%s' for input", fname);
         return;
     }
 
@@ -2055,7 +2092,7 @@ static void incbin(const char *fname) {
         emit_bytes(message_buf, size);
     }
     if (size < 0) {
-        message1str(1, "Error: Error reading from '%s'", fname);
+        MESSAGE1STR(1, "Error: Error reading from '%s'", fname);
     }
     close(input_fd);
 }
@@ -2073,17 +2110,17 @@ static void create_label(void) {
             RBL_SET_DELETED_0(last_label);
             last_label->value = instruction_value;
         } else {
-            message1str(1, "Redefined label '%s'", global_label);
+            MESSAGE1STR(1, "Redefined label '%s'", global_label);
         }
     } else {
         if (last_label == NULL) {
-            message1str(1, "oops: label '%s' not found", global_label);
+            MESSAGE1STR(1, "oops: label '%s' not found", global_label);
         } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %undef-ined macro. */
             goto do_undelete;
         } else {
             if (last_label->value != instruction_value) {
 #if DEBUG
-                /* if (0 && DEBUG && opt_level <= 1) { message_start(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%x to 0x%x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
+                /* if (0 && DEBUG && opt_level <= 1) { MESSAGE_START(1); bbprintf(&message_bbb, "oops: label '%s' changed value from 0x%x to 0x%x", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value); message_end(); } */
                 if (opt_level <= 1) DEBUG3("oops: label '%s' changed value from 0x%x to 0x%x\r\n", last_label->name, (unsigned)last_label->value, (unsigned)instruction_value);
 #endif
                 have_labels_changed = 1;
@@ -2151,7 +2188,7 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
     p = (char*)aip;
     if (*--p != '\0') {
 #if DEBUG
-        message(1, "oops: pop from empty %include stack\n");
+        MESSAGE(1, "oops: pop from empty %include stack\n");
 #endif
     } else {
 #if CONFIG_CPU_UNALIGN
@@ -2256,7 +2293,7 @@ static void unset_macro(char *name1) {
     const char *p3;
     struct label MY_FAR *label;
     if (!(isalpha(name1[1]) || name1[1] == '_') || (p3 = match_label_prefix(name1 + 1)) == NULL || *p3 != '\0') {
-         message(1, "bad macro name");
+         MESSAGE(1, "bad macro name");
          return;
     }
     *name1 = '%';
@@ -2265,7 +2302,7 @@ static void unset_macro(char *name1) {
     if (label == NULL || RBL_IS_DELETED(label)) return;  /* No such macro, unset is a noop. */
     c = label->value;  /* Make it shorter for future comparisons. */
     if (c == MACRO_CMDLINE) {
-        message(1, "invalid macro override");
+        MESSAGE(1, "invalid macro override");
         return;
     }
     RBL_SET_DELETED_1(label);
@@ -2292,7 +2329,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
     value = avoid_spaces(value);  /* Before we change *name_end, in case name_end == value. */
     *name_end = '\0';
     if (!(isalpha(name1[1]) || name1[1] == '_') || (p3 = match_label_prefix(name1 + 1)) != name_end) {
-         message(1, "bad macro name");
+         MESSAGE(1, "bad macro name");
          goto do_return;
     }
     *name1 = '%';  /* Macro NAME prefixed by '%'. */
@@ -2306,7 +2343,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
             macro_label->value = MACRO_SELF;
         } else if ((char)macro_label->value != MACRO_SELF) {
           invalid_macro_override:
-            message(1, "invalid macro override");
+            MESSAGE(1, "invalid macro override");
             goto do_return;
         }
         /* !! TODO(pts): Allow `%DEFINE offset' and `%DEFINE ptr' for compatibility with A72, TASM and A86. Also add corresponding command-line flags. */
@@ -2324,10 +2361,10 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
          * values, and storing 7 would be incompatible with NASM, because
          * that would be equivalent to `db 7*6', which is `db 42'.
          */
-        message(1, "bad macro value");
+        MESSAGE(1, "bad macro value");
         goto do_return;
     } else if ((label = find_label(name1 + 1)) != NULL && !RBL_IS_DELETED(label) && (macro_label == NULL || RBL_IS_DELETED(macro_label))) {
-        message(1, "macro name conflicts with label");
+        MESSAGE(1, "macro name conflicts with label");
         goto do_return;
     } else {
         *name_end = name_endc;
@@ -2335,10 +2372,10 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
         *name_end = '\0';
         if (p3 == NULL || *p3 != '\0') {
             if (macro_set_mode != MACRO_SET_ASSIGN) goto bad_macro_value;
-            message(1, "Bad expression");
+            MESSAGE(1, "Bad expression");
             goto do_return;
         } else if (has_undefined) {
-            message(1, "Cannot use undefined labels");
+            MESSAGE(1, "Cannot use undefined labels");
             goto do_return;
         }
         macro_set_mode &= ~0x10;  /* Change MACRO_SET_ASSIGN to MACRO_VALUE == MACRO_SET_DEFINE. */
@@ -2392,7 +2429,7 @@ static void do_assembly(const char *input_filename) {
   do_assembly_push:
     line_number = 0;  /* Global variable. */
     if (!(aip = assembly_push(input_filename))) {
-        message(1, "assembly stack overflow, too many pending %INCLUDE files");
+        MESSAGE(1, "assembly stack overflow, too many pending %INCLUDE files");
         return;
     }
 
@@ -2400,11 +2437,11 @@ static void do_assembly(const char *input_filename) {
     line_number = 0;  /* Global variable. */
     filename_for_message = aip->input_filename;
     if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
-        message1str(1, "cannot open '%s' for input", aip->input_filename);
+        MESSAGE1STR(1, "cannot open '%s' for input", aip->input_filename);
         return;
     }
     if (aip->file_offset != 0 && lseek(input_fd, aip->file_offset, SEEK_SET) != aip->file_offset) {
-        message1str(1, "cannot seek in '%s'", input_filename);
+        MESSAGE1STR(1, "cannot seek in '%s'", input_filename);
         return;
     }
     level = aip->level;
@@ -2432,7 +2469,7 @@ static void do_assembly(const char *input_filename) {
             /* Now: p == line_rend. */
             if ((got = line_buf + sizeof(line_buf) - line_rend) <= 0) goto line_too_long;
             if ((got = read(input_fd, line_rend, got)) < 0) {
-                message(1, "error reading assembly file");
+                MESSAGE(1, "error reading assembly file");
                 goto close_return;
             }
             line_rend += got;
@@ -2451,7 +2488,7 @@ static void do_assembly(const char *input_filename) {
                         if (p == line_rend) break;  /* This quote may be closed later, after a read(...). */
                         if (*p == '\n') goto newline;  /* This unclosed quote will be reported as a syntax error later. */
                         if (*p == '\0') {
-                            message(1, "quoted NUL found");
+                            MESSAGE(1, "quoted NUL found");
                             *(char*)p = ' ';
                         }
                     } while (*p++ != pc);
@@ -2486,7 +2523,7 @@ static void do_assembly(const char *input_filename) {
         *(char*)p = '\0';  /* Change trailing '\n' to '\0'. */
         if (0) DEBUG3("line @0x%x %u=(%s)\r\n", (unsigned)current_address, (unsigned)line_number, line);
         if (p - line >= MAX_SIZE) { line_too_long:
-            message(1, "assembly line too long");
+            MESSAGE(1, "assembly line too long");
             goto close_return;
         }
 
@@ -2500,7 +2537,7 @@ static void do_assembly(const char *input_filename) {
         } else if (p[0] != '%') {
             if (avoid_level != 0 && level >= avoid_level) {
 #if DEBUG
-                if (0) message1str(1, "Avoiding '%s'", line);
+                if (0) MESSAGE1STR(1, "Avoiding '%s'", line);
 #endif
                 goto after_line;
             }
@@ -2511,7 +2548,7 @@ static void do_assembly(const char *input_filename) {
         separate();
         if (casematch(part, "%IF")) {
             if (GET_UVALUE(++level) == 0) { if_too_deep:
-                message(1, "%IF too deep");
+                MESSAGE(1, "%IF too deep");
                 goto close_return;
             }
             if (avoid_level != 0 && level >= avoid_level)
@@ -2520,9 +2557,9 @@ static void do_assembly(const char *input_filename) {
             /* !! TODO(pts): Add operators < > <= >=  == = != <> && || ^^ for `%IF' only. NASM doesn't do short-circuit. */
             p = match_expression(p);
             if (p == NULL) {
-                message(1, "Bad expression");
+                MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
-                message(1, "Cannot use undefined labels");
+                MESSAGE(1, "Cannot use undefined labels");
             }
             if (GET_UVALUE(instruction_value) != 0) {
                 ;
@@ -2539,7 +2576,7 @@ static void do_assembly(const char *input_filename) {
             if (0) DEBUG1("%%IFDEF macro=(%s)\r\n", p);
             p3 = match_label_prefix(p);
             if (!p3 || *p3 != '\0' || !(isalpha(*p) || *p == '_')) {
-                message(1, "bad macro name");
+                MESSAGE(1, "bad macro name");
             } else {
                 pc = *--p;
                 *(char*)p = '%';  /* Prefix the macro name with a '%'. */
@@ -2553,7 +2590,7 @@ static void do_assembly(const char *input_filename) {
             goto ifdef_or_ifndef;
         } else if (casematch(part, "%ELSE")) {
             if (level == 1) {
-                message(1, "%ELSE without %IF");
+                MESSAGE(1, "%ELSE without %IF");
                 goto close_return;
             }
             if (avoid_level != 0 && level > avoid_level)
@@ -2568,20 +2605,20 @@ static void do_assembly(const char *input_filename) {
             if (avoid_level == level)
                 avoid_level = 0;
             if (--level == 0) {
-                message(1, "%ENDIF without %IF");
+                MESSAGE(1, "%ENDIF without %IF");
                 goto close_return;
             }
             check_end(p);
         } else if (casematch(part, "%IF*") || casematch(part, "%ELIF*")) {
             /* We report this even if skipped. */
-            message1str(1, "Unknown preprocessor condition: %s", part);
+            MESSAGE1STR(1, "Unknown preprocessor condition: %s", part);
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
         } else if (casematch(part, "%INCLUDE")) {
             separate();
             check_end(p);
             if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                message(1, "Missing quotes on %include");
+                MESSAGE(1, "Missing quotes on %include");
                 goto after_line;
             }
             include = 1;
@@ -2591,7 +2628,7 @@ static void do_assembly(const char *input_filename) {
         } else if (casematch(part, "%UNDEF")) {
             unset_macro((char*)p - 1);
         } else {
-            message1str(1, "Unknown preprocessor directive: %s", part);
+            MESSAGE1STR(1, "Unknown preprocessor directive: %s", part);
         }
         goto after_line;
       not_preproc:
@@ -2609,7 +2646,7 @@ static void do_assembly(const char *input_filename) {
             if (casematch(p, "EQU!")) {
                 p = match_expression(p + 3);
                 if (p == NULL) {
-                    message(1, "bad expression");
+                    MESSAGE(1, "bad expression");
                 } else {
                     create_label();
                     check_end(p);
@@ -2626,7 +2663,7 @@ static void do_assembly(const char *input_filename) {
         if (p[0] == '\0') {
             goto after_line;
         } else if (!isalpha(p[0])) {
-            message(1, "Instruction expected");
+            MESSAGE(1, "Instruction expected");
             goto after_line;
         }
         separate();
@@ -2634,16 +2671,16 @@ static void do_assembly(const char *input_filename) {
         } else if (casematch(part, "CPU")) {
             p = avoid_spaces(p);
             if (!casematch(p, "8086"))
-                message(1, "Unsupported processor requested");
+                MESSAGE(1, "Unsupported processor requested");
         } else if (casematch(part, "BITS")) {
             p = avoid_spaces(p);
             p = match_expression(p);
             if (p == NULL) {
-                message(1, "Bad expression");
+                MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
-                message(1, "Cannot use undefined labels");
+                MESSAGE(1, "Cannot use undefined labels");
             } else if (GET_UVALUE(instruction_value) != 16) {
-                message(1, "Unsupported BITS requested");
+                MESSAGE(1, "Unsupported BITS requested");
             } else {
                 check_end(p);
             }
@@ -2651,7 +2688,7 @@ static void do_assembly(const char *input_filename) {
             separate();
             check_end(p);
             if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
-                message(1, "Missing quotes on incbin");
+                MESSAGE(1, "Missing quotes on incbin");
                 goto after_line;
             }
             include = 2;
@@ -2659,12 +2696,12 @@ static void do_assembly(const char *input_filename) {
             p = match_expression(p);
             if (p != NULL) check_end(p);
             if (p == NULL) {
-                message(1, "Bad expression");
+                MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
-                message(1, "Cannot use undefined labels");
+                MESSAGE(1, "Cannot use undefined labels");
             } else if (is_start_address_set) {
                 if (instruction_value != default_start_address) {
-                    message(1, "program origin redefined");  /* Same error as in NASM. */
+                    MESSAGE(1, "program origin redefined");  /* Same error as in NASM. */
                     goto close_return;  /* TODO(pts): Abort %includers as well. */
                 }
             } else {
@@ -2682,9 +2719,9 @@ static void do_assembly(const char *input_filename) {
             p = avoid_spaces(p);
             p = match_expression(p);
             if (p == NULL) {
-                message(1, "Bad expression");
+                MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
-                message(1, "Cannot use undefined labels");
+                MESSAGE(1, "Cannot use undefined labels");
             } else {
                 check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
                 align = current_address / instruction_value;
@@ -2698,11 +2735,11 @@ static void do_assembly(const char *input_filename) {
             if (casematch(part, "TIMES")) {
                 p = match_expression(p);
                 if (p == NULL) {
-                    message(1, "Bad expression");
+                    MESSAGE(1, "Bad expression");
                     goto after_line;
                 }
                 if (has_undefined) {
-                    message(1, "Cannot use undefined labels");
+                    MESSAGE(1, "Cannot use undefined labels");
                     goto after_line;
                 }
                 times = instruction_value;
@@ -2734,7 +2771,7 @@ static void do_assembly(const char *input_filename) {
         }
         if (include == 1) {
             if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {
-                message(1, "Cannot seek in source file");
+                MESSAGE(1, "Cannot seek in source file");
                 goto close_return;
             }
             close(input_fd);
@@ -2750,7 +2787,7 @@ static void do_assembly(const char *input_filename) {
         }
     }
     if (level != 1) {
-        message(1, "pending %IF at end of file");
+        MESSAGE(1, "pending %IF at end of file");
     }
   close_return:
     close(input_fd);
@@ -2777,7 +2814,7 @@ int main(int argc, char **argv) {
 
 #if 0
     malloc_init();
-    message_start(1);
+    MESSAGE_START(1);
     bbprintf(&message_bbb, "malloc_p_para=0x%04x malloc_end_para=%04x", ((const unsigned*)&__malloc_struct__.malloc_p)[1], __malloc_struct__.malloc_end_para);
     message_end();
 #endif
@@ -2812,7 +2849,7 @@ int main(int argc, char **argv) {
             } else if (argv[0][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
                 d = argv[0][2];
                 if (d == '\0' || argv[0][3] != '\0') { bad_opt_level:
-                    message(1, "bad optimization argument");
+                    MESSAGE(1, "bad optimization argument");
                     return 1;
                 } else if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
                     opt_level = d - '0';
@@ -2825,12 +2862,12 @@ int main(int argc, char **argv) {
                     goto bad_opt_level;
                 }
             } else if (argv[0][2] != '\0' && (d == 'f' || d == 'o' || d == 'l')) {
-                message1str(1, "flag too long: %s", argv[0]);  /* Example: `-fbin' should be `-f bin'. */
+                MESSAGE1STR(1, "flag too long: %s", argv[0]);  /* Example: `-fbin' should be `-f bin'. */
                 return 1;
             } else if (d == 'f') { /* Format */
                 if (*++argv == NULL) {
                   error_no_argument:
-                    message1str(1, "no argument for %s", argv[-1]);
+                    MESSAGE1STR(1, "no argument for %s", argv[-1]);
                     return 1;
                 } else {
                     if (casematch(argv[0], "BIN")) {
@@ -2840,7 +2877,7 @@ int main(int argc, char **argv) {
                         default_start_address = 0x100;
                         is_start_address_set = 1;
                     } else {
-                        message1str(1, "only 'bin', 'com' supported for -f (it is '%s')", argv[0]);
+                        MESSAGE1STR(1, "only 'bin', 'com' supported for -f (it is '%s')", argv[0]);
                         return 1;
                     }
                 }
@@ -2848,7 +2885,7 @@ int main(int argc, char **argv) {
                 if (*++argv == NULL) {
                     goto error_no_argument;
                 } else if (output_filename != NULL) {
-                    message(1, "already a -o argument is present");
+                    MESSAGE(1, "already a -o argument is present");
                     return 1;
                 } else {
                     output_filename = argv[0];
@@ -2858,19 +2895,19 @@ int main(int argc, char **argv) {
                     goto error_no_argument;
                     return 1;
                 } else if (listing_filename != NULL) {
-                    message(1, "already a -l argument is present");
+                    MESSAGE(1, "already a -l argument is present");
                     return 1;
                 } else {
                     listing_filename = argv[0];
                 }
             } else {
-                message1str(1, "unknown argument %s", argv[0]);
+                MESSAGE1STR(1, "unknown argument %s", argv[0]);
                 return 1;
             }
         } else {
             if (0) DEBUG1("ifname=(%s)\n", argv[0]);
             if (ifname != NULL) {
-                message1str(1, "more than one input file name: %s", argv[0]);
+                MESSAGE1STR(1, "more than one input file name: %s", argv[0]);
                 return 1;
             } else {
                 ifname = argv[0];
@@ -2880,7 +2917,7 @@ int main(int argc, char **argv) {
     }
 
     if (ifname == NULL) {
-        message(1, "No input filename provided");
+        MESSAGE(1, "No input filename provided");
         return 1;
     }
 
@@ -2900,19 +2937,19 @@ int main(int argc, char **argv) {
          ** Do second pass of assembly and generate final output
          */
         if (output_filename == NULL) {
-            message(1, "No output filename provided");
+            MESSAGE(1, "No output filename provided");
             return 1;
         }
         do {
             if (GET_U16(++assembler_pass) == 0) --assembler_pass;  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
                 if ((listing_fd = creat(listing_filename, 0644)) < 0) {
-                    message1str(1, "couldn't open '%s' as listing file", output_filename);
+                    MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
                     return 1;
                 }
             }
             if ((output_fd = creat(output_filename, 0644)) < 0) {
-                message1str(1, "couldn't open '%s' as output file", output_filename);
+                MESSAGE1STR(1, "couldn't open '%s' as output file", output_filename);
                 return 1;
             }
             prev_address = current_address;
@@ -2928,15 +2965,21 @@ int main(int argc, char **argv) {
             close(output_fd);
             if (have_labels_changed) {
                 if (opt_level <= 1) {
-                    message(1, "oops: labels changed");
+                    MESSAGE(1, "oops: labels changed");
                 } else if (current_address > prev_address) {  /* It's OK that the size increases because of overly optimistic optimizations. */
                 } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? What is the limit for NASM? */
-                    message(1, "Aborted: Couldn't stabilize moving label");
+                    MESSAGE(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
             if (listing_fd >= 0) {
                 bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n", GET_FMT_U_VALUE(warnings));
+                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n",
+#if CONFIG_SUPPORT_WARNINGS
+                         GET_FMT_U_VALUE(warnings)
+#else
+                         0
+#endif
+                        );
                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
                 bbprintf(&message_bbb /* listing_fd */, FMT_05U " ASSEMBLER PASSES\r\n\r\n", GET_FMT_U_VALUE(assembler_pass));
                 bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
