@@ -331,7 +331,8 @@ static value_t instruction_value;
  ** -O1: 2-pass, assume longest on undefined label, make it as shorts as possble without looking forward.
  ** -Ox == -OX == -O3 == -O9: full, multipass optimization, make it as short as possible, same as NASM 0.98.39 -O9 and newer NASM 2.x default.
  */
-static int opt_level;
+static unsigned char opt_level;
+static unsigned char do_opt_lea;  /* -OL. */
 
 #define MAX_SIZE        256
 
@@ -1546,7 +1547,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     const char *p1;
     const char *error_base;
     static unsigned short segment_value;  /* Static just to pacify GCC 7.5.0 warning of uninitialized. */
-    char dc, dw, do_add_wide_imm8, is_imm_8bit;
+    char dc, dw, do_add_wide_imm8, is_imm_8bit, do_opt_lea_now;
 
     /* Example instructions with emitted_bytes + instructon + "pattern encode":
      *
@@ -1560,16 +1561,21 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     qualifier = 0;  /* Pacify gcc. */
     do_add_wide_imm8 = 0;
     is_imm_8bit = 0;
+    do_opt_lea_now = 0;
   next_pattern:
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
-        if (dc - 'j' + 0U <= 'n' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, lea, les). */
+        if (dc - 'j' + 0U <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
             if (dc == 'n') {
+              do_n_or_o:
                 if (p[0] != '[') goto mismatch;
                 goto do_addressing_16;  /* 8 would have been also fine. */
+            } else if (dc == 'o') {
+                if (do_opt_lea) do_opt_lea_now = 1;
+                goto do_n_or_o;
             } else if (casematch(p, "WORD!")) {
                 p += 4;
                 qualifier = 16;
@@ -1766,6 +1772,31 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         add_wide_instr_in_pass_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
         --current_address;
     }
+    if (do_opt_lea_now) {
+        instruction_addressing_segment = 0;  /* Ignore the segment part of the effective address, it doesn't make a difference for `lea'. */
+        if (0) DEBUG2("lea ia=0x%02x iow=%d\r\n", instruction_addressing, instruction_offset_width);
+        if (instruction_addressing == 0x06 /* [immediate] */) {
+            emit_byte(0xb8 | instruction_register);
+            pattern_and_encode = "j";
+#if 1  /* Convert e.g. `lea cx, [ex]' to `mov cx, bx', of the same size. */
+        } else if (instruction_addressing == 0x04 /* [SI] */) {
+            c = 0xc0 | 6 << 3;
+            goto emit_lea_mov;
+        } else if (instruction_addressing == 0x05 /* [DI] */) {
+            c = 0xc0 | 7 << 3;
+            goto emit_lea_mov;
+        } else if (instruction_addressing == 0x07 /* [BX] */) {
+            c = 0xc0 | 3 << 3;
+            goto emit_lea_mov;
+#endif
+        } else if (instruction_addressing == 0x46 && instruction_offset == 0 && instruction_offset_width == 1 /* [BP] */) {
+            c = 0xc0 | 5 << 3;
+          emit_lea_mov:
+            emit_byte(0x89);
+            emit_byte(c | instruction_register);
+            goto done;
+        }
+    }
     if (instruction_addressing_segment) emit_byte(instruction_addressing_segment);
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
@@ -1798,9 +1829,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 pattern_and_encode = "b";
                 instruction_value -= 3;  /* Jump source address (0xe9) is 3 bytes larger than previously anticipated. */
             }
-        } else if (dc == 'i') {
+        } else if (dc == 'i') {  /* 8-bit immediate. */
             c = instruction_value;
-        } else if (dc == 'j') {
+        } else if (dc == 'j') {  /* 16-bit immediate, maybe optimized to 8 bits. */
             c = instruction_value;
             if (!is_imm_8bit) {
                 instruction_offset = instruction_value >> 8;
@@ -1860,6 +1891,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (dw > 1) emit_byte(instruction_offset >> 8);
         }
     }
+  done:
     return check_end(p);
 }
 
@@ -2851,13 +2883,19 @@ int main(int argc, char **argv) {
                 if (d == '\0' || argv[0][3] != '\0') { bad_opt_level:
                     MESSAGE(1, "bad optimization argument");
                     return 1;
-                } else if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
+                }
+                d |= 32;
+                if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
                     opt_level = d - '0';
-                } else if (d == 'x' || d == 'X' || d == '3' || d == '9') {  /* Compatible with NASM. */
+                } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). */
+                  set_opt_level_9:
                     opt_level = 9;
-                    /* !! TODO(pts): Add -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */
+                } else if (d == 'l') {  /* -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */
+                    do_opt_lea = 1;
                     /* !! TODO(pts): Add -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
-                    /* !! TODO(pts): Add -OA to turn on all optimizations, even those which are not compatible with NASM. Equilvalent to `-O9 -OL -OG'. */
+                } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equilvalent to `-O9 -OL -OG'. */
+                    do_opt_lea = 1;
+                    goto set_opt_level_9;
                 } else {
                     goto bad_opt_level;
                 }
@@ -3076,7 +3114,7 @@ const char instruction_set[] =
     "JZ\0" "a 74a\0"
     "LAHF\0" " 9F\0"
     "LDS\0" "r,n C5drd\0"
-    "LEA\0" "r,n 8Ddrd\0"
+    "LEA\0" "r,o 8Ddrd\0"
     "LES\0" "r,n C4drd\0"
     "LOCK\0" " F0+\0"
     "LODSB\0" " AC\0"
