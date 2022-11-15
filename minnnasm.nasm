@@ -33,7 +33,6 @@
 ; * add cx, ax: wasm: 03 C8, nasm: 01 C1.
 ;
 ; TODO(pts): BYTE and SHORT added manually after WASM --> NASM conversion
-; !!! predefine some __NASM_MAJOR__ or __MININASM__ etc.
 ;
 ; minnnasm.nasm is a fork of https://github.com/pts/mininasm (mininasm.c
 ; implemented in C), compiled with the OpenWatcom C compiler, then

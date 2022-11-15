@@ -2769,6 +2769,8 @@ static void do_assembly(const char *input_filename) {
     line_number = 0;  /* Global variable. */
 }
 
+static char mininasm_macro_name[] = " __MININASM__";
+
 /*
  ** Main program
  */
@@ -2809,6 +2811,8 @@ int main(int argc, char **argv) {
     /* default_start_address = 0; */  /* Default. */
     /* is_start_address_set = 0; */  /* Default. */
     c = 1;
+    malloc_init();
+    set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "1", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ 1'. */
     while (c < argc) {  /* !! TODO(pts): Use ++argv instead of c. */
         if (argv[c][0] == '-') {    /* All arguments start with dash */
             d = argv[c][1] | 32;  /* Flags characters are case insensitive. */
@@ -2912,7 +2916,6 @@ int main(int argc, char **argv) {
     assembler_pass = 1;
     /* if (opt_level <= 1) wide_instr_add_at = NULL; */  /* No need, this is the default. */
     reset_address();
-    malloc_init();
     do_assembly(ifname);
     message_flush(NULL);
     if (errors) { do_remove:
