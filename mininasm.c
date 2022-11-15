@@ -1547,9 +1547,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
-        if (dc - 'j' + 0U <= 'm' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16. */
+        if (dc - 'j' + 0U <= 'n' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, lea, les). */
             qualifier = 0;
-            if (casematch(p, "WORD!")) {
+            if (dc == 'n') {
+                if (p[0] != '[') goto mismatch;
+                goto do_addressing_16;  /* 8 would have been also fine. */
+            } else if (casematch(p, "WORD!")) {
                 p += 4;
                 qualifier = 16;
             } else if (casematch(p, "BYTE!")) {
@@ -1575,6 +1578,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             } else /* if (dc == 'k' || dc == 'm') */ {
                 /* NASM allows with a warning, but we don't for dc == 'm': dec byte bx */
                 if (qualifier == 8) goto mismatch;
+              do_addressing_16:
                 /* It sets instruction_addressing, instruction_offset, instruction_offset_width. */
                 p = match_addressing(p, 16);
             }
@@ -2814,10 +2818,13 @@ int main(int argc, char **argv) {
                 if (d == '\0' || argv[c][3] != '\0') { bad_opt_level:
                     message(1, "bad optimization argument");
                     return 1;
-                } else if (d + 0U - '0' <= 1U) {
+                } else if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
                     opt_level = d - '0';
-                } else if (d == 'x' || d == 'X' || d == '3' || d == '9') {
+                } else if (d == 'x' || d == 'X' || d == '3' || d == '9') {  /* Compatible with NASM. */
                     opt_level = 9;
+                    /* !! TODO(pts): Add -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */
+                    /* !! TODO(pts): Add -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
+                    /* !! TODO(pts): Add -OA to turn on all optimizations, even those which are not compatible with NASM. Equilvalent to `-O9 -OL -OG'. */
                 } else {
                     goto bad_opt_level;
                 }
@@ -3048,9 +3055,9 @@ const char instruction_set[] =
     "JS\0" "a 78a\0"
     "JZ\0" "a 74a\0"
     "LAHF\0" " 9F\0"
-    "LDS\0" "r,k oozzzozodrd\0"
-    "LEA\0" "r,k 8Ddrd\0"
-    "LES\0" "r,k oozzzozzdrd\0"
+    "LDS\0" "r,n C5drd\0"
+    "LEA\0" "r,n 8Ddrd\0"
+    "LES\0" "r,n C4drd\0"
     "LOCK\0" " F0+\0"
     "LODSB\0" " AC\0"
     "LODSW\0" " AD\0"
