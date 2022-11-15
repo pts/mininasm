@@ -1911,13 +1911,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     return check_end(p);
 }
 
-static const char *p;
-
 /*
  ** Separate a portion of entry up to the first space.
- ** First word gets copied to `part', and `p' is advanced after it.
+ ** First word gets copied to `part', and `p' is advanced after it, and the
+ ** new p is returned.
  */
-static void separate(void) {
+static const char *separate(const char *p) {
     char *p2;
 
     for (; *p == ' '; ++p) {}
@@ -1925,6 +1924,7 @@ static void separate(void) {
     for (; *p && *p != ' '; *p2++ = *p++) {}
     *p2 = '\0';
     for (; *p == ' '; ++p) {}
+    return p;
 }
 
 static char message_buf[512];
@@ -2020,7 +2020,7 @@ static void message1str(const char *pattern, const char *data)
 /*
  ** Process an instruction with mnemonic name in `part' and argments starting at `p'.
  */
-static void process_instruction(void) {
+static void process_instruction(const char *p) {
     const char *p2 = NULL, *p3;
     char c;
 
@@ -2107,7 +2107,7 @@ static void process_instruction(void) {
             message_end();
             break;
         }
-        separate();
+        p = separate(p);
     }
   after_matches: ;
 }
@@ -2453,6 +2453,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
 static void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
     const char *p3;
+    const char *p;
     char *line;
     char *linep;
     char *liner;
@@ -2591,7 +2592,7 @@ static void do_assembly(const char *input_filename) {
         }
 
         /* Process preprocessor directive. Labels are not allowed here. */
-        separate();
+        p = separate(p);
         if (casematch(part, "%IF")) {
             if (GET_UVALUE(++level) == 0) { if_too_deep:
                 MESSAGE(1, "%IF too deep");
@@ -2661,8 +2662,7 @@ static void do_assembly(const char *input_filename) {
             goto close_return;  /* There is no meaningful way to continue. */
         } else if (avoid_level != 0 && level >= avoid_level) {
         } else if (casematch(part, "%INCLUDE")) {
-            separate();
-            check_end(p);
+            check_end(p = separate(p));
             if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
                 MESSAGE(1, "Missing quotes on %include");
                 goto after_line;
@@ -2712,8 +2712,7 @@ static void do_assembly(const char *input_filename) {
             MESSAGE(1, "Instruction expected");
             goto after_line;
         }
-        p3 = p;
-        separate();
+        p = separate(p3 = p);
         if (casematch(part, "USE16")) {
         } else if (casematch(part, "CPU")) {
             p = avoid_spaces(p);
@@ -2732,8 +2731,7 @@ static void do_assembly(const char *input_filename) {
                 check_end(p);
             }
         } else if (casematch(part, "INCBIN")) {
-            separate();
-            check_end(p);
+            check_end(p = separate(p));
             if ((part[0] != '"' && part[0] != '\'') || part[strlen(part) - 1] != part[0]) {
                 MESSAGE(1, "Missing quotes on incbin");
                 goto after_line;
@@ -2789,15 +2787,12 @@ static void do_assembly(const char *input_filename) {
                     goto after_line;
                 }
                 times = instruction_value;
-                p3 = p;
-                separate();
+                p = separate(p3 = p);
             }
             line_address = current_address;
             g = generated_ptr;
             while ((uvalue_t)times != 0) {
-                p = p3;
-                separate();
-                process_instruction();
+                process_instruction(separate(p3));
                 times--;
             }
         }
