@@ -2713,11 +2713,9 @@ static void do_assembly(const char *input_filename) {
         p = separate(p3 = p);
         if (casematch(part, "USE16")) {
         } else if (casematch(part, "CPU")) {
-            p = avoid_spaces(p);
             if (!casematch(p, "8086"))
                 MESSAGE(1, "Unsupported processor requested");
         } else if (casematch(part, "BITS")) {
-            p = avoid_spaces(p);
             p = match_expression(p);
             if (p == NULL) {
                 MESSAGE(1, "Bad expression");
