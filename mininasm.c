@@ -1911,7 +1911,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     return check_end(p);
 }
 
-static const char *prev_p;
 static const char *p;
 
 /*
@@ -1922,7 +1921,6 @@ static void separate(void) {
     char *p2;
 
     for (; *p == ' '; ++p) {}
-    prev_p = p;
     p2 = part;
     for (; *p && *p != ' '; *p2++ = *p++) {}
     *p2 = '\0';
@@ -2020,7 +2018,7 @@ static void message1str(const char *pattern, const char *data)
 }
 
 /*
- ** Process an instruction
+ ** Process an instruction with mnemonic name in `part' and argments starting at `p'.
  */
 static void process_instruction(void) {
     const char *p2 = NULL, *p3;
@@ -2714,6 +2712,7 @@ static void do_assembly(const char *input_filename) {
             MESSAGE(1, "Instruction expected");
             goto after_line;
         }
+        p3 = p;
         separate();
         if (casematch(part, "USE16")) {
         } else if (casematch(part, "CPU")) {
@@ -2790,11 +2789,11 @@ static void do_assembly(const char *input_filename) {
                     goto after_line;
                 }
                 times = instruction_value;
+                p3 = p;
                 separate();
             }
             line_address = current_address;
             g = generated_ptr;
-            p3 = prev_p;
             while ((uvalue_t)times != 0) {
                 p = p3;
                 separate();
