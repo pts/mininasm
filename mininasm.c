@@ -337,7 +337,7 @@ static unsigned char do_opt_segreg;  /* -OG. */
 
 #define MAX_SIZE        256
 
-static char instr_name[MAX_SIZE];  /* Assembly instruction mnemonic name or preprocessor directive name. !! TODO(pts): Get rid of this buffer, save memory. */
+static char instr_name[10];  /* Assembly instruction mnemonic name or preprocessor directive name. Always ends with '\0', maybe truncated. */
 static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
@@ -1913,15 +1913,25 @@ static const char *match(const char *p, const char *pattern_and_encode) {
 
 /*
  ** Separate a portion of entry up to the first space.
- ** First word gets copied to `instr_name', and `p' is advanced after it, and the
- ** new p is returned.
+ ** First word gets copied to `instr_name' (silently truncated if needed),
+ ** and `p' is advanced after it, and the new p is returned.
  */
 static const char *separate(const char *p) {
     char *p2;
+    char *instr_name_end = instr_name + sizeof(instr_name) - 1;
 
     for (; *p == ' '; ++p) {}
     p2 = instr_name;
-    for (; *p && *p != ' '; *p2++ = *p++) {}
+    for (;;) {
+        if (p2 == instr_name_end) {
+            for (; *p && *p != ' '; ++p) {}  /* Silently truncate instr_name. */
+            break;
+        } else if (*p && *p != ' ') {
+            *p2++ = *p++;
+        } else {
+            break;
+        }
+    }
     *p2 = '\0';
     for (; *p == ' '; ++p) {}
     return p;
