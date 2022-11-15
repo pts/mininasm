@@ -2557,8 +2557,6 @@ static void do_assembly(const char *input_filename) {
                     for (liner = (char*)p; liner != line_rend && ((pc = *liner) == '\0' || (pc != '\n' && isspace(pc))); *liner++ = ' ') {}
                     if (liner == line_rend) line_rend = (char*)p;  /* Compress trailing whitespace bytes to a single space at the end of the buffer, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
                 } else {
-                    /* TODO(pts): Experiment with converting runs of space to a single space, simplifying avoid_spaces(...). */
-                    /* !! TODO(pts): nasm labels are case sensitive, but mininasm labels aren't; make $labels case sensitive in mininasm */
                     ++p;
                 }
             }
