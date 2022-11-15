@@ -343,6 +343,7 @@ static char *global_label_end;
 
 static char *g;
 static char generated[8];
+static char *generated_ptr;
 
 #ifndef CONFIG_SUPPORT_WARNINGS
 #define CONFIG_SUPPORT_WARNINGS 0
@@ -2575,7 +2576,7 @@ static void do_assembly(const char *input_filename) {
         }
 
         line_address = current_address;
-        g = generated;
+        g = generated_ptr;
         include = 0;
 
         p = avoid_spaces(line);
@@ -2792,7 +2793,7 @@ static void do_assembly(const char *input_filename) {
                 separate();
             }
             line_address = current_address;
-            g = generated;
+            g = generated_ptr;
             p3 = prev_p;
             while (times) {
                 p = p3;
@@ -2804,7 +2805,7 @@ static void do_assembly(const char *input_filename) {
       after_line:
         if (assembler_pass > 1 && listing_fd >= 0) {
             bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(line_address));
-            p = generated;
+            p = generated_ptr;
             while (p < g) {
                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
             }
@@ -3001,6 +3002,7 @@ int main(int argc, char **argv) {
                     MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
                     return 1;
                 }
+                generated_ptr = generated;  /* Start saving bytes to the `generated' array, for the listing. */
             }
             if ((output_fd = creat(output_filename, 0644)) < 0) {
                 MESSAGE1STR(1, "couldn't open '%s' as output file", output_filename);
