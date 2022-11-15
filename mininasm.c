@@ -279,7 +279,7 @@ static int listing_fd = -1;
 #undef IS_VALUE_LONG
 #if CONFIG_VALUE_BITS == 16
 #define IS_VALUE_LONG 0
-typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
+typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */  /* !! TODO(pts): Use uvalue_t in more location, to get modulo 2**n arithmetics instead of undefined behavior without gcc -fwrapv. */
 typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
 #define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
 #define GET_UVALUE(value) (uvalue_t)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
@@ -333,7 +333,7 @@ static int opt_level;
 
 #define MAX_SIZE        256
 
-static char part[MAX_SIZE];
+static char part[MAX_SIZE];  /* !! TODO(pts): Get rid of this buffer, save memory. */
 static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
@@ -1500,7 +1500,7 @@ static void emit_bytes(const char *s, int size)  {
 /*
  ** Emit one byte to output
  */
-static void emit_byte(int byte) {
+static void emit_byte(int byte) {  /* Changing `c' to `char' would increase the file size for __DOSMC__. */
     const char c = byte;
     emit_bytes(&c, 1);
 }
@@ -1798,7 +1798,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
-                message(1, "near jump too long");
+                message(1, "near jump too long");  /* !! TODO(pts): Make this work in the default case of `jmp near' jumping across 32 KiB .. 64 KiB, it will just wrap around. */
             c = instruction_value;
             instruction_offset = c >> 8;
             dw = 1;
@@ -2192,7 +2192,7 @@ static const char *get_fmt_04x_high_value(unsigned u) {
     char *p = buf + sizeof(buf) - 1;
     char c;
     *p = '\0';
-    while (u != 0) {  /* TODO(pts): Instead of these workarounds, make bbprintf.c operate on longs, and always pass a (long)... at call time. */
+    while (u != 0) {  /* !! TODO(pts): Instead of these tiresome workarounds, make bbprintf.c operate on longs, and always pass a (long)... at call time. */
         c = '0' + ((unsigned char)u & 0xf);
         if (c > '9') c += 'A' - ('0' + 10);
         *--p = c;
@@ -2312,6 +2312,8 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
             message(1, "invalid macro override");
             goto do_return;
         }
+        /* !! TODO(pts): Allow `%DEFINE offset' and `%DEFINE ptr' for compatibility with A72, TASM and A86. Also add corresponding command-line flags. */
+        /* !! TODO(pts): Allow effective addresses ds:[bp] and [bp][bx] for compatibility with TASM. */
     } else if (macro_set_mode != MACRO_SET_ASSIGN && !is_define_value(value)) {
       bad_macro_value:
         /* By reporting an error here we want to avoid the following NASM
@@ -2521,6 +2523,8 @@ static void do_assembly(const char *input_filename) {
             }
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
+            /* !! TODO(pts): // and %% for signed division and modulo. */
+            /* !! TODO(pts): Add operators < > <= >=  == = != <> && || ^^ for `%IF' only. NASM doesn't do short-circuit. */
             p = match_expression(p);
             if (p == NULL) {
                 message(1, "Bad expression");
