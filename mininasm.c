@@ -2461,7 +2461,7 @@ static void do_assembly(const char *input_filename) {
     char *line_rend;
     uvalue_t level;
     uvalue_t avoid_level;
-    int times;
+    value_t times;
     value_t line_address;
     char include;  /* 0, 1 or 2. */
     value_t align;
@@ -2795,7 +2795,7 @@ static void do_assembly(const char *input_filename) {
             line_address = current_address;
             g = generated_ptr;
             p3 = prev_p;
-            while (times) {
+            while ((uvalue_t)times != 0) {
                 p = p3;
                 separate();
                 process_instruction();
