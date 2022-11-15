@@ -2463,7 +2463,7 @@ static void do_assembly(const char *input_filename) {
     uvalue_t avoid_level;
     int times;
     value_t line_address;
-    int include;
+    char include;  /* 0, 1 or 2. */
     value_t align;
     int got;
     int input_fd;
