@@ -2787,7 +2787,10 @@ static void do_assembly(const char *input_filename) {
                     MESSAGE(1, "Cannot use undefined labels");
                     goto after_line;
                 }
-                times = instruction_value;
+                if ((value_t)(times = instruction_value) < 0) {
+                    MESSAGE(1, "TIMES value is negative");
+                    goto after_line;
+                }
             }
             p = p3;
           do_instruction_with_times:
