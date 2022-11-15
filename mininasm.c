@@ -237,8 +237,10 @@ modify [si cl]
  */
 #ifdef __cplusplus  /* We must reserve space for the NUL. */
 #define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value)] = value
+#define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name) - 1)
 #else
 #define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value) - 1] = value
+#define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name))
 #endif
 
 /* We aim for compatibility with NASM 0.98.39, so we do signed by default.
@@ -2769,7 +2771,7 @@ static void do_assembly(const char *input_filename) {
     line_number = 0;  /* Global variable. */
 }
 
-static char mininasm_macro_name[] = " __MININASM__";
+static MY_STRING_WITHOUT_NUL(mininasm_macro_name, " __MININASM__");
 
 /*
  ** Main program
@@ -2798,7 +2800,7 @@ int main(int argc, char **argv) {
      */
     if (*++argv == NULL) {
         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
-        (void)!write(2, msg, sizeof(msg));
+        (void)!write(2, msg, STRING_SIZE_WITHOUT_NUL(msg));
         return 1;
     }
 
