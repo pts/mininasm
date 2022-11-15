@@ -2463,7 +2463,7 @@ static void do_assembly(const char *input_filename) {
     int times;
     value_t line_address;
     int include;
-    int align;
+    value_t align;
     int got;
     int input_fd;
     char pc;
@@ -2771,10 +2771,9 @@ static void do_assembly(const char *input_filename) {
                 MESSAGE(1, "Cannot use undefined labels");
             } else {
                 check_end(p);  /* TODO(pts): Support 2nd argument of align, e.g. nop. */
-                align = current_address / instruction_value;
-                align = align * instruction_value;
-                align = align + instruction_value;
-                while (current_address < align)
+                /* NASM 0.98.39 does the wrong thing if instruction_value is not a power of 2. Newer NASMs report an error. mininasm just works. */
+                align = (uvalue_t)current_address / instruction_value * instruction_value + instruction_value;
+                while (current_address != align)
                     emit_byte(0x90);
             }
         } else {
