@@ -696,9 +696,11 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
 }
 
 /*
- ** Find a label
+ ** Find a label.
+ **
+ ** `name' as passed as a far pointer because reset_macros() needs it.
  */
-static struct label MY_FAR *find_label(const char *name) {
+static struct label MY_FAR *find_label(const char MY_FAR *name) {
     struct label MY_FAR *explore;
     struct label MY_FAR *milestone = NULL;
     int c;
@@ -2354,8 +2356,7 @@ static void reset_macros(void) {
                     RBL_SET_DELETED_1(node);
                     /* Delete the label corresponding to the macro defined with an INTVALUE. */
                     if (value == MACRO_VALUE) {
-                        strcpy_far(global_label, node->name);  /* Copying for __DOSMC__, because find_label doesn't accept a far pointer. */
-                        if ((value_label = find_label(global_label + 1)) != NULL) RBL_SET_DELETED_1(value_label);
+                        if ((value_label = find_label(node->name + 1)) != NULL) RBL_SET_DELETED_1(value_label);
                     }
                 }
             }
