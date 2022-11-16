@@ -435,8 +435,7 @@ static char has_undefined;
 
 extern const char instruction_set[];
 
-/* [32] without the trailing \0 wouldn't work in C++. */
-static const char register_names[] = "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI";
+static const MY_STRING_WITHOUT_NUL(register_names, "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI");
 
 /* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf message_bbb;
@@ -851,7 +850,7 @@ static const char *match_label_prefix(const char *p) {
                 /* !! TODO(pts): Size optimization: concatenate register_names: "DBDWDDCSDSESSS" "..."; also compare them as short (int16_t). */
                 cd[0] &= ~32;
                 cd[1] &= ~32;
-                for (p2 = (char*)register_names; p2 != register_names + (sizeof(register_names) & ~1); p2 += 2) {
+                for (p2 = (char*)register_names; p2 != register_names + STRING_SIZE_WITHOUT_NUL(register_names); p2 += 2) {
                     if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
                 }
                 if ((cd[1] == 'S') && (cd[0] == 'S' || cd[0] - 'C' + 0U <= 'E' - 'C' + 0U)) return NULL;  /* Segment register: CS, DS, ES or SS. */
