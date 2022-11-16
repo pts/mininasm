@@ -8101,7 +8101,7 @@ print_:
 @@$25:
 		jmp @@$39
 @@$26:
-		mov dx, @@$44
+		mov dx, @_@$44  ; !!! YASM thinks @@... as local label, we use @_@ instead.
 @@$27:
 		mov bx, ax
 @@$28:
@@ -8263,7 +8263,7 @@ bbprintf_:
 		call near print_
 
 ; }
-@@$43:
+@_@$43:
 		pop bp
 		pop dx
 		pop bx
@@ -8303,7 +8303,7 @@ bbsprintf_:
 ;   return result;
 ; }
 		mov sp, bp
-		jmp SHORT @@$43
+		jmp SHORT @_@$43
 
 
 ; --- C library functions based on https://github.com/pts/dosmc/tree/master/dosmclib
@@ -8858,7 +8858,7 @@ ___2A87:
 ___section_bbprintf_c_const:
 
 ___30DB:
-@@$44: db '(null)', 0
+@_@$44: db '(null)', 0
 
 ___section__mininasm_c_const2:
 

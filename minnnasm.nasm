@@ -20,6 +20,10 @@
 ;   $ mininasm -f bin -o minnnasm.com minnnasm.nasm
 ;   $ kvikdos minnnasm.com -f bin -o minnnas2.com minnnasm.nas
 ;
+; `yasm' also works instead of `nasm', but it doesn't generate an identical
+; executable program, because YASM generates different machine code for
+; `xchg' (and maybe `test') register-to-register instructions.
+;
 ; The resulting .com executable program can be run on DOS or in a DOS
 ; emulator (e.g. DOSBox, emu2, kvikdos). The target architecture is 8086
 ; (newer instruction sets such as 182, 286, 386 are not used), floating point
