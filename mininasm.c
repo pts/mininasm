@@ -2023,7 +2023,6 @@ static const char *filename_for_message;
 
 /*
  ** Generate a message
- ** !! Remove `error' argument, warning not supported yet.
  */
 #if CONFIG_SUPPORT_WARNINGS
 static void message_start(int error)
