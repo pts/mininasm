@@ -2840,9 +2840,12 @@ static void do_assembly(const char *input_filename) {
                 MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
                 MESSAGE(1, "Cannot use undefined labels");
+            } else if (instruction_value <= 0) {
+                MESSAGE(1, "ALIGN value is not positive");
             } else {
                 /* NASM 0.98.39 does the wrong thing if instruction_value is not a power of 2. Newer NASMs report an error. mininasm just works. */
-                times = ((uvalue_t)current_address / instruction_value + 1) * instruction_value - current_address;
+                times = (uvalue_t)current_address % instruction_value;
+                if (times != 0) times = instruction_value - times;
                 p = avoid_spaces(p);
                 if (p[0] == ',') {
                     ++p;
