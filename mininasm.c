@@ -344,7 +344,7 @@ static value_t instruction_value;  /* Always all bits valid. */
 
 /*
  ** -O0: 2-pass, assume longest on undefined label, exactly the same as NASM 0.98.39 and 0.99.06 default and -O0. This is the default.
- ** -O1: 2-pass, assume longest on undefined label, make it as shorts as possble without looking forward.
+ ** -O1: 2-pass, assume longest on undefined label, make signed immediate arguments of arithmetic operations as short as possble without looking forward.
  ** -Ox == -OX == -O3 == -O9: full, multipass optimization, make it as short as possible, same as NASM 0.98.39 -O9 and newer NASM 2.x default.
  */
 static unsigned char opt_level;
@@ -1755,7 +1755,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     } else {
                         if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
                     }
-                    if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39and 0.99.06, we match it with -O0. */
+                    if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
                         /* We assume that the pattern is "m,s". */
                         if (instruction_offset_width == 0) {
                             instruction_addressing |= 0x80;
@@ -3045,7 +3045,7 @@ int main(int argc, char **argv) {
                     return 1;
                 }
                 d |= 32;
-                if (d + 0U - '0' <= 1U) {  /* Compatible with NASM. */
+                if (d + 0U - '0' <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
                     opt_level = d - '0';
                 } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). */
                   set_opt_level_9:
