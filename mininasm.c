@@ -324,7 +324,7 @@ static unsigned short instruction_offset;
 
 static unsigned char instruction_register;
 
-static value_t instruction_value;
+static value_t instruction_value;  /* Always all bits valid. */
 
 /*
  ** -O0: 2-pass, assume longest on undefined label, exactly the same as NASM 0.98.39 and 0.99.06 default and -O0. This is the default.
@@ -812,6 +812,8 @@ static int is_colonless_instruction(const char *p) {
             || c == 'D'  /* "DD". */
 #endif
             ) && !islabel(p[2]);
+    } else if (c == 'R') {
+        return casematch(p, "RESB!");
     } else {
         return 0;
     }
@@ -1169,7 +1171,7 @@ static const char *match_expression(const char *match_p) {
         }
     }
     if (msp != match_stack) goto do_pop;
-    instruction_value = has_undefined ? 0 : value1;
+    instruction_value = has_undefined ? 0 : GET_VALUE(value1);
     return avoid_spaces(match_p);
 }
 
@@ -2478,9 +2480,11 @@ static void do_assembly(const char *input_filename) {
     int input_fd;
     char pc;
     char is_ifndef;
+    char is_bss;
     struct label MY_FAR *label;
 
     have_labels_changed = 0;
+    is_bss = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
 
   do_assembly_push:
@@ -2630,7 +2634,7 @@ static void do_assembly(const char *input_filename) {
             } else if (has_undefined) {
                 MESSAGE(1, "Cannot use undefined labels");
             }
-            if (GET_UVALUE(instruction_value) != 0) {
+            if (instruction_value != 0) {
                 ;
             } else {
                 avoid_level = level;
@@ -2750,7 +2754,7 @@ static void do_assembly(const char *input_filename) {
                 MESSAGE(1, "Bad expression");
             } else if (has_undefined) {
                 MESSAGE(1, "Cannot use undefined labels");
-            } else if (GET_UVALUE(instruction_value) != 16) {
+            } else if (instruction_value != 16) {
                 MESSAGE(1, "Unsupported BITS requested");
             } else {
                 check_end(p);
@@ -2789,6 +2793,31 @@ static void do_assembly(const char *input_filename) {
                         reset_address();
                     }
                 }
+            }
+        } else if (casematch(instr_name, "SECTION")) {
+            if (!casematch(p, ".bss *") || !casematch(avoid_spaces(p + 5), "ALIGN=1")) {
+                MESSAGE1STR(1, "Unsupported SECTION: %s", p);
+            } else if (!is_bss) {
+                is_bss = 1;
+                is_address_used = 1;
+                start_address = current_address;
+            }
+        } else if (is_bss) {
+            if (casematch(instr_name, "RESB")) {
+                /* We also could add RESW, RESD, ALIGNB, but the user can implement them in terms of RESB. */
+                p = match_expression(p);
+                if (p == NULL) {
+                    MESSAGE(1, "Bad expression");
+                } else if (has_undefined) {
+                    MESSAGE(1, "Cannot use undefined labels");
+                } else if (instruction_value < 0) {
+                    MESSAGE(1, "RESB value is negative");
+                } else if (!check_end(p)) {
+                } else {
+                    current_address += instruction_value;
+                }
+            } else {
+                MESSAGE1STR(1, "Unsupported .bss instrucction: %s", instr_name);
             }
         } else if (casematch(instr_name, "ALIGN")) {
             p = match_expression(p);

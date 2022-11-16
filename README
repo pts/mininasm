@@ -74,7 +74,9 @@ Differences between mininasm and NASM:
 	equ
 	db
 	dw
+	dd
 	align
+	resb
 
 * Single-line macros (e.g. with `%define' and `%assign') must have an
   integer value (only integer literals and unarhy `+', `-' and `~' are
@@ -99,7 +101,10 @@ Differences between mininasm and NASM:
 * mininasm silently works correctly if the integer argument of `align' is
   not a power of 2.
 
-* `section' definitions are not supported.
+* `section' definitions are not supported, except for
+  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
+  In mininasm it's not possible to switch back to `section .text', but
+  in NASM it is.
 
 * The optional `offset' and `size' arguments of `incbin' are not supported.
 

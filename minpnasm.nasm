@@ -9133,61 +9133,65 @@ ___3C83:	dw 0
 ___3C85:	dw message_flush_
 
 ; --- Variables initialized to 0 by _start.
+___section_nobss_end:
+		section .bss align=1
+___section_bss:
+		;resb (___section_startup_text-___section_nobss_end)&(2-1)  ; Align to multiple of 2. We don't do it.
+
 ___section_mininasm_c_bss:
 
 ___3C87:
-_line_buf	equ $+0
-_assembly_stack	equ $+0x200
-_message_buf	equ $+0x400
-_emit_buf	equ $+0x600
-_part		equ $+0x800
-_generated	equ $+0x900
-_name		equ $+0x908
-_expr_name	equ $+0xa08
-_global_label	equ $+0xb08
-_instruction_value equ $+0xc08
-_warnings	equ $+0xc0c
-_label_list	equ $+0xc10
-_last_label	equ $+0xc14
-_errors	equ $+0xc18
-_bytes		equ $+0xc1c
-_start_address	equ $+0xc20
-_address	equ $+0xc24
-_instruction_offset equ $+0xc28
-_line_number	equ $+0xc2c
-_default_start_address equ $+0xc30
-___malloc_struct__ equ $+0xc34
-_assembly_p	equ $+0xc3a
-_prev_p	equ $+0xc3c
-_p		equ $+0xc3e
-_change_number	equ $+0xc40
-_g		equ $+0xc42
-_undefined	equ $+0xc44
-_change	equ $+0xc46
-_first_time	equ $+0xc48
-_output_fd	equ $+0xc4a
-_assembler_step	equ $+0xc4c
-_listing_filename equ $+0xc4e
-_output_filename equ $+0xc50
-_instruction_register equ $+0xc52
-_instruction_offset_width equ $+0xc53
-_instruction_addressing equ $+0xc54
-@$617		equ $+0xc55
-@$618		equ $+0xc57
-@$619		equ $+0xd21
-@$620		equ $+0xf79
-@$621		equ $+0xf7b
-@$622		equ $+0xf89
-_bss_end	equ $+0xf8a
+_line_buf	resb 0x200
+_assembly_stack resb 0x200
+_message_buf	resb 0x200
+_emit_buf	resb 0x200
+_part		resb 0x100
+_generated	resb 8
+_name		resb 0x100
+_expr_name	resb 0x100
+_global_label	resb 0x100
+_instruction_value resb 4
+_warnings	resb 4
+_label_list	resb 4
+_last_label	resb 4
+_errors		resb 4
+_bytes		resb 4
+_start_address	resb 4
+_address	resb 4
+_instruction_offset resb 4
+_line_number	resb 4
+_default_start_address resb 4
+___malloc_struct__ resb 6
+_assembly_p	resb 2
+_prev_p		resb 2
+_p		resb 2
+_change_number	resb 2
+_g		resb 2
+_undefined	resb 2
+_change		resb 2
+_first_time	resb 2
+_output_fd	resb 2
+_assembler_step	resb 2
+_listing_filename resb 2
+_output_filename resb 2
+_instruction_register resb 1
+_instruction_offset_width resb 1
+_instruction_addressing resb 1
+@$617		resb 2  ; static struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
+@$618		resb 202  ; Continuation of path above.
+@$619		resb 600  ; static struct match_stack_item { ... } match_stack[CONFIG_MATCH_STACK_DEPTH];
+@$620		resb 2
+@$621		resb 2  ; High word of segment_value.
+		resb 12  ; static char buf[sizeof(u) * 3 + 1];
+@$622		resb 1  ; Last byte of buf above.
 
 ; --- Uninitialized .bss used by _start.
-___section_startup_ubss equ _bss_end
+___section_startup_ubss:
 
-argv_bytes	equ ___section_startup_ubss
-argv_pointers	equ argv_bytes+270
-_ubss_end	equ argv_pointers+130
+argv_bytes	resb 270
+argv_pointers	resb 130
 
-___section_end	equ _ubss_end
+___section_ubss_end:
 
-___initial_sp	equ ___section_startup_text+((___section_end-___section_startup_text+___stack_size+1)&~1)  ; Word-align stack for speed.
+___initial_sp	equ ___section_startup_text+((___section_ubss_end-___section_bss+___section_nobss_end-___section_startup_text+___stack_size+1)&~1)  ; Word-align stack for speed.
 ___sd_top__	equ 0x10+((___initial_sp-___section_startup_text+0xf)>>4)  ; Round top of stack to next para, use para (16-byte).
