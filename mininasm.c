@@ -435,7 +435,8 @@ static char has_undefined;
 
 extern const char instruction_set[];
 
-static const MY_STRING_WITHOUT_NUL(register_names, "ALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI");
+static const MY_STRING_WITHOUT_NUL(register_names, "CSDSESSSALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI");
+#define GP_REGISTER_NAMES (register_names + 8)  /* Skip over segment register names. */
 
 /* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf message_bbb;
@@ -847,13 +848,15 @@ static const char *match_label_prefix(const char *p) {
     } else if (isalpha(cd[0])) {
         if (isalpha(cd[1] = p[1])) {
             if (!islabel(p[2])) {  /* 2-character label. */
-                /* !! TODO(pts): Size optimization: concatenate register_names: "DBDWDDCSDSESSS" "..."; also compare them as short (int16_t). */
-                cd[0] &= ~32;
-                cd[1] &= ~32;
+                if (CONFIG_CPU_UNALIGN && sizeof(short) == 2) {
+                    *(short*)cd &= ~0x2020;
+                } else {
+                   cd[0] &= ~32;
+                   cd[1] &= ~32;
+                }
                 for (p2 = (char*)register_names; p2 != register_names + STRING_SIZE_WITHOUT_NUL(register_names); p2 += 2) {
                     if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
                 }
-                if ((cd[1] == 'S') && (cd[0] == 'S' || cd[0] - 'C' + 0U <= 'E' - 'C' + 0U)) return NULL;  /* Segment register: CS, DS, ES or SS. */
             }
             if (is_colonless_instruction(p)) return NULL;
             /* TODO(pts): Is it faster or smaller to add these to a binary tree? */
@@ -1270,13 +1273,20 @@ static char is_define_value(const char *p) {
  */
 static const char *match_register(const char *p, int width, unsigned char *reg) {
     const char *r0, *r, *r2;
+    char puc[2];
 
     p = avoid_spaces(p);
     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
         return NULL;
-    r0 = r = register_names + (width & 16);  /* Works for width == 8 and width == 16. */
+    r0 = r = GP_REGISTER_NAMES + (width & 16);  /* Works for width == 8 and width == 16. */
+    if (CONFIG_CPU_UNALIGN && sizeof(short) == 2) {
+        *(short*)puc = *(short*)p & ~0x2020;
+    } else {
+        puc[0] = p[0] & ~32;
+        puc[1] = p[1] & ~32;
+    }
     for (r2 = r + 16; r != r2; r += 2) {
-        if ((p[0] & ~32) == r[0] && (p[1] & ~32) == r[1]) {
+        if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? *(short*)puc == *(short*)r : (puc[0] == r[0] && puc[1] == r[1])) {
             *reg = (r - r0) >> 1;
             return p + 2;
         }
