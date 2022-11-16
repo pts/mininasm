@@ -132,17 +132,33 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #endif  /* __WATCOMC__ */
 #endif  /* !__SIZEOF_INT__ */
 
+#if !defined(CONFIG_CPU_X86)
+#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__) || defined(__386) || defined(__X86_64__) || defined(_M_I386) || defined(__X86__) || defined(__I86__) || defined(_M_I86) || defined(_M_I8086) || defined(_M_I286)
+#define CONFIG_CPU_X86 1
+#else
+#define CONFIG_CPU_X86 1
+#endif
+#endif
+
 #if !defined(CONFIG_CPU_UNALIGN)
-#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__)
+#if CONFIG_CPU_X86
 #define CONFIG_CPU_UNALIGN 1  /* CPU supports unaligned memory access. i386 and amd64 do, arm and arm64 don't.  */
 #else
 #define CONFIG_CPU_UNALIGN 0
 #endif
 #endif
 
+#if !defined(CONFIG_CPU_IDIV_TO_ZERO)
+#if CONFIG_CPU_X86
+#define CONFIG_CPU_IDIV_TO_ZERO 1  /* Signed integer division is guaranteed to round towards zero. */
+#else
+#define CONFIG_CPU_IDIV_TO_ZERO 0
+#endif
+#endif
+
 #if !defined(CONFIG_SHIFT_OK_31)
-#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__)
-#define CONFIG_SHIFT_OK_31 1  /* `x << 31' and `x >> 31' works in C. */
+#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__) || defined(__386) || defined(__X86_64__) || defined(_M_I386)  /* 32-bit or 64-bit x86. Doesn't match 16-bit. */
+#define CONFIG_SHIFT_OK_31 1  /* `x << 31' and `x >> 31' works in C for 16-bit and 32-bit value_t. */
 #else
 #define CONFIG_SHIFT_OK_31 0
 #endif
@@ -852,6 +868,27 @@ static const char *match_label_prefix(const char *p) {
     return p;
 }
 
+#if CONFIG_CPU_IDIV_TO_ZERO
+#define VALUE_DIV(a, b) ((value_t)(a) / (value_t)(b))
+#define VALUE_MOD(a, b) ((value_t)(a) % (value_t)(b))
+#else
+#define VALUE_DIV(a, b) value_div((a), (b))
+#define VALUE_MOD(a, b) value_mod((a), (b))
+/*
+ ** Deterministic signed division, rounds towards zero.
+ ** The result is undefined if b == 0. It's defined for a == int_min and b == -1.
+ */
+static value_t value_div(value_t a, value_t b) {
+    const char an = (a < 0);
+    const char bn = (b < 0);
+    const uvalue_t d = (uvalue_t)(an ? -a : a) / (uvalue_t)(bn ? -b : b);
+    return an == bn ? d : -d;
+}
+static value_t value_mod(value_t a, value_t b) {
+    return a - value_div(a, b) * b;
+}
+#endif
+
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
@@ -1048,24 +1085,38 @@ static const char *match_expression(const char *match_p) {
                     match_p++;
                     MATCH_CASEI_LEVEL_TO_VALUE2(10, 6);
                     value1 *= value2;
-                } else if (c == '/') {  /* Division operator. */
-                    match_p++;
+                } else if (c == '/' && match_p[1] == '/') {  /* Signed division operator. */
+                    match_p += 2;
                     MATCH_CASEI_LEVEL_TO_VALUE2(11, 6);
+                    c = 0;
+                    goto do_divide;
+                } else if (c == '/') {  /* Unsigned division operator. */
+                    match_p++;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
+                    c = 1;
+                  do_divide:
                     if (GET_UVALUE(value2) == 0) {
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             MESSAGE(1, "division by zero");
                         value2 = 1;
                     }
-                    value1 = GET_UVALUE(value1) / GET_UVALUE(value2);
-                } else if (c == '%') {  /* Modulo operator. */
+                    value1 = c ? (value_t)(GET_UVALUE(value1) / GET_UVALUE(value2)) : VALUE_DIV(GET_VALUE(value1), GET_VALUE(value2));
+                } else if (c == '%' && match_p[1] == '%' && !islabel(match_p[2])) {  /* Signed modulo operator. We check for islabel(...) to make it similar to NASM, which uses %%... syntax for multiine macros. */
+                    match_p += 2;
+                    MATCH_CASEI_LEVEL_TO_VALUE2(13, 6);
+                    c = 0;
+                    goto do_modulo;
+                } else if (c == '%' && !islabel(match_p[1])) {  /* Unsigned modulo operator. We check for islabel(...) to make it similar to NASM, which uses %%... syntax for multiine macros. */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(12, 6);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(14, 6);
+                    c = 1;
+                  do_modulo:
                     if (GET_UVALUE(value2) == 0) {
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             MESSAGE(1, "modulo by zero");
                         value2 = 1;
                     }
-                    value1 = GET_UVALUE(value1) % GET_UVALUE(value2);
+                    value1 = c ? (value_t)(GET_UVALUE(value1) % GET_UVALUE(value2)) : VALUE_MOD(GET_VALUE(value1), GET_VALUE(value2));
                 } else {
                     break;
                 }
@@ -1076,11 +1127,11 @@ static const char *match_expression(const char *match_p) {
                 match_p = avoid_spaces(match_p);
                 if ((c = match_p[0]) == '+') {  /* Add operator. */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(13, 5);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(15, 5);
                     value1 += value2;
                 } else if (c == '-') {  /* Subtract operator. */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(14, 5);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(16, 5);
                     value1 -= value2;
                 } else {
                     break;
@@ -1093,10 +1144,10 @@ static const char *match_expression(const char *match_p) {
                 if (((c = match_p[0]) == '<' && match_p[1] == '<') || (c == '>' && match_p[1] == '>')) { /* Shift to left */
                     match_p += 2;
                     if (c == '<') {
-                        MATCH_CASEI_LEVEL_TO_VALUE2(15, 4);
+                        MATCH_CASEI_LEVEL_TO_VALUE2(17, 4);
                         c = 1;
                     } else {
-                        MATCH_CASEI_LEVEL_TO_VALUE2(16, 4);
+                        MATCH_CASEI_LEVEL_TO_VALUE2(18, 4);
                         c = 0;
                     }
                     if (GET_UVALUE(value2) > 31) {
@@ -1116,7 +1167,7 @@ static const char *match_expression(const char *match_p) {
                          * amount, it would emit 1. Thus we forcibly emit 0 here.
                          */
 #if CONFIG_SHIFT_SIGNED
-                        value1 = c ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to CONFIG_VALUE_BITS. */
+                        value1 = c ? 0 : GET_VALUE(value1) >> 15;  /* Sign-extend value1 to CONFIG_VALUE_BITS == sizeof(value_t) * 8 == 16. */
 #else
                         value1 = 0;
 #endif
@@ -1138,7 +1189,7 @@ static const char *match_expression(const char *match_p) {
                 match_p = avoid_spaces(match_p);
                 if (match_p[0] == '&') {    /* Binary AND */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(17, 3);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(19, 3);
                     value1 &= value2;
                 } else {
                     break;
@@ -1150,7 +1201,7 @@ static const char *match_expression(const char *match_p) {
                 match_p = avoid_spaces(match_p);
                 if (match_p[0] == '^') {    /* Binary XOR */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(18, 2);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(20, 2);
                     value1 ^= value2;
                 } else {
                     break;
@@ -1162,7 +1213,7 @@ static const char *match_expression(const char *match_p) {
                 match_p = avoid_spaces(match_p);
                 if (match_p[0] == '|') {    /* Binary OR */
                     match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(19, 1);
+                    MATCH_CASEI_LEVEL_TO_VALUE2(21, 1);
                     value1 |= value2;
                 } else {
                     break;
@@ -2606,7 +2657,6 @@ static void do_assembly(const char *input_filename) {
             }
             if (avoid_level != 0 && level >= avoid_level)
                 goto after_line;
-            /* !! TODO(pts): // and %% for signed division and modulo. */
             /* !! TODO(pts): Add operators < > <= >=  == = != <> && || ^^ for `%IF' only. NASM doesn't do short-circuit. */
             p = match_expression(p);
             if (p == NULL) {

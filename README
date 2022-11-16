@@ -39,6 +39,9 @@ following improvements:
   calls), it never crashes because of large input.
 * It has some new (NASM-compatible) features such as 'multicharacter' string
   literals, the unary `~' operator, 0o... octal integer literal syntax.
+* The `>>', `/', `//', `%' and `%%' operators have a deterministic behavior
+  (matching NASM on the i386) no matter what the host system architecture is.
+  This is also an improvement over NASM.
 
 Differences between mininasm and NASM:
 
