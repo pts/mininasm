@@ -1327,10 +1327,11 @@ static uvalue_t MY_FAR *wide_instr_read_at;
  ** Must be called with strictly increasing fpos values. Thus calling it with
  ** the same fpos multiple times is not allowed.
  */
-static void add_wide_instr_in_pass_1(void) {
+static void add_wide_instr_in_pass_1(char do_add_1) {
     /* TODO(pts): Optimize this function for size in __DOSMC__. */
-    const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
+    uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
     struct wide_instr_block MY_FAR *new_block;
+    if (do_add_1) ++fpos;
 #if DEBUG
     if (wide_instr_add_at != NULL && wide_instr_add_at[-1] >= fpos) {
         DEBUG1("oops: added non-strictly-increasing wide instruction at fpos=0x%x\r\n", (unsigned)fpos);
@@ -1360,17 +1361,18 @@ static void add_wide_instr_in_pass_1(void) {
  ** Must be called with increasing fpos values. Thus calling it with the same
  ** fpos multiple times is OK.
  */
-static char is_wide_instr_in_pass_2(void) {
+static char is_wide_instr_in_pass_2(char do_add_1) {
     /* TODO(pts): Optimize this function for size in __DOSMC__. */
-    const uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
+    uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
     uvalue_t MY_FAR *vp;
     char is_next_block;
+    if (do_add_1) ++fpos;
     if (0) DEBUG2("guess from fpos=0x%x rp=%p\r\n", (unsigned)fpos, (void*)wide_instr_read_at);
     if (wide_instr_read_at) {
         if (fpos == *wide_instr_read_at) {  /* Called again with the same fpos as last time. */
             return 1;
         } else if (fpos <= *wide_instr_read_at) { bad_instr_order:
-            DEBUG2("oops: bad instr order fpos=0x%x added=0x%x\r\n", (unsigned)fpos, (unsigned)*wide_instr_read_at);
+            DEBUG2("oops: bad instr order fpos=0x%x added=0x%x\r\n", (unsigned)fpos, wide_instr_read_at ? (unsigned)*wide_instr_read_at : 0);
             MESSAGE(1, "oops: bad instr order");
             goto return_0;
         }
@@ -1475,11 +1477,11 @@ static const char *match_addressing(const char *p, int width) {
                         if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
                            if (assembler_pass == 1) {
                                if (has_undefined) {
-                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1() should be called later if this match is taken. */
+                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1(...) should be called later if this match is taken. */
                                    goto set_16bit_offset;
                                }
                            } else {
-                               if (is_wide_instr_in_pass_2()) goto force_16bit_offset;
+                               if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
                            }
                         }
                         if (instruction_offset != 0 || reg == 5 /* BP only */) {
@@ -1708,10 +1710,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                             goto mismatch;
                         }
                     } else {
-                        ++current_address;
-                        dw = is_wide_instr_in_pass_2();
-                        --current_address;
-                       if (dw) goto mismatch;
+                        if (is_wide_instr_in_pass_2(1)) goto mismatch;
                     }
                 }
                 if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
@@ -1752,10 +1751,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                             do_add_wide_imm8 = 1;
                         }
                     } else {
-                        ++current_address;  /* TODO(pts): Optimize this and other calls for __DOSMC__. */
-                        dw = is_wide_instr_in_pass_2();
-                        --current_address;
-                        if (dw) has_undefined = 1;
+                        if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
                     }
                     if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39and 0.99.06, we match it with -O0. */
                         /* We assume that the pattern is "m,s". */
@@ -1773,10 +1769,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     if (!has_undefined) goto detect_si8_size;
                     do_add_wide_imm8 = 1;
                 } else {
-                    ++current_address;  /* TODO(pts): Optimize this and other calls for __DOSMC__. */
-                    dw = is_wide_instr_in_pass_2();
-                    --current_address;
-                    if (!dw) goto detect_si8_size;
+                    if (!is_wide_instr_in_pass_2(1)) goto detect_si8_size;
                 }
             } else {
               detect_si8_size:
@@ -1825,12 +1818,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
      ** Instruction properly matched, now generate binary
      */
     if (instruction_offset_width == 3) {
-        add_wide_instr_in_pass_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
+        add_wide_instr_in_pass_1(0);  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
     }
     if (do_add_wide_imm8) {
-        ++current_address;  /* So that it doesn't conflict with the wideness of instruction_offset. */
-        add_wide_instr_in_pass_1();  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. */
-        --current_address;
+        add_wide_instr_in_pass_1(1);  /* Call it only once per encode. Calling it once per match would add extra values in case of mismatch. 1 so that it doesn't conflict with the wideness of instruction_offset. */
     }
     if (do_opt_lea_now) {
         instruction_addressing_segment = 0;  /* Ignore the segment part of the effective address, it doesn't make a difference for `lea'. */
