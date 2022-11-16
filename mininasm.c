@@ -2165,11 +2165,11 @@ static void process_instruction(const char *p) {
                 MESSAGE1STR(1, "Unknown instruction '%s'", instr_name);
                 goto after_matches;
             }
-            if (casematch(instr_name, p2)) break;  /* Match actual instruction mnemonic name (instr_name) against candidate from instruction_set (p2). */
-            while (*p2++ != '\0') {}  /* Skip over instruction name. !! TODO(pts): Remove duplication. */
+            p3 = p2;
+            while (*p2++ != '\0') {}  /* Skip over instruction name. */
+            if (casematch(instr_name, p3)) break;  /* Match actual instruction mnemonic name (instr_name) against candidate from instruction_set (p2). */
             while (*p2++ != '\0') {}  /* Skip over pattern_and_encode. */
         }
-        while (*p2++ != '\0') {}  /* Skip over instruction name. */
         p3 = p;
         p = match(p, p2);
         if (p == NULL) {
