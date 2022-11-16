@@ -1770,23 +1770,19 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 }
             } else if (opt_level == 1) {
                 if (assembler_pass == 1) {
-                    if (has_undefined) {
-                        do_add_wide_imm8 = 1;
-                        goto done_si8_size;
-                    }
+                    if (!has_undefined) goto detect_si8_size;
+                    do_add_wide_imm8 = 1;
                 } else {
                     ++current_address;  /* TODO(pts): Optimize this and other calls for __DOSMC__. */
                     dw = is_wide_instr_in_pass_2();
                     --current_address;
-                    if (dw) goto done_si8_size;
+                    if (!dw) goto detect_si8_size;
                 }
-                goto detect_si8_size;
             } else {
               detect_si8_size:
                 /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
                 is_imm_8bit = !(/* !has_undefined && */ (((unsigned)instruction_value + 0x80) & 0xff00U));
             }
-          done_si8_size: ;
         } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "j,t". */
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
