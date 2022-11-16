@@ -1681,8 +1681,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 if (opt_level == 0) goto do_nasm_o0_immediate_compat;
             } else if (opt_level == 0) {
                 /* Don't optimize this with -O0 (because NASM doesn't do it either). */
-                /* !!! Add parsing of STRICT, e.g. to avoid nasm -D'byte=strict byte' -D'word=strict word' -O9 */
-                /* !!! Optimize this, remove duplicates with opt_level == 1. */
+                /* !! TODO(pts): Add parsing of STRICT, e.g. to avoid nasm -D'byte=strict byte' -D'word=strict word' -O9 */
+                /* !! TODO(pts): Optimize this, remove duplicates with opt_level == 1. */
               do_nasm_o0_immediate_compat:
                 if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
                     if (assembler_pass == 1) {
@@ -1838,7 +1838,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 c ^= 2;
             } else if ((unsigned char)(c - 0x70) <= 0xfU && qualifier == 0 && (((uvalue_t)instruction_value + 0x80) & ~0xffU) && !has_undefined
                       ) {  /* Generate 5-byte `near' version of 8-bit relative conditional jump with an inverse. */
-                /* !!! Also do this with opt_level == 1, also call add_wide_instr_in_pass_1(). */
                 emit_byte(c ^ 1);  /* Conditional jump with negated condition. */
                 emit_byte(3);  /* Skip next 3 bytes if negated condition is true. */
                 c = 0xe9;  /* `jmp near', 2 bytes will follow for encode "b". */
@@ -2473,6 +2472,7 @@ static void do_assembly(const char *input_filename) {
     uvalue_t avoid_level;
     value_t times;
     value_t line_address;
+    int discarded_after_read;  /* Number of bytes discarded in an incomplete line since the last file read(...) at line_rend, i.e. the end of the buffer (line_buf). */
     char include;  /* 0, 1 or 2. */
     int got;
     int input_fd;
@@ -2509,23 +2509,26 @@ static void do_assembly(const char *input_filename) {
     global_label[0] = '\0';
     global_label_end = global_label;
     linep = line_rend = line_buf;
+    discarded_after_read = 0;
     for (;;) {  /* Read and process next line from input. */
         if (GET_UVALUE(++line_number) == 0) --line_number;  /* Cappped at max uvalue_t. */
         line = linep;
        find_eol:
         /* linep can be used as scratch from now on */
         for (p = line; p != line_rend && *p != '\n'; ++p) {}
-        if (p == line_rend) {
-            if (line != line_buf) {
+        if (p == line_rend) {  /* No newline in the remaining unprocessed bytes, so read more bytes from the file. */
+            if (line != line_buf) {  /* Move the remaining unprocessed bytes (line...line_rend) to the beginning of the buffer (line_buf). */
                 if (line_rend - line >= MAX_SIZE) goto line_too_long;
                 /*if (line_rend - line > (int)(sizeof(line_buf) - (sizeof(line_buf) >> 2))) goto line_too_long;*/  /* Too much copy per line (thus too slow). This won't be triggered, because the `line_rend - line >= MAX_SIZE' check above triggers first. */
                 for (liner = line_buf, p = line; p != line_rend; *liner++ = *p++) {}
                 p = line_rend = liner;
                 line = line_buf;
             }
-           read_more:
+          read_more:
+            discarded_after_read = 0;  /* This must be after `read_more' for correct offset calculations. */
             /* Now: p == line_rend. */
             if ((got = line_buf + sizeof(line_buf) - line_rend) <= 0) goto line_too_long;
+            if (0) DEBUG0("READ\r\n");
             if ((got = read(input_fd, line_rend, got)) < 0) {
                 MESSAGE(1, "error reading assembly file");
                 goto close_return;
@@ -2554,19 +2557,29 @@ static void do_assembly(const char *input_filename) {
                     for (liner = (char*)p; p != line_rend; *(char*)p++ = ' ') {
                         if (*p == '\n') goto newline;
                     }
-                    for (; liner != line && liner[-1] != '\n' && isspace(liner[-1]); --liner) {}  /* Remove whitespace preceding the comment. */
-                    *liner = ';';  /* Process this comment again later. */
-                    p = line_rend = liner + 1;
-                    if (linep == line) { /* Reached end of the read buffer before the end of the single-line comment. Read more bytes of this comment. */
+                    /* Now: p == line_rend. We have comment which hasn't been finished in the remaining buffer. */
+                    for (; liner != line && liner[-1] != '\n' && isspace(liner[-1]); --liner) {}  /* Find start of whitespace preceding the comment. */
+                    *liner++ = ';';  /* Process this comment again later. */
+                    discarded_after_read = line_rend - liner;  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
+                    if (0) DEBUG1("DISCARD_COMMENT %d\r\n", (int)(line_rend - liner));
+                    p = line_rend = liner;
+                    if (linep == line) { /* Reached end of the read buffer before the end of the single-line comment in the upcoming line. Read more bytes of this comment. */
                         if (line_rend - linep >= MAX_SIZE) goto line_too_long;
                         goto read_more;
                     }
-                } else if (pc == '\n') { newline:
+                    goto find_eol;  /* Superfluous. */
+                } else if (pc == '\n') {
+                  newline:
                     linep = (char*)++p;
                 } else if (pc == '\0' || isspace(pc)) {
                     *(char*)p++ = ' ';
                     for (liner = (char*)p; liner != line_rend && ((pc = *liner) == '\0' || (pc != '\n' && isspace(pc))); *liner++ = ' ') {}
-                    if (liner == line_rend) line_rend = (char*)p;  /* Compress trailing whitespace bytes to a single space at the end of the buffer, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
+                    if (liner == line_rend) {
+                        discarded_after_read = line_rend - p;  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
+                        if (0) DEBUG1("DISCARD_WHITESPACE %d\r\n", (int)(line_rend - p));
+                        line_rend = (char*)p;  /* Compress trailing whitespace bytes at the end of the buffer to a single space, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
+                        goto find_eol;  /* Superfluous. */
+                    }
                 } else {
                     ++p;
                 }
@@ -2836,7 +2849,8 @@ static void do_assembly(const char *input_filename) {
             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
         }
         if (include == 1) {
-            if (linep != NULL && (aip->file_offset = lseek(input_fd, linep - line_rend, SEEK_CUR)) < 0) {  /* !!! TODO(pts): Seek offset is wrong. */
+            if (0) DEBUG1("INCLUDE %s\r\n", p3);  /* Not yet NUL-terminated early. */
+            if (linep != NULL && (aip->file_offset = lseek(input_fd, (linep - line_rend) - discarded_after_read, SEEK_CUR)) < 0) {  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
                 MESSAGE(1, "Cannot seek in source file");
                 goto close_return;
             }

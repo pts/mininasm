@@ -103,6 +103,9 @@ Differences between mininasm and NASM:
 
 * The optional `offset' and `size' arguments of `incbin' are not supported.
 
+* If the input file is at least 2 GiB long, and it contains an `%include',
+  then it may get processed incorrectly.
+
 Similarities with NASM:
 
 * Local labels are supported, and should start with period.
