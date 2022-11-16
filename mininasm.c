@@ -162,7 +162,7 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 
 #ifdef __DOSMC__
 #if CONFIG_BALANCED
-__LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert. */
+__LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert. */  /* !! TODO(pts): Check that this is still enough. */
 #endif
 __LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
@@ -2133,29 +2133,6 @@ static void reset_address(void) {
 }
 
 /*
- ** Include a binary file
- */
-static void incbin(const char *fname) {
-    int input_fd;
-    int size;
-
-    if ((input_fd = open2(fname, O_RDONLY | O_BINARY)) < 0) {
-        MESSAGE1STR(1, "Error: Cannot open '%s' for input", fname);
-        return;
-    }
-
-    message_flush(NULL);  /* Because we reuse message_buf below. */
-    g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
-    while ((size = read(input_fd, message_buf, sizeof(message_buf))) > 0) {
-        emit_bytes(message_buf, size);
-    }
-    if (size < 0) {
-        MESSAGE1STR(1, "Error: Error reading from '%s'", fname);
-    }
-    close(input_fd);
-}
-
-/*
  ** Creates label named `global_label' with value `instruction_value'.
  */
 static void create_label(void) {
@@ -2474,10 +2451,13 @@ static void do_assembly(const char *input_filename) {
     uvalue_t avoid_level;
     value_t times;
     value_t line_address;
+    value_t incbin_offset;
+    value_t incbin_size;
     int discarded_after_read;  /* Number of bytes discarded in an incomplete line since the last file read(...) at line_rend, i.e. the end of the buffer (line_buf). */
     char include;  /* 0, 1 or 2. */
     int got;
     int input_fd;
+    int incbin_fd;
     char pc;
     char is_ifndef;
     char is_bss;
@@ -2768,8 +2748,43 @@ static void do_assembly(const char *input_filename) {
             }
             for (p3 = p; *p != '\0' && *p != pc; ++p) {}
             if (*p == '\0') goto missing_quotes_in_incbin;
-            if (!check_end(p + 1)) goto after_line;  /* !! TODO(pts): Add optional offset and size arguments. */
             liner = (char*)p;
+            incbin_offset = 0;
+            incbin_size = -1;  /* Unlimited. */
+            if (*(p = avoid_spaces(p + 1)) == ',') {
+                p = match_expression(p + 1);
+                if (p == NULL) {
+                    MESSAGE(1, "Bad expression");
+                    goto after_line;
+                } else if (has_undefined) {
+                    MESSAGE(1, "Cannot use undefined labels");
+                    goto after_line;
+                } else if (instruction_value < 0) {
+                    MESSAGE(1, "INCBIN value is negative");
+                    goto after_line;
+                } else {
+                    incbin_offset = instruction_value;
+                    if (*(p = avoid_spaces(p)) == ',') {
+                        p = match_expression(p + 1);
+                        if (p == NULL) {
+                            MESSAGE(1, "Bad expression");
+                            goto after_line;
+                        } else if (has_undefined) {
+                            MESSAGE(1, "Cannot use undefined labels");
+                            goto after_line;
+                        } else if (!check_end(p)) {
+                            goto after_line;
+                        } else if (instruction_value < 0) {
+                            MESSAGE(1, "INCBIN value is negative");
+                            goto after_line;
+                        } else {
+                            incbin_size = instruction_value;
+                        }
+                    } else if (!check_end(p)) {
+                        goto after_line;
+                    }
+                }
+            }
             include = 2;
         } else if (casematch(instr_name, "ORG")) {
             p = match_expression(p);
@@ -2877,7 +2892,7 @@ static void do_assembly(const char *input_filename) {
             /* TODO(pts): Keep the original line with the original comment, if possible. This is complicated and needs more memory. */
             bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
         }
-        if (include == 1) {
+        if (include == 1) {  /* %INCLUDE. */
             if (0) DEBUG1("INCLUDE %s\r\n", p3);  /* Not yet NUL-terminated early. */
             if (linep != NULL && (aip->file_offset = lseek(input_fd, (linep - line_rend) - discarded_after_read, SEEK_CUR)) < 0) {  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
                 MESSAGE(1, "Cannot seek in source file");
@@ -2890,9 +2905,28 @@ static void do_assembly(const char *input_filename) {
             *liner = '\0';
             input_filename = p3;
             goto do_assembly_push;
-        } else if (include == 2) {
-            *liner = '\0';  /* OK, we've already written the line to listing_fd. */
-            incbin(p3);
+        } else if (include == 2) {  /* INCBIN. */
+            *liner = '\0';  /* NUL-terminate the filename in p3. It's OK, we've already written the line to listing_fd. */
+            if ((incbin_fd = open2(p3, O_RDONLY | O_BINARY)) < 0) {
+                MESSAGE1STR(1, "Error: Cannot open '%s' for input", p3);
+            } else {
+                if (incbin_offset != 0 && lseek(incbin_fd, incbin_offset, SEEK_SET) != incbin_offset) {
+                    MESSAGE1STR(1, "Cannot seek in INCBIN file: ", p3);
+                } else {
+                    message_flush(NULL);  /* Because we reuse message_buf below. */
+                    g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
+                    /* Condition below is good even if incbin_size == -1 (unlimited). */
+                    while (incbin_size != 0) {
+                        if ((got = read(incbin_fd, message_buf, (uvalue_t)incbin_size < sizeof(message_buf) ? (unsigned)incbin_size : sizeof(message_buf))) <= 0) {
+                            if (got < 0) MESSAGE1STR(1, "Error: Error reading from '%s'", p3);
+                            break;
+                        }
+                        emit_bytes(message_buf, got);
+                        if (incbin_size != -1) incbin_size -= got;
+                    }
+                }
+                close(incbin_fd);
+            }
         }
     }
     if (level != 1) {

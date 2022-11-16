@@ -106,8 +106,6 @@ Differences between mininasm and NASM:
   In mininasm it's not possible to switch back to `section .text', but
   in NASM it is.
 
-* The optional `offset' and `size' arguments of `incbin' are not supported.
-
 * If the input file is at least 2 GiB long, and it contains an `%include',
   then it may get processed incorrectly.
 
