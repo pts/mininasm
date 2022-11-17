@@ -75,33 +75,6 @@ void bbwrite1(struct bbprintf_buf *bbb, int c) {
 #define PAD_RIGHT 1
 #define PAD_ZERO 2
 
-static int prints(struct bbprintf_buf *bbb, const char *string, int width, int pad) {
-  register int pc = 0, padchar = ' ';
-  if (width > 0) {
-    register int len = 0;
-    register const char *ptr;
-    for (ptr = string; *ptr; ++ptr) ++len;
-    if (len >= width) width = 0;
-    else width -= len;
-    if (pad & PAD_ZERO) padchar = '0';
-  }
-  if (!(pad & PAD_RIGHT)) {
-    for (; width > 0; --width) {
-      bbwrite1(bbb, padchar);
-      ++pc;
-    }
-  }
-  for (; *string ; ++string) {
-    bbwrite1(bbb, *string);
-    ++pc;
-  }
-  for (; width > 0; --width) {
-    bbwrite1(bbb, padchar);
-    ++pc;
-  }
-  return pc;
-}
-
 /* the following should be enough for 32 bit int */
 #define PRINT_BUF_LEN 12
 
@@ -138,7 +111,30 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         s = va_arg(args, char*);
         if (!s) s = (char*)"(null)";
        do_print_s:
-        pc += prints(bbb, s, width, pad);
+        /* pc += prints(bbb, s, width, pad); */
+        c = ' ';  /* padchar. */
+        if (width > 0) {
+          register int len = 0;
+          register const char *ptr;
+          for (ptr = s; *ptr; ++ptr) ++len;
+          if (len >= width) width = 0;
+          else width -= len;
+          if (pad & PAD_ZERO) c = '0';
+        }
+        if (!(pad & PAD_RIGHT)) {
+          for (; width > 0; --width) {
+            bbwrite1(bbb, c);
+            ++pc;
+          }
+        }
+        for (; *s ; ++s) {
+          bbwrite1(bbb, *s);
+          ++pc;
+        }
+        for (; width > 0; --width) {
+          bbwrite1(bbb, c);
+          ++pc;
+        }
       } else if (c == 'd' || c == 'u' || (c | 32) == 'x' ) {  /* Assumes ASCII. */
         /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
         /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
@@ -165,7 +161,6 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
             *--s = t + '0';
             u /= b;
           }
-
           if (neg) {
             if (width && (pad & PAD_ZERO)) {
               bbwrite1(bbb, '-');
