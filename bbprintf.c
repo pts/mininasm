@@ -173,25 +173,15 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
       if (*format == 's') {
         register char *s = va_arg(args, char*);
         pc += prints(bbb, s?s:"(null)", width, pad);
-        continue;
-      }
-      if (*format == 'd') {
+      } else if (*format == 'd') {
         pc += printi(bbb, va_arg(args, int), 10, 1, width, pad, 'a');
-        continue;
-      }
-      if (*format == 'x') {
+      } else if (*format == 'x') {
         pc += printi(bbb, va_arg(args, int), 16, 0, width, pad, 'a');
-        continue;
-      }
-      if (*format == 'X') {
+      } else if (*format == 'X') {
         pc += printi(bbb, va_arg(args, int), 16, 0, width, pad, 'A');
-        continue;
-      }
-      if (*format == 'u') {
+      } else if (*format == 'u') {
         pc += printi(bbb, va_arg(args, int), 10, 0, width, pad, 'a');
-        continue;
-      }
-      if (*format == 'c') {
+      } else if (*format == 'c') {
         /* char are converted to int then pushed on the stack */
         scr[0] = (char)va_arg(args, int);
         if (width == 0) {  /* Print '\0'. */
@@ -201,7 +191,6 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
           scr[1] = '\0';
           pc += prints(bbb, scr, width, pad);
         }
-        continue;
       }
     } else { out:
       bbwrite1(bbb, *format);
