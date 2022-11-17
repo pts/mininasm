@@ -79,8 +79,8 @@ void bbwrite1(struct bbprintf_buf *bbb, int c) {
 #define PRINT_BUF_LEN 12
 
 static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
-  register int width, pad;
-  register int pc = 0;
+  register unsigned width, pad;
+  register unsigned pc = 0;
   char print_buf[PRINT_BUF_LEN];
   char c;
   unsigned u, b, letbase, t;
@@ -114,7 +114,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         /* pc += prints(bbb, s, width, pad); */
         c = ' ';  /* padchar. */
         if (width > 0) {
-          register int len = 0;
+          register unsigned len = 0;
           register const char *ptr;
           for (ptr = s; *ptr; ++ptr) ++len;
           if (len >= width) width = 0;
