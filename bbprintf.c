@@ -105,52 +105,14 @@ static int prints(struct bbprintf_buf *bbb, const char *string, int width, int p
 /* the following should be enough for 32 bit int */
 #define PRINT_BUF_LEN 12
 
-static int printi(struct bbprintf_buf *bbb, int i, int b, int sg, int width, int pad, int letbase) {
-  char print_buf[PRINT_BUF_LEN];
-  register char *s;
-  register int t, neg = 0, pc = 0;
-  register unsigned int u = i;
-
-  if (i == 0) {
-    print_buf[0] = '0';
-    print_buf[1] = '\0';
-    return prints(bbb, print_buf, width, pad);
-  }
-
-  if (sg && b == 10 && i < 0) {
-    neg = 1;
-    u = -i;
-  }
-
-  s = print_buf + PRINT_BUF_LEN-1;
-  *s = '\0';
-
-  while (u) {
-    t = u % b;
-    if (t >= 10)
-      t += letbase - '0' - 10;
-    *--s = t + '0';
-    u /= b;
-  }
-
-  if (neg) {
-    if (width &&(pad & PAD_ZERO)) {
-      bbwrite1(bbb, '-');
-      ++pc;
-      --width;
-    }
-    else {
-      *--s = '-';
-    }
-  }
-
-  return pc + prints(bbb, s, width, pad);
-}
-
 static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
   register int width, pad;
   register int pc = 0;
-  char scr[2];
+  char print_buf[PRINT_BUF_LEN];
+  char c;
+  unsigned u, b, letbase, t;
+  /*register*/ char *s;
+  char neg;
 
   for (; *format != 0; ++format) {
     if (*format == '%') {
@@ -170,26 +132,58 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         width *= 10;
         width += *format - '0';
       }
-      if (*format == 's') {
+      c = *format;
+      if (c == 's') {
         register char *s = va_arg(args, char*);
         pc += prints(bbb, s?s:"(null)", width, pad);
-      } else if (*format == 'd') {
-        pc += printi(bbb, va_arg(args, int), 10, 1, width, pad, 'a');
-      } else if (*format == 'x') {
-        pc += printi(bbb, va_arg(args, int), 16, 0, width, pad, 'a');
-      } else if (*format == 'X') {
-        pc += printi(bbb, va_arg(args, int), 16, 0, width, pad, 'A');
-      } else if (*format == 'u') {
-        pc += printi(bbb, va_arg(args, int), 10, 0, width, pad, 'a');
-      } else if (*format == 'c') {
+      } else if (c == 'd' || c == 'u' || (c | 32) == 'x' ) {  /* Assumes ASCII. */
+        /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
+        /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
+        u = (unsigned)va_arg(args, int);
+        if (u == 0) {
+          print_buf[0] = '0';
+          print_buf[1] = '\0';
+          /* Merging this call with the prints(... print_buf, ...) call would make the program 17 bytes larger in __DOSMC__. */
+          pc += prints(bbb, print_buf, width, pad);
+        } else {
+          b = ((c | 32) == 'x') ? 16 : 10;
+          letbase = ((c == 'X') ? 'A' : 'a') - '0' - 10;
+          if (c == 'd' && b == 10 && (int)u < 0) {
+            neg = 1;
+            u = -u;
+          } else {
+            neg = 0;
+          }
+          s = print_buf + PRINT_BUF_LEN - 1;
+          *s = '\0';
+          while (u) {
+            t = u % b;
+            if (t >= 10) t += letbase;
+            *--s = t + '0';
+            u /= b;
+          }
+
+          if (neg) {
+            if (width && (pad & PAD_ZERO)) {
+              bbwrite1(bbb, '-');
+              ++pc;
+              --width;
+            } else {
+              *--s = '-';
+            }
+          }
+          /* Merging this call with previous prints(...) call would make the program 17 bytes larger in __DOSMC__. */
+          pc += prints(bbb, s, width, pad);
+        }
+      } else if (c == 'c') {
         /* char are converted to int then pushed on the stack */
-        scr[0] = (char)va_arg(args, int);
+        print_buf[0] = (char)va_arg(args, int);
         if (width == 0) {  /* Print '\0'. */
-          bbwrite1(bbb, scr[0]);
+          bbwrite1(bbb, print_buf[0]);
           ++pc;
         } else {
-          scr[1] = '\0';
-          pc += prints(bbb, scr, width, pad);
+          print_buf[1] = '\0';
+          pc += prints(bbb, print_buf, width, pad);
         }
       }
     } else { out:
