@@ -133,18 +133,21 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         width += *format - '0';
       }
       c = *format;
+      s = print_buf;
       if (c == 's') {
-        register char *s = va_arg(args, char*);
-        pc += prints(bbb, s?s:"(null)", width, pad);
+        s = va_arg(args, char*);
+        if (!s) s = (char*)"(null)";
+       do_print_s:
+        pc += prints(bbb, s, width, pad);
       } else if (c == 'd' || c == 'u' || (c | 32) == 'x' ) {  /* Assumes ASCII. */
         /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
         /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
         u = (unsigned)va_arg(args, int);
         if (u == 0) {
-          print_buf[0] = '0';
-          print_buf[1] = '\0';
-          /* Merging this call with the prints(... print_buf, ...) call would make the program 17 bytes larger in __DOSMC__. */
-          pc += prints(bbb, print_buf, width, pad);
+          s[0] = '0';
+         do_print_1:
+          s[1] = '\0';
+          goto do_print_s;
         } else {
           b = ((c | 32) == 'x') ? 16 : 10;
           letbase = ((c == 'X') ? 'A' : 'a') - '0' - 10;
@@ -172,18 +175,16 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
               *--s = '-';
             }
           }
-          /* Merging this call with previous prints(...) call would make the program 17 bytes larger in __DOSMC__. */
-          pc += prints(bbb, s, width, pad);
+          goto do_print_s;
         }
       } else if (c == 'c') {
         /* char are converted to int then pushed on the stack */
-        print_buf[0] = (char)va_arg(args, int);
+        s[0] = (char)va_arg(args, int);
         if (width == 0) {  /* Print '\0'. */
-          bbwrite1(bbb, print_buf[0]);
+          bbwrite1(bbb, s[0]);
           ++pc;
         } else {
-          print_buf[1] = '\0';
-          pc += prints(bbb, print_buf, width, pad);
+          goto do_print_1;
         }
       }
     } else { out:
