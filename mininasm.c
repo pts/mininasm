@@ -1943,8 +1943,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             c = instruction_value;
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
-            if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU))
-                MESSAGE(1, "near jump too long");  /* !! TODO(pts): Make this work in the default case of `jmp near' jumping across 32 KiB .. 64 KiB, it will just wrap around. */
+            /*if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x8000U) & ~0xffffU)) {}*/  /* This check is too strict, e.g. from offset 3 it's possible to jump to 0xffff, but this one reports an error, because of the >= 32 KiB difference. */
+            if (assembler_pass > 1 && (((uvalue_t)instruction_value + (uvalue_t)0x10000UL) & (uvalue_t)~0x1ffffUL)) {  /* This check is a bit lenient. */
+                MESSAGE(1, "near jump too long");
+            }
             c = instruction_value;
             instruction_offset = c >> 8;
             dw = 1;
