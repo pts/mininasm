@@ -187,7 +187,7 @@ __LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the
 #ifndef __MOV_AX_PSP_MCB__
 #error Missing __MOV_AX_PSP_MCB__, please compile .c file with dosmc directly.
 #endif
-struct {
+static struct {
   unsigned malloc_end_para;  /* Paragraph (segment) of end-of-heap. */
   char far *malloc_p;  /* First free byte on the heap. */
 } __malloc_struct__;
@@ -326,6 +326,7 @@ typedef unsigned long uvalue_t;
 typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 
 #define CONFIG_BBPRINTF_LONG IS_VALUE_LONG
+#define CONFIG_BBPRINTF_STATIC static
 #include "bbprintf.c"
 
 static uvalue_t line_number;

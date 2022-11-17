@@ -71,7 +71,7 @@ typedef va_list __gnuc_va_list;
 
 #include "bbprintf.h"
 
-void bbwrite1(struct bbprintf_buf *bbb, int c) {
+CONFIG_BBPRINTF_STATIC void bbwrite1(struct bbprintf_buf *bbb, int c) {
   while (bbb->p == bbb->buf_end) {
     bbb->flush(bbb);
   }
@@ -214,14 +214,14 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
   return pc;
 }
 
-int bbprintf(struct bbprintf_buf *bbb, const char *format, ...) {
+CONFIG_BBPRINTF_STATIC int bbprintf(struct bbprintf_buf *bbb, const char *format, ...) {
   va_list args;
   va_start(args, format);
   return print(bbb, format, args);
 }
 
 #if 0  /* Unused. */
-int bbsprintf(char *out, const char *format, ...) {
+CONFIG_BBPRINTF_STATIC int bbsprintf(char *out, const char *format, ...) {
   int result;
   struct bbprintf_buf bbb;
   va_list args;
@@ -235,7 +235,7 @@ int bbsprintf(char *out, const char *format, ...) {
 #endif
 
 #if 0  /* Unused. */
-int bbsnprintf(char *out, int size, const char *format, ...) {
+CONFIG_BBPRINTF_STATIC int bbsnprintf(char *out, int size, const char *format, ...) {
   int result;
   struct bbprintf_buf bbb;
   va_list args;
