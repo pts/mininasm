@@ -862,7 +862,7 @@ static const char *match_label_prefix(const char *p) {
             }
             if (is_colonless_instruction(p)) return NULL;
             /* TODO(pts): Is it faster or smaller to add these to a binary tree? */
-            if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "FAR!") || casematch(p, "BYTE!") || casematch(p, "WORD!") || casematch(p, "DWORD!")) return NULL;
+            if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "FAR!") || casematch(p, "BYTE!") || casematch(p, "WORD!") || casematch(p, "DWORD!") || casematch(p, "STRICT!")) return NULL;
         }
         goto goodc;
     }
@@ -1604,6 +1604,23 @@ static const char *check_end(const char *p) {
     return p;
 }
 
+char was_strict;
+
+static const char *avoid_strict(const char *p) {
+    const char *p1;
+    was_strict = 0;
+    p1 = p;
+    if (casematch(p, "STRICT!")) {
+        p = avoid_spaces(p + 6);
+        if (casematch(p, "BYTE!") || casematch(p, "WORD!") || casematch(p, "SHORT!") || casematch(p, "NEAR!")) {
+            was_strict = 1;
+        } else {
+            p = p1;
+        }
+    }
+    return p;
+}
+
 /*
  ** Search for a match with instruction
  */
@@ -1656,7 +1673,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     (p1 = match_addressing(p, 0)) != NULL &&  /* Width (0) doesn't matter, because it's not an register, but an effective address. */
                     p1[0] == ','
                    ) {
-                    p1 = avoid_spaces(p1 + 1);
+                    p1 = avoid_strict(avoid_spaces(p1 + 1));
                     if (!((dc == 'l' && casematch(p1, "BYTE!")) || (dc == 'm' && casematch(p1, "WORD!")))) goto mismatch;
                 } else {
                     goto mismatch;
@@ -1683,20 +1700,24 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (casematch(p, "WORD!")) p += 4;
             p = match_register(p, 16, &instruction_register);
         } else if (dc == 'h') {  /* 8-bit immediate. */
+            p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
         } else if (dc == 'i') {  /* 16-bit immediate. */
+            p = avoid_strict(p);
             if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 'g') {  /* 16-bit immediate, but don't match if immediate is signed 8-bit. Useful for -O1 and above. Typically used in pattern "AX,g". */
+        } else if (dc == 'g') {  /* 16-bit immediate, but don't match if immediate is signed 8-bit. Useful for -O1 and above. Typically used in arithmetic pattern "AX,g". */
+            p = avoid_strict(p);
             qualifier = 0;
             if (casematch(p, "WORD!")) {
                 p += 4;
                 qualifier = 1;
             }
             p = match_expression(p);
-            if (p != NULL && qualifier == 0 && opt_level > 1 && !(((unsigned)instruction_value + 0x80) & 0xff00U)) goto mismatch;  /* The next pattern (of the same byte size) will match. For NASM compatibility. */
+            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 && !(((unsigned)instruction_value + 0x80) & 0xff00U)) goto mismatch;  /* The next pattern (of the same byte size) will match. For NASM compatibility. */
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
+            p = avoid_strict(p);  /* STRICT doesn't matter for jumps, qualifiers are respected without it. */
             qualifier = 0;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             if (casematch(p, "SHORT!")) {
@@ -1724,11 +1745,13 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 }
             }
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
+            p = avoid_strict(p);  /* STRICT doesn't matter for jumps, qualifiers are respected without it. */
             if (casematch(p, "SHORT!")) goto mismatch;
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
             instruction_value -= current_address + 3;
         } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the pattern "m,s", m is a 16-bit register or 16-bit effective address.  */
+            p = avoid_strict(p);
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
                 p += 4;
@@ -1740,13 +1763,12 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
             if (p == NULL) {
             } else if (qualifier != 0) {
+                if (opt_level > 1 && !was_strict && qualifier != 1) goto detect_si8_size;  /* For -O9, ignore `word', but respect `strict word'. */
                 if (qualifier == 1) is_imm_8bit = 1;
                 if (opt_level == 0) goto do_nasm_o0_immediate_compat;
             } else if (opt_level == 0) {
                 /* Don't optimize this with -O0 (because NASM doesn't do it either). */
-                /* !! TODO(pts): Add parsing of STRICT, e.g. to avoid nasm -D'byte=strict byte' -D'word=strict word' -O9 */
-                /* !! TODO(pts): Optimize this, remove duplicates with opt_level == 1. */
-              do_nasm_o0_immediate_compat:
+              do_nasm_o0_immediate_compat:  /* If there are undefined labels in the immediate, then don't optimize the effective address. */  /* !! What about the other way aroud? */
                 if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
                     if (assembler_pass == 1) {
                         if (has_undefined) {
@@ -1756,7 +1778,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                         if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
                     }
                     if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
-                        /* We assume that the pattern is "m,s". */
+                        /* We assume that the pattern is "m,s" or "m,u". */
                         if (instruction_offset_width == 0) {
                             instruction_addressing |= 0x80;
                             instruction_offset_width = 2;
@@ -1778,15 +1800,24 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
                 is_imm_8bit = !(/* !has_undefined && */ (((unsigned)instruction_value + 0x80) & 0xff00U));
             }
-        } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "j,t". */
+        } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "l,t", corresponding to an 8-bit addressing. */
+            p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
             if (p != NULL && opt_level == 0) goto do_nasm_o0_immediate_compat;
         } else if (dc == 'u') {  /* 16-bit immediate, with the NASM -O0 compatibility. Used with pattern "m.u". */
+            p = avoid_strict(p);
             if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
             if (p != NULL && opt_level == 0) goto do_nasm_o0_immediate_compat;
+        } else if (dc == 'v') {  /* Optionally the token BYTE. */
+            p = avoid_strict(p);
+            if (casematch(p, "BYTE!")) p = avoid_spaces(p + 4);
+        } else if (dc == 'w') {  /* Optionally the token WORD. */
+            p = avoid_strict(p);
+            if (casematch(p, "WORD!")) p = avoid_spaces(p + 4);
         } else if (dc == 'f') {  /* FAR pointer. */
+            p = avoid_strict(p);
             if (casematch(p, "SHORT!") || casematch(p, "NEAR!") || casematch(p, "WORD!")) goto mismatch;
             p = match_expression(p);
             if (p == NULL)
@@ -3214,16 +3245,16 @@ const char instruction_set[] =
     "AAD\0" "i D5i" ALSO " D50A\0"
     "AAM\0" "i D4i" ALSO " D40A\0"
     "AAS\0" " 3F\0"
-    "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "AL,h 14i" ALSO "AX,g 15j" ALSO "m,s sdzozdj" ALSO "l,t 80dzozdi\0"
-    "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "AL,h 04i" ALSO "AX,g 05j" ALSO "m,s sdzzzdj" ALSO "l,t 80dzzzdi\0"
-    "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "AL,h 24i" ALSO "AX,g 25j" ALSO "m,s sdozzdj" ALSO "l,t 80dozzdi\0"
+    "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "vAL,h 14i" ALSO "wAX,g 15j" ALSO "m,s sdzozdj" ALSO "l,t 80dzozdi\0"
+    "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "vAL,h 04i" ALSO "wAX,g 05j" ALSO "m,s sdzzzdj" ALSO "l,t 80dzzzdi\0"
+    "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "vAL,h 24i" ALSO "wAX,g 25j" ALSO "m,s sdozzdj" ALSO "l,t 80dozzdi\0"
     "CALL\0" "FAR!k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
     "CBW\0" " 98\0"
     "CLC\0" " F8\0"
     "CLD\0" " FC\0"
     "CLI\0" " FA\0"
     "CMC\0" " F5\0"
-    "CMP\0" "j,q 38drd" ALSO "k,r 39drd" ALSO "q,j 3Adrd" ALSO "r,k 3Bdrd" ALSO "AL,h 3Ci" ALSO "AX,g 3Dj" ALSO "m,s sdooodj" ALSO "l,t 80dooodi\0"
+    "CMP\0" "j,q 38drd" ALSO "k,r 39drd" ALSO "q,j 3Adrd" ALSO "r,k 3Bdrd" ALSO "vAL,h 3Ci" ALSO "wAX,g 3Dj" ALSO "m,s sdooodj" ALSO "l,t 80dooodi\0"
     "CMPSB\0" " A6\0"
     "CMPSW\0" " A7\0"
     "CS\0" " 2E+\0"
@@ -3237,7 +3268,7 @@ const char instruction_set[] =
     "HLT\0" " F4\0"
     "IDIV\0" "l F6doood" ALSO "m F7doood\0"
     "IMUL\0" "l F6dozod" ALSO "m F7dozod\0"
-    "IN\0" "AL,DX EC" ALSO "AX,DX ED" ALSO "AL,h E4i" ALSO "AX,i E5i\0"
+    "IN\0" "vAL,wDX EC" ALSO "wAX,wDX ED" ALSO "vAL,h E4i" ALSO "wAX,i E5i\0"
     "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
     "INT\0" "i CDi\0"
     "INT3\0" " CC\0"
@@ -3294,8 +3325,8 @@ const char instruction_set[] =
     "NEG\0" "l F6dzood" ALSO "m F7dzood\0"
     "NOP\0" " 90\0"
     "NOT\0" "l F6dzozd" ALSO "m F7dzozd\0"
-    "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "AL,h 0Ci" ALSO "AX,g 0Dj" ALSO "m,s sdzzodj" ALSO "l,t 80dzzodi\0"
-    "OUT\0" "DX,AL EE" ALSO "DX,AX EF" ALSO "h,AL E6i" ALSO "i,AX E7i\0"
+    "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "vAL,h 0Ci" ALSO "wAX,g 0Dj" ALSO "m,s sdzzodj" ALSO "l,t 80dzzodi\0"
+    "OUT\0" "wDX,vAL EE" ALSO "wDX,AX EF" ALSO "h,vAL E6i" ALSO "i,AX E7i\0"
     "PAUSE\0" " F390\0"
     "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
     "POPF\0" " 9D\0"
@@ -3314,7 +3345,7 @@ const char instruction_set[] =
     "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
     "SAHF\0" " 9E\0"
     "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
-    "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "AL,h 1Ci" ALSO "AX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
+    "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
     "SCASB\0" " AE\0"
     "SCASW\0" " AF\0"
     "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
@@ -3325,10 +3356,10 @@ const char instruction_set[] =
     "STI\0" " FB\0"
     "STOSB\0" " AA\0"
     "STOSW\0" " AB\0"
-    "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "AL,h 2Ci" ALSO "AX,g 2Dj" ALSO "m,s sdozodj" ALSO "l,t 80dozodi\0"
-    "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "AL,h A8i" ALSO "AX,i A9j" ALSO "m,u F7dzzzdj" ALSO "l,t F6dzzzdi\0"
+    "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "vAL,h 2Ci" ALSO "wAX,g 2Dj" ALSO "m,s sdozodj" ALSO "l,t 80dozodi\0"
+    "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "vAL,h A8i" ALSO "wAX,i A9j" ALSO "m,u F7dzzzdj" ALSO "l,t F6dzzzdi\0"
     "WAIT\0" " 9B+\0"
-    "XCHG\0" "AX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
+    "XCHG\0" "wAX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
     "XLAT\0" " D7\0"
-    "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "AL,h 34i" ALSO "AX,g 35j" ALSO "m,s sdoozdj" ALSO "l,t 80doozdi\0"
+    "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "vAL,h 34i" ALSO "wAX,g 35j" ALSO "m,s sdoozdj" ALSO "l,t 80doozdi\0"
 ;

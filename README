@@ -112,6 +112,11 @@ Differences between mininasm and NASM:
 * If the input file is at least 2 GiB long, and it contains an `%include',
   then it may get processed incorrectly.
 
+* The `strict' modifier in `strict byte' and `strict word' is alloed
+  only for immediate arguments.
+
+* mininasm doesn't display any warnings.
+
 Similarities with NASM:
 
 * Local labels are supported, and should start with period.
