@@ -11,14 +11,9 @@ following improvements:
 * It supports 32-bit numbers. (However, it doesn't support the 32-bit
   or 64-bit instructions, and it can't generate 32-bit DOS programs.)
 * `bits 16' works.
-* `cpu 186' and `cpu 286' also work. (For the 286, it supports all
-  instructions except for those related to protected mode.)
-  This hasn't been implemented yet.
-* It supports 287 floating point instructions.
-  This hasn't been implemented yet.
 * It supports `%define MACRO VALUE'. (It doesn't support macros with
-  arguments or multiline macros.)
-  This hasn't been implemented yet.
+  arguments or multiline macros. It supports numeric value only, see
+  details below.)
 * Its output (stderr, output file, listing file) doesn't depend on the host,
   not even for integer overflow (e.g. number of bytes reported), this it's a
   true cross-assembler.
@@ -30,7 +25,8 @@ following improvements:
 * It depends on fewer runtime (libc) functions, so it can be compiled to a
   DOS .com file smaller than Tinyasm.
   Savings: about 17.1 KiB .com program instead of 30 KiB .com program
-  with `owcc -bcom -Os'.
+  with `owcc -bcom -Os'. (However, the size is now more: a bit less than
+  20 KiB, because new features have been added.)
 * Its behavior is adjusted for better compatibility with NASM 0.98.39.
   The most important difference is that it supports 16-bit numbers, but
   NASM 0.98.39 supports 32-bit numbers. See more differences between
@@ -42,6 +38,9 @@ following improvements:
 * The `>>', `/', `//', `%' and `%%' operators have a deterministic behavior
   (matching NASM on the i386) no matter what the host system architecture is.
   This is also an improvement over NASM.
+* mininasm is an optimizing assembler, with its -O9 flag, it implements the
+  same optimizations as NAsM. With its -OA flag, it implements some
+  additional optimizations.
 
 Differences between mininasm and NASM:
 
@@ -124,6 +123,14 @@ Similarities with NASM:
   of the last global label (not starting with period) and
   the local label.
 
+Possible future mininasm features:
+
+* `cpu 186' and `cpu 286' also work. (For the 286, it supports all
+  instructions except for those related to protected mode.)
+  This hasn't been implemented yet.
+* It supports 287 floating point instructions.
+  This hasn't been implemented yet.
+
 The following operators are implemented:
 
 	|	Bitwise OR
@@ -135,8 +142,10 @@ The following operators are implemented:
 	+	Addition
 	-	Subtraction
 	* 	Multiplication
-	/	Division (unsigned 16-bit)
-	%	Modulo operator
+	/	Division (unsigned)
+	//	Division (signed)
+	%	Modulo (unsigned)
+	%%	Modulo (signed)
 	(expr)	Parenthesis
 	-	Unary negation
         +       Unary addition (no-op).
