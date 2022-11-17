@@ -83,7 +83,9 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
   register unsigned pc = 0;
   char print_buf[PRINT_BUF_LEN];
   char c;
-  unsigned u, b, letbase, t;
+  unsigned long u;
+  unsigned b;
+  unsigned char letbase, t;
   /*register*/ char *s;
   char neg;
 
@@ -135,10 +137,25 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
           bbwrite1(bbb, c);
           ++pc;
         }
-      } else if (c == 'd' || c == 'u' || (c | 32) == 'x' ) {  /* Assumes ASCII. */
+      } else if (c == 'c') {
+        /* char are converted to int then pushed on the stack */
+        s[0] = (char)va_arg(args, int);
+        if (width == 0) {  /* Print '\0'. */
+          bbwrite1(bbb, s[0]);
+          ++pc;
+        } else {
+          goto do_print_1;
+        }
+      } else {
+        if (c == 'l') {  /* !! TODO(pts): Keep u as `long' if sizeof(int) >= 4. This is for saving space and time if sizeof(long) > 4. */
+          u = va_arg(args, unsigned long);
+          c = *++format;
+        } else {
+          u = va_arg(args, unsigned);
+        }
+        if (!(c == 'd' || c == 'u' || (c | 32) == 'x' )) goto done;  /* Assumes ASCII. */
         /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
         /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
-        u = (unsigned)va_arg(args, int);
         if (u == 0) {
           s[0] = '0';
          do_print_1:
@@ -147,7 +164,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         } else {
           b = ((c | 32) == 'x') ? 16 : 10;
           letbase = ((c == 'X') ? 'A' : 'a') - '0' - 10;
-          if (c == 'd' && b == 10 && (int)u < 0) {
+          if (c == 'd' && b == 10 && (long)u < 0) {
             neg = 1;
             u = -u;
           } else {
@@ -172,21 +189,13 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
           }
           goto do_print_s;
         }
-      } else if (c == 'c') {
-        /* char are converted to int then pushed on the stack */
-        s[0] = (char)va_arg(args, int);
-        if (width == 0) {  /* Print '\0'. */
-          bbwrite1(bbb, s[0]);
-          ++pc;
-        } else {
-          goto do_print_1;
-        }
       }
     } else { out:
       bbwrite1(bbb, *format);
       ++pc;
     }
   }
+ done:
   va_end(args);
   return pc;
 }
