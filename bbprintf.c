@@ -22,6 +22,7 @@
  * !! TODO(pts): See if https://www.sparetimelabs.com/tinyprintf/tinyprintf.php is any shorter.
  */
 
+#ifndef va_arg
 #ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
 #if defined(__i386__) /* || defined(__amd64__)*/ || defined(__x86_64__)
 #ifdef __i386__
@@ -62,6 +63,11 @@ typedef va_list __gnuc_va_list;
 #else
 #include <stdarg.h>
 #endif
+#endif  /* !defined(va_arg) */
+
+#ifndef CONFIG_BBPRINTF_LONG
+#define CONFIG_BBPRINTF_LONG 0
+#endif
 
 #include "bbprintf.h"
 
@@ -75,15 +81,19 @@ void bbwrite1(struct bbprintf_buf *bbb, int c) {
 #define PAD_RIGHT 1
 #define PAD_ZERO 2
 
-/* the following should be enough for 32 bit int */
-#define PRINT_BUF_LEN 12
+#if CONFIG_BBPRINTF_LONG
+#define BBPRINTF_INT long
+#else
+#define BBPRINTF_INT int
+#endif
 
 static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
   register unsigned width, pad;
   register unsigned pc = 0;
-  char print_buf[PRINT_BUF_LEN];
+  /* String buffer large enough for the longest %u and %x. */
+  char print_buf[sizeof(BBPRINTF_INT) == 4 ? 11 : sizeof(BBPRINTF_INT) == 2 ? 6 : sizeof(BBPRINTF_INT) * 3 + 1];
   char c;
-  unsigned long u;
+  unsigned BBPRINTF_INT u;
   unsigned b;
   unsigned char letbase, t;
   /*register*/ char *s;
@@ -147,12 +157,16 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
           goto do_print_1;
         }
       } else {
+#if CONFIG_BBPRINTF_LONG
         if (c == 'l') {  /* !! TODO(pts): Keep u as `long' if sizeof(int) >= 4. This is for saving space and time if sizeof(long) > 4. */
           u = va_arg(args, unsigned long);
           c = *++format;
         } else {
           u = va_arg(args, unsigned);
         }
+#else
+        u = va_arg(args, unsigned);
+#endif
         if (!(c == 'd' || c == 'u' || (c | 32) == 'x' )) goto done;  /* Assumes ASCII. */
         /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
         /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
@@ -164,13 +178,13 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         } else {
           b = ((c | 32) == 'x') ? 16 : 10;
           letbase = ((c == 'X') ? 'A' : 'a') - '0' - 10;
-          if (c == 'd' && b == 10 && (long)u < 0) {
+          if (c == 'd' && b == 10 && (BBPRINTF_INT)u < 0) {
             neg = 1;
             u = -u;
           } else {
             neg = 0;
           }
-          s = print_buf + PRINT_BUF_LEN - 1;
+          s = print_buf + sizeof(print_buf) - 1;
           *s = '\0';
           while (u) {
             t = u % b;

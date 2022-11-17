@@ -6,25 +6,25 @@
  **
  ** Compilation instructions (pick any one):
  **
- **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c bbprintf.c && ls -ld mininasm
+ **   $ gcc -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c && ls -ld mininasm
  **
- **   $ gcc -m32 -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c bbprintf.c && ls -ld mininasm.gcc32
+ **   $ gcc -m32 -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -o mininasm mininasm.c && ls -ld mininasm.gcc32
  **
- **   $ g++ -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c bbprintf.c && ls -ld mininasm
+ **   $ g++ -ansi -pedantic -s -Os -W -Wall -o mininasm mininasm.c && ls -ld mininasm
  **
- **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c bbprintf.c && ls -ld mininasm.tcc
+ **   $ pts-tcc -s -O2 -W -Wall -o mininasm.tcc mininasm.c && ls -ld mininasm.tcc
  **
- **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c bbprintf.c && ls -ld mininasm.tcc64
+ **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c && ls -ld mininasm.tcc64
  **
- **   $ dosmc -mt mininasm.c bbprintf.c && ls -ld mininasm.com
+ **   $ dosmc -mt mininasm.c && ls -ld mininasm.com
  **
- **   $ owcc -bdos -o mininasm.exe -mcmodel=c -Os -s -fstack-check -Wl,option -Wl,stack=1800 -march=i86 -W -Wall -Wextra mininasm.c bbprintf.c && ls -ld mininasm.exe
+ **   $ owcc -bdos -o mininasm.exe -mcmodel=c -Os -s -fstack-check -Wl,option -Wl,stack=1800 -march=i86 -W -Wall -Wextra mininasm.c && ls -ld mininasm.exe
  **
- **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c bbprintf.c nouser32.c && ls -ld mininasm.win32.exe
+ **   $ owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c nouser32.c && ls -ld mininasm.win32.exe
  **
- **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -march=i386 -o mininasm.win32msvcrt.exe mininasm.c bbprintf.c && ls -ld mininasm.win32msvcrt.exe
+ **   $ i686-w64-mingw32-gcc -m32 -mconsole -ansi -pedantic -s -Os -W -Wall -Wno-overlength-strings -march=i386 -o mininasm.win32msvcrt.exe mininasm.c && ls -ld mininasm.win32msvcrt.exe
  **
- **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c bbprintf.c && ls -ld mininasm.win32msvcrt_tcc.exe
+ **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c && ls -ld mininasm.win32msvcrt_tcc.exe
  **
  */
 
@@ -233,9 +233,11 @@ value [dx ax] \
 parm [ax] \
 modify [si cl]
 #define MY_FAR far
+#define USING_FAR 1
 /* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
 #else  /* CONFIG_DOSMC. */
 #define MY_FAR
+#define USING_FAR 0
 #define strcpy_far(dest, src) strcpy(dest, src)
 #define strcmp_far(s1, s2) strcmp(s1, s2)
 #define malloc_far(size) malloc(size)
@@ -244,8 +246,6 @@ modify [si cl]
 #error CONFIG_DOSMC_PACKED needs __DOSMC__.
 #endif
 #endif  /* Else CONFIG_DOSMC. */
-
-#include "bbprintf.h"
 
 /* Example usage:
  * static const STRING_WITHOUT_NUL(msg, "Hello, World!\r\n$");
@@ -297,6 +297,7 @@ static int listing_fd = -1;
 #undef IS_VALUE_LONG
 #if CONFIG_VALUE_BITS == 16
 #define IS_VALUE_LONG 0
+#define FMT_VALUE ""
 typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */  /* !! TODO(pts): Use uvalue_t in more location, to get modulo 2**n arithmetics instead of undefined behavior without gcc -fwrapv. */
 typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
 #define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
@@ -306,10 +307,12 @@ typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably
 #if CONFIG_VALUE_BITS == 32
 #if __SIZEOF_INT__ >= 4
 #define IS_VALUE_LONG 0
+#define FMT_VALUE ""
 typedef int value_t;
 typedef unsigned uvalue_t;
 #else  /* sizeof(long) >= 4 is guaranteed by the C standard. */
 #define IS_VALUE_LONG 1
+#define FMT_VALUE "l"
 typedef long value_t;
 typedef unsigned long uvalue_t;
 #endif
@@ -321,6 +324,9 @@ typedef unsigned long uvalue_t;
 #endif
 #endif
 typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
+
+#define CONFIG_BBPRINTF_LONG IS_VALUE_LONG
+#include "bbprintf.c"
 
 static uvalue_t line_number;
 
@@ -745,15 +751,22 @@ static void print_labels_sorted_to_listing_fd(void) {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
             if ((c = node->name[0]) != '%') {  /* Skip macro definitions. */
+#if USING_FAR
+                strcpy_far(global_label, node->name);  /* We copy because bbprintf(...) below doesn't support far pointers. */
+#endif
+                bbprintf(&message_bbb, "%-20s "
 #if CONFIG_VALUE_BITS == 32
-#if IS_VALUE_LONG
-                bbprintf(&message_bbb, "%-20s %04X%04X\r\n", node->name, (unsigned)(GET_UVALUE(node->value) >> 16), (unsigned)(GET_UVALUE(node->value) & 0xffffu));
+                                       "%08"
 #else
-                bbprintf(&message_bbb, "%-20s %08X\r\n", node->name, GET_UVALUE(node->value));
+                                       "%04"
 #endif
+                                       FMT_VALUE "X\r\n",
+#if USING_FAR
+                                       global_label,
 #else
-                bbprintf(&message_bbb, "%-20s %04X\r\n", node->name, GET_UVALUE(node->value));
+                                       node->name,
 #endif
+                                       GET_UVALUE(node->value));
             }
             node = RBL_GET_RIGHT(node);
         }
@@ -2318,45 +2331,6 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
     return aip;
 }
 
-#if CONFIG_VALUE_BITS == 32 && IS_VALUE_LONG  /* Example: __DOSMC__. */
-#define FMT_05U "%05s"
-#define GET_FMT_U_VALUE(value) get_fmt_u_value(value)  /* Only one of this works in a single bbprintf(...), because get_fmt_u_value(...) uses a static, global buffer. */
-/* Returns uvalue_t formatted as a decimal, '\0'-terminated string.
- * The returned pointer points to within a static, global buffer.
- * We can't use bbprintf(...), because it supports only int size, and here sizeof(uvalue_t) > sizeof(int).
- */
-static const char *get_fmt_u_value(uvalue_t u) {
-    static char buf[sizeof(u) * 3 + 1];  /* Long enough for a decimal representation. */
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    do {
-        *--p = '0' + (unsigned char)(u % 10);
-        u /= 10;
-    } while (u != 0);
-    return p;
-}
-#define FMT_04X "%s%04X"
-#define GET_FMT_04X_VALUE(value) get_fmt_04x_high_value(value >> 16), sizeof(short) == 2 ? (unsigned short)(value) : ((value) & 0xffffU)
-static const char *get_fmt_04x_high_value(unsigned u) {
-    static char buf[5];
-    char *p = buf + sizeof(buf) - 1;
-    char c;
-    *p = '\0';
-    while (u != 0) {  /* !! TODO(pts): Instead of these tiresome workarounds, make bbprintf.c operate on longs, and always pass a (long)... at call time. */
-        c = '0' + ((unsigned char)u & 0xf);
-        if (c > '9') c += 'A' - ('0' + 10);
-        *--p = c;
-        u >>= 4;
-    }
-    return p;
-}
-#else
-#define FMT_05U "%05u"
-#define GET_FMT_U_VALUE(value) (value)
-#define FMT_04X "%04X"
-#define GET_FMT_04X_VALUE(value) (value)
-#endif
-
 #define MACRO_CMDLINE 1  /* Macro defined in the command-line with an INTVALUE. */
 #define MACRO_SELF 2  /* Macro defined in the assembly source as `%DEFINE NAME NAME', so itself. */
 #define MACRO_VALUE 3  /* Macro defined in the assembly source as `%DEFINE NAME INTVALUE' or `%assign NAME EXPR'. */
@@ -2962,7 +2936,7 @@ static void do_assembly(const char *input_filename) {
         }
       after_line:
         if (assembler_pass > 1 && listing_fd >= 0) {
-            bbprintf(&message_bbb /* listing_fd */, FMT_04X "  ", GET_FMT_04X_VALUE(line_address));
+            bbprintf(&message_bbb /* listing_fd */, "%04" FMT_VALUE "X  ", GET_UVALUE(line_address));
             p = generated_ptr;
             while (p < g) {
                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
@@ -2972,7 +2946,7 @@ static void do_assembly(const char *input_filename) {
                 p++;
             }
             /* TODO(pts): Keep the original line with the original comment, if possible. This is complicated and needs more memory. */
-            bbprintf(&message_bbb /* listing_fd */, "  " FMT_05U " %s\r\n", GET_FMT_U_VALUE(line_number), line);
+            bbprintf(&message_bbb /* listing_fd */, "  %05" FMT_VALUE "u %s\r\n", GET_UVALUE(line_number), line);
         }
         if (include == 1) {  /* %INCLUDE. */
             if (0) DEBUG1("INCLUDE %s\r\n", p3);  /* Not yet NUL-terminated early. */
@@ -3206,16 +3180,16 @@ int main(int argc, char **argv) {
                 }
             }
             if (listing_fd >= 0) {
-                bbprintf(&message_bbb /* listing_fd */, "\r\n" FMT_05U " ERRORS FOUND\r\n", GET_FMT_U_VALUE(errors));
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " WARNINGS FOUND\r\n",
+                bbprintf(&message_bbb /* listing_fd */, "\r\n%05" FMT_VALUE "u ERRORS FOUND\r\n", GET_UVALUE(errors));
+                bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u WARNINGS FOUND\r\n",
 #if CONFIG_SUPPORT_WARNINGS
-                         GET_FMT_U_VALUE(warnings)
+                         GET_UVALUE(warnings)
 #else
-                         0
+                         GET_UVALUE(0)
 #endif
                         );
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " PROGRAM BYTES\r\n", GET_FMT_U_VALUE(GET_UVALUE(bytes)));
-                bbprintf(&message_bbb /* listing_fd */, FMT_05U " ASSEMBLER PASSES\r\n\r\n", GET_FMT_U_VALUE(assembler_pass));
+                bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u PROGRAM BYTES\r\n", GET_UVALUE(bytes));
+                bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u ASSEMBLER PASSES\r\n\r\n", GET_UVALUE(assembler_pass));
                 bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                 print_labels_sorted_to_listing_fd();
                 bbprintf(&message_bbb /* listing_fd */, "\r\n");
