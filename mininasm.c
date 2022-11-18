@@ -2299,7 +2299,8 @@ static struct assembly_info *assembly_push(const char *input_filename) {
     assembly_p->avoid_level = 0;
     assembly_p->file_offset = 0;
     assembly_p->zero = 0;
-    strcpy(assembly_p->input_filename, input_filename);
+    /* strcpy(...) would also work (there are no far pointers here), but we can save a few bytes if we avoid linking strcpy(...), for __DOSMC__. */
+    strcpy_far(assembly_p->input_filename, input_filename);
     aip = assembly_p;
     assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
 #if !CONFIG_CPU_UNALIGN
