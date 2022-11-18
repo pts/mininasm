@@ -1567,7 +1567,7 @@ struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf
 static void emit_write(const char *s, int size) {
     int emit_free;
     while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
-#ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
+#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
         emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, emit_free);
 #else
         memcpy(emit_bbb.p, s, emit_free);
@@ -1576,7 +1576,7 @@ static void emit_write(const char *s, int size) {
         s += emit_free; size -= emit_free;
         emit_flush(0);
     }
-#ifdef __DOSMC__  /* A few byte smaller than memcpy(...). */
+#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
     emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, size);
 #else
     memcpy(emit_bbb.p, s, size);
@@ -2488,6 +2488,12 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
     *name_end = name_endc;
 }
 
+#ifdef __DOSMC__
+static void memcpy_void_my(void *dest, const void *src, size_t n) {
+    memcpy_void_inline(dest, src, n);
+}
+#endif
+
 /*
  ** Do an assembler pass.
  */
@@ -2746,7 +2752,12 @@ static void do_assembly(const char *input_filename) {
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
             liner = (p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
+#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
+            /* Calling memcpy_newdest_inline(...) or memcpy_void_inline(...) instead here would add 127 bytes to the program, so we are not doing it. OpenWatcom optimization is weird. */
+            memcpy_void_my(liner, p, p3 - p);
+#else
             memcpy(liner, p, p3 - p);
+#endif
             liner += p3 - p;
             *liner = '\0';
             if (p[0] != '.') global_label_end = liner;
