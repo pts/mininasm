@@ -177,10 +177,7 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #endif
 
 #ifdef __DOSMC__
-#if CONFIG_BALANCED
-__LINKER_FLAG(stack_size__0x200)  /* Extra memory needed by balanced_tree_insert. */  /* !! TODO(pts): Check that this is still enough. */
-#endif
-__LINKER_FLAG(stack_size__0x180)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
+__LINKER_FLAG(stack_size__0x140)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
  * freed. Blocks are rounded up to paragraph (16-byte) boundary.
  */
