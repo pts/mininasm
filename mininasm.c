@@ -59,7 +59,6 @@ char *__cdecl strcpy(char *dest, const char *src);
 int __cdecl strcmp(const char *s1, const char *s2);
 char *__cdecl strcat(char *dest, const char *src);
 void *__cdecl memcpy(void *dest, const void *src, size_t n);
-int __cdecl memcmp(const void *s1, const void *s2, size_t n);
 int __cdecl isalpha(int c);
 int __cdecl isspace(int c);
 int __cdecl isdigit(int c);
