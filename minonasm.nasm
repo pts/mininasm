@@ -9,7 +9,7 @@
 ;
 ; This version of minnnasm.com (19400 bytes) is bit-by-bit identical to
 ; mininasm.com built from
-; https://github.com/pts/mininasm/blob/cd446e5861ae3675fde687f623ffaee063a67421/mininasm.c
+; https://github.com/pts/mininasm/blob/651a992d2ba9cd01ab3144ebaea604b52985fd5d/mininasm.c
 ; with `dosmc -mt -cpn mininasm.c'.
 ;
 ; For compilation with mininasm and NASM, minonasm.nasm needs the -O9
@@ -10738,7 +10738,7 @@ main_:
 		add ax, word [es:3]
 		mov word [___malloc_struct__], ax
 
-;     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "1", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ 1'. */
+;     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "3", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
 		mov cx, 1
 		mov bx, @$943
 		mov dx, _mininasm_macro_name+0xc
@@ -11808,7 +11808,7 @@ ___section_mininasm_c_const:
 @$940		db 'Cannot seek in INCBIN file: ', 0
 @$941		db 'Error: Error reading from ', 39, '%s', 39, 0
 @$942		db 'pending %IF at end of file', 0
-@$943		db '1', 0
+@$943		db '3', 0
 @$944		db 'bad optimization argument', 0
 @$945		db 'flag too long: %s', 0
 @$946		db 'no argument for %s', 0
