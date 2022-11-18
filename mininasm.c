@@ -2423,7 +2423,8 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
     *name1 = '%';  /* Macro NAME prefixed by '%'. */
     macro_label = find_label(name1);
     if (0) DEBUG3("set_macro mode 0x%x strcmp (%s) (%s)\n", macro_set_mode, name1 + 1, value);
-    if (macro_set_mode == MACRO_SET_DEFINE && strcmp(name1 + 1, value) == 0) {  /* `%DEFINE NAME NAME'. */
+    /* strcmp(...) would also work (there are no far pointers here), but we can save a few bytes if we avoid linking strcmp(...), for __DOSMC__. */
+    if (macro_set_mode == MACRO_SET_DEFINE && strcmp_far(name1 + 1, value) == 0) {  /* `%DEFINE NAME NAME'. */
         if (macro_label == NULL) {
             define_label(name1, MACRO_SELF);
         } else if (RBL_IS_DELETED(macro_label)) {
