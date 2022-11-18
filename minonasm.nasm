@@ -9,7 +9,7 @@
 ;
 ; This version of minnnasm.com (19400 bytes) is bit-by-bit identical to
 ; mininasm.com built from
-; https://github.com/pts/mininasm/blob/cd446e5861ae3675fde687f623ffaee063a67421/mininasm.c
+; https://github.com/pts/mininasm/blob/651a992d2ba9cd01ab3144ebaea604b52985fd5d/mininasm.c
 ; with `dosmc -mt -cpn mininasm.c'.
 ;
 ; For compilation with mininasm and NASM, minonasm.nasm needs the -O9
@@ -10738,8 +10738,8 @@ main_:
 		add ax, word [es:3]
 		mov word [___malloc_struct__], ax
 
-;     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "1", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ 1'. */
-		mov cx, 1
+;     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "1", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
+		mov cx, 3
 		mov bx, @$943
 		mov dx, _mininasm_macro_name+0xc
 		mov ax, _mininasm_macro_name
