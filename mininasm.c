@@ -360,7 +360,7 @@ static char instr_name[10];  /* Assembly instruction mnemonic name or preprocess
 static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
-static char *g;
+static char *g;  /* !! TODO(pts): Rename this variable, make it longer for easier searching. */
 static char generated[8];
 static char *generated_ptr;
 
