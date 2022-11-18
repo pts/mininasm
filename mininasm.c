@@ -1725,6 +1725,11 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
+            /* !! TODO(pts): Match the buggy behavior of NASM 0.98.39 with -O9 and NASM 0.99.06 with -O9 (but not NASM 2.13.02 with -O9): `add ax, 0xffd4' to be buggily emitted in the word form (no `goto mismatch;') rather than the byte for (`goto mismatch;').
+             *    What if the 0xffd4 is a result of an expression with forward references?
+             *    Please note that there is no bug with `add ax, -0x2c', which is emitted in the byte form in all NASM versions aboe.
+             * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
+             */
             if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 && !(((unsigned)instruction_value + 0x80) & 0xff00U)) goto mismatch;  /* The next pattern (of the same byte size) will match. For NASM compatibility. */
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
             p = avoid_strict(p);  /* STRICT doesn't matter for jumps, qualifiers are respected without it. */
