@@ -16,7 +16,7 @@
  **
  **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c && ls -ld mininasm.tcc64
  **
- **   $ dosmc -mt mininasm.c && ls -ld mininasm.com
+ **   $ dosmc -mt -cpn mininasm.c && ls -ld mininasm.com
  **
  **   $ owcc -bdos -o mininasm.exe -mcmodel=c -Os -s -fstack-check -Wl,option -Wl,stack=1800 -march=i86 -W -Wall -Wextra mininasm.c && ls -ld mininasm.exe
  **
