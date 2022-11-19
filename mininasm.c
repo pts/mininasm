@@ -512,7 +512,7 @@ typedef char assert_label_size[sizeof(struct label) == 5 /* left and right point
 #define RBL_SET_DELETED_1(label) ((label)->left_right_ofs |= 0x10)
 #if CONFIG_BALANCED
 /* Also sets IS_DELETED to false. */
-#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = 0, (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
+#define RBL_SET_LEFT_RIGHT_NULL_ID_0(label) ((label)->left_right_ofs = 0, (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
 static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
     char MY_FAR *p = MK_FP(swap16((label)->left_seg_swapped), ((label)->left_right_ofs >> 4) & 0xe);
     if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
@@ -536,7 +536,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #define RBL_SET_RED_0(label) ((label)->left_right_ofs &= 0xfe)
 #define RBL_SET_RED_1(label) ((label)->left_right_ofs |= 1)
 #else  /* Else CONFIG_BALANCED. */
-#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->left_right_ofs = (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
+#define RBL_SET_LEFT_RIGHT_NULL_ID_0(label) ((label)->left_right_ofs = (label)->left_seg_swapped = 0xffffU, (label)->right_seg = 0)
 static struct label MY_FAR *RBL_GET_LEFT(struct label MY_FAR *label) {
     char MY_FAR *p = MK_FP(swap16((label)->left_seg_swapped), ((label)->left_right_ofs >> 4) & 0xe);
     if (*p == '\0') ++p;  /* Skip trailing NUL of previous label. */
@@ -559,7 +559,7 @@ static void RBL_SET_RIGHT(struct label MY_FAR *label, struct label MY_FAR *ptr) 
 #define RBL_IS_NULL(label) ((label) == NULL)
 #define RBL_IS_LEFT_NULL(label) ((label)->tree_left == NULL)
 #define RBL_IS_RIGHT_NULL(label) ((label)->tree_right == NULL)
-#define RBL_SET_LEFT_RIGHT_NULL(label) ((label)->tree_left = (label)->tree_right = NULL)
+#define RBL_SET_LEFT_RIGHT_NULL_ID_0(label) ((label)->tree_left = (label)->tree_right = NULL, (label)->is_node_deleted = 0)
 #define RBL_GET_LEFT(label) ((label)->tree_left)
 #define RBL_GET_RIGHT(label) ((label)->tree_right)
 #define RBL_SET_LEFT(label, ptr) ((label)->tree_left = (ptr))
@@ -599,7 +599,7 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
 
     /* Fill label */
     if (0) DEBUG2("define_label name=(%s) value=0x%x\n", name, (unsigned)value);
-    RBL_SET_LEFT_RIGHT_NULL(label);
+    RBL_SET_LEFT_RIGHT_NULL_ID_0(label);
     label->value = value;
     strcpy_far(label->name, name);
 
