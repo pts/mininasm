@@ -161,6 +161,62 @@ The following numbers are implemented:
 	$$		Start address.
 	$		Current address.
 
+Host system compatibiliy of mininasm:
+
+* mininasm.c, the C source code of the command-line mininasm tool can be
+  compiled to many platforms without any configuration, even for platforms
+  which have only a 16-bit int (but a >=32 bit long is needed, but that's
+  mandated by the C standard). See the comment near the beginning of
+  mininasm.c for example compilation command-lines with famous compilers.
+
+* The implementation carefully avoids platform-specific behavior for large
+  shifts (i.e. >=32 bit positions are explicitly disallowed) and negative
+  number division (always rounds towards zero), thus mininasm generates the
+  same output files no matter which host platform it is running on.
+
+* mininasm.c is written in ANSI standard C (C89), and it uses only the
+  following C library functions: for I/O: open(), creat(), close(), read(),
+  write(), lseek(), remove(); for characters: isalpha(), isdigit(),
+  isspace(), isxdigit(), for strings: strcmp(), strcpy(), strlen(), for
+  dynamic memory: malloc(), for exiting: exit(). It also uses long and
+  unsigned long division.
+
+* Known modern compilers that can compile mininasm.c: GCC, Clang, TCC (Tiny
+  C), OpenWatcom C compiler, dosmc (https://github.com/pts/dosmc).
+
+* mininasm.com (compilation output of mininasm.c with dosmc) and
+  minnnasm.com (compilation output of minnnasm.nasm with NASM or mininasm)
+  work with DOS 2.0 or newer (such as IBM PC DOS 2.00 released in 1983,
+  MS-DOS 3.00, FREEDOS 1.2, command prompt of 32-bit Microsoft Windows),
+  on an IBM PC compatible computer with an Intel 8086 or newer processor (such
+  as 186, 286, 386, 486, Pentium or newer) or a suitable emulator (such as
+  QEMU, pcjs.org). It also works on DOS emulators such as DOSBox,
+  EMU2 (https://github.com/dmsc/emu2) and
+  kvikdos (https://github.com/pts/kvikdos). The minimum free memory
+  requirement is 64 KiB, but it can use up to 636 KiB of conventional memory
+  if available.
+
+* Input and output files work for up to 2 GiB minus 1 byte, but may be
+  limited more by the operating system or the filesystem. Typical input
+  assembly files are less than 1 MiB, typical output program binary files
+  are less than 64 KiB. (There are no checks in mininasm to make it fail
+  cleanly on files reaching the 2 GiB size.)
+
+* mininasm uses very little stack space, because its functions have only a
+  few small local variables, and it doesn't use function recursion.
+
+* mininasm uses very little memory compared to other assemblers.
+  Memory usage is constant + the memory used by labels + the memory
+  used by macros; the size of the input and output files doesn't matter.
+  More specific memory usage for mininasm.com:
+
+  * the constant is less than 25 KiB (this includes mininasm.com
+    code, read-only data, stack and fixed-size global variables)
+  * per label usage is 10 bytes + the label length, e.g. the label `_start:'
+    uses 10 + 6 == 16 bytes (the `:' is excluded from the length)
+  * per macro usage is 21 bytes + 2 * the macro name length, e.g. the
+    macro `BASE' uses 21 + 2 * 4 == 29 bytes
+
 For compatibility, the mininasm repository also contains tinasm (source
 code: tinasm.c), which aims to be compatible with Tinyasm, with the
 following changes:
