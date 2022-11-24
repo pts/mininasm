@@ -1,6 +1,6 @@
 #ifndef _BBPRINTF_H_
 #define _BBPRINTF_H_ 1
-#pragma once
+/*#pragma once*/  /* __PACIFIC__ doesn't have it. It doesn't help us much, so we skip it. */
 
 #ifndef CONFIG_BBPRINTF_STATIC
 #define CONFIG_BBPRINTF_STATIC
