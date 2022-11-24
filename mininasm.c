@@ -26,6 +26,12 @@
  **
  **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c && ls -ld mininasm.win32msvcrt_tcc.exe
  **
+ **   Turbo C++ (1.01 or 3.0) on DOS, creates mininasm.exe: tcc -mc -O -X mininasm.c
+ **
+ **   Borland C++ (2.0, 3.00, 3.1, 4.00, 4.5, 4.52 or 5.2) on DOS, creates mininasm.exe: bcc -mc -O -X -w! mininasm.c
+ **   From Borland C++ >=4.0, the .exe program is ~23 KiB larger.
+ **   The -w! flag (treat warnings as errors) is ignored by Borland C++ <4.0.
+ **
  */
 
 #ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
@@ -87,18 +93,33 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  ifdef __DOSMC__
 #    include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
 #  else /* Standard C. */
+#    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
 #    include <ctype.h>
 #    include <fcntl.h>  /* open(...), O_BINARY. */
 #    include <stdio.h>  /* remove(...) */
 #    include <stdlib.h>
 #    include <string.h>
-#    if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works. */
+#    if defined(__TURBOC__) && !defined(MSDOS)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. */
+#      define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
+#    endif
+#    if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
 #      include <io.h>  /* setmode(...) */
-#      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
+#      if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
+#        define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
+#      else
+#        define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
+#      endif
 #    else
 #      include <unistd.h>
 #    endif
-#    define open2(pathname, flags) open(pathname, flags)
+#    define open2(pathname, flags) open(pathname, flags, 0)
+#    if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
+typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
+#    endif
+#    if defined(__TURBOC__)
+#      pragma warn -rch  /* Unreachable code. */
+#      pragma warn -ccc  /* Condition is always true/false. */
+#    endif
 #  endif
 #endif
 
@@ -296,7 +317,7 @@ static int listing_fd = -1;
 #define FMT_VALUE ""
 typedef short value_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */  /* !! TODO(pts): Use uvalue_t in more location, to get modulo 2**n arithmetics instead of undefined behavior without gcc -fwrapv. */
 typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably exactly. */
-#define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & 0x7fff) | -((short)(value) & 0x8000U)))  /* Sign-extended. */
+#define GET_VALUE(value) (value_t)(sizeof(short) == 2 ? (short)(value) : (short)(((short)(value) & (short)0x7fff) | -((short)(value) & (short)0x8000U)))  /* Sign-extended. */
 #define GET_UVALUE(value) (uvalue_t)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #define GET_U16(value) (unsigned short)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
@@ -312,7 +333,7 @@ typedef unsigned uvalue_t;
 typedef long value_t;
 typedef unsigned long uvalue_t;
 #endif
-#define GET_VALUE(value) (value_t)(sizeof(value_t) == 4 ? (value_t)(value) : sizeof(int) == 4 ? (value_t)(int)(value) : sizeof(long) == 4 ? (value_t)(long)(value) : (value_t)(((long)(value) & 0x7fffffffL) | -((long)(value) & 0x80000000UL)))
+#define GET_VALUE(value) (value_t)(sizeof(value_t) == 4 ? (value_t)(value) : sizeof(int) == 4 ? (value_t)(int)(value) : sizeof(long) == 4 ? (value_t)(long)(value) : (value_t)(((long)(value) & 0x7fffffffL) | -((long)(value) & (long)0x80000000UL)))
 #define GET_UVALUE(value) (uvalue_t)(sizeof(uvalue_t) == 4 ? (uvalue_t)(value) : sizeof(unsigned) == 4 ? (uvalue_t)(unsigned)(value) : sizeof(unsigned long) == 4 ? (uvalue_t)(unsigned long)(value) : (uvalue_t)(value) & 0xffffffffUL)
 #define GET_U16(value) (unsigned short)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
@@ -765,6 +786,7 @@ static void print_labels_sorted_to_listing_fd(void) {
 #endif
                                        GET_UVALUE(node->value));
             }
+            (void)c;
             node = RBL_GET_RIGHT(node);
         }
     }
@@ -2165,7 +2187,7 @@ static void process_instruction(const char *p) {
             }
         }
         return;
-    } else if ((c = casematch(instr_name, "DW")) /* Define 16-bit word. */
+    } else if ((c = casematch(instr_name, "DW")) != 0 /* Define 16-bit word. */
 #if CONFIG_VALUE_BITS == 32
                || casematch(instr_name, "DD")  /* Define 32-bit quadword. */
               ) {
@@ -2533,7 +2555,7 @@ static void do_assembly(const char *input_filename) {
 
   do_assembly_push:
     line_number = 0;  /* Global variable. */
-    if (!(aip = assembly_push(input_filename))) {
+    if ((aip = assembly_push(input_filename)) == NULL) {
         MESSAGE(1, "assembly stack overflow, too many pending %INCLUDE files");
         return;
     }
@@ -2623,7 +2645,7 @@ static void do_assembly(const char *input_filename) {
                     *(char*)p++ = ' ';
                     for (liner = (char*)p; liner != line_rend && ((pc = *liner) == '\0' || (pc != '\n' && isspace(pc))); *liner++ = ' ') {}
                     if (liner == line_rend) {
-                        discarded_after_read = line_rend - p;  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
+                        discarded_after_read = (const char*)line_rend - p;  /* TODO(pts): We should check for overflow for source files >= 2 GiB. */
                         if (0) DEBUG1("DISCARD_WHITESPACE %d\r\n", (int)(line_rend - p));
                         line_rend = (char*)p;  /* Compress trailing whitespace bytes at the end of the buffer to a single space, so that they won't count against the line size (MAX_SIZE) at the end of the line. */
                         goto find_eol;  /* Superfluous. */
@@ -2742,7 +2764,7 @@ static void do_assembly(const char *input_filename) {
             if (!check_end(p + 1)) goto after_line;
             liner = (char*)p;
             include = 1;
-        } else if ((pc = casematch(instr_name, "%DEFINE")) || casematch(instr_name, "%ASSIGN")) {
+        } else if ((pc = casematch(instr_name, "%DEFINE")) != 0 || casematch(instr_name, "%ASSIGN")) {
             for (p3 = p; *p3 != '\0' && !isspace(*p3); ++p3) {}
             set_macro((char*)p - 1, (char*)p3, p3, pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN);
         } else if (casematch(instr_name, "%UNDEF")) {
@@ -3038,7 +3060,7 @@ int main(int argc, char **argv) {
      */
     if (*++argv == NULL) {
         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
-        (void)!write(2, msg, STRING_SIZE_WITHOUT_NUL(msg));
+        (void)!write(2, (char*)msg, STRING_SIZE_WITHOUT_NUL(msg));  /* Without the (char*), Borland C++ 2.0 reports warning: Suspicious pointer conversion in function main */
         return 1;
     }
 
