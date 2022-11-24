@@ -82,6 +82,7 @@ CONFIG_BBPRINTF_STATIC void bbwrite1(struct bbprintf_buf *bbb, int c) {
 #define PAD_ZERO 2
 
 #if CONFIG_BBPRINTF_LONG
+/* This comment line is to pacify Borland C++ 3.0 compiler not recognizing the no-CR LF line break in the previous line upon a successful #if. */
 #define BBPRINTF_INT long
 #else
 #define BBPRINTF_INT int
@@ -180,7 +181,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
           letbase = ((c == 'X') ? 'A' : 'a') - '0' - 10;
           if (c == 'd' && b == 10 && (BBPRINTF_INT)u < 0) {
             neg = 1;
-            u = -u;
+            u = -(BBPRINTF_INT)u;  /* Casting to BBPRINTF_INT to avoid Borland C++ 5.2 warning: Negating unsigned value. */
           } else {
             neg = 0;
           }
