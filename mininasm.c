@@ -130,30 +130,20 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #define O_BINARY 0
 #endif
 
-#if !__SIZEOF_INT__  /* GCC has it, tried with GCC 4.8. */
-#undef __SIZEOF_INT__
-#ifdef __WATCOMC__
-#ifdef _M_I86  /* OpenWatcom only defines this for 16-bit targets, e.g. `owcc -bdos', but not for `owcc -bwin32'. */
-#define __SIZEOF_INT__ 2  /* Example: __DOSMC__. */
-#else
-#define __SIZEOF_INT__ 4
+#ifndef CONFIG_IS_SIZEOF_INT_AT_LEAST_4
+#  if defined(__SIZEOF_INT__)  /* GCC has it, tried with GCC 4.8. */
+#    if __SIZEOF_INT__ >= 4
+#      define CONFIG_IS_SIZEOF_INT_AT_LEAST_4 1
+#    endif
+#  else  /* OpenWatcom only defines this _M_I386 for 32-bit (and maybe 64-bit?) targets, e.g. `owcc -bwin32' or `owcc -bdos32a', but not for `owcc -bdos'. Likewise, _M_I86 for only 16-bit targets. */
+#    if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(__i386__) || defined(__386) || defined(__X86_64__) || defined(_M_I386) || defined(_M_ARM) || defined(_M_ARM64) || defined(__m68k__) || defined(__ia64__) || defined(_M_IA64) || defined(__powerpc__) || defined(_M_PPC)
+#      define CONFIG_IS_SIZEOF_INT_AT_LEAST_4 1
+#    endif
+#  endif
+#  ifndef CONFIG_IS_SIZEOF_INT_AT_LEAST_4
+#    define CONFIG_IS_SIZEOF_INT_AT_LEAST_4 0
+#  endif
 #endif
-#ifdef _M_I386  /* OpenWatcom only defines this for 32-bit (and maybe 64-bit?) targets, e.g. `owcc -bwin32' or `owcc -bdos32a', but not for `owcc -bdos'. */
-#endif
-#else  /* Else __WATCOMC__. */
-#ifdef _M_I86
-#define __SIZEOF_INT__ 2
-#else
-#if defined(__TINYC__) && defined(__x86_64__)
-#define __SIZEOF_INT__ 4
-#else
-#if defined(__linux) || defined(__i386__) || defined(__i386) || defined(__linux__) || defined(_WIN32)  /* For __TINYC__. */
-#define __SIZEOF_INT__ 4
-#endif
-#endif
-#endif
-#endif  /* __WATCOMC__ */
-#endif  /* !__SIZEOF_INT__ */
 
 #if !defined(CONFIG_CPU_X86)
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__) || defined(__386) || defined(__X86_64__) || defined(_M_I386) || defined(__X86__) || defined(__I86__) || defined(_M_I86) || defined(_M_I8086) || defined(_M_I286)
@@ -325,7 +315,7 @@ typedef unsigned short uvalue_t;  /* At least CONFIG_VALUE_BITS bits, preferably
 #define GET_U16(value) (unsigned short)(sizeof(unsigned short) == 2 ? (unsigned short)(value) : (unsigned short)(value) & 0xffffU)
 #else
 #if CONFIG_VALUE_BITS == 32
-#if __SIZEOF_INT__ >= 4
+#if CONFIG_IS_SIZEOF_INT_AT_LEAST_4  /* Optimization in case sizeof(long) == 8, it would be too much. */
 #define IS_VALUE_LONG 0
 #define FMT_VALUE ""
 typedef int value_t;
