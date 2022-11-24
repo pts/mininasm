@@ -7,6 +7,6 @@
 #
 
 BEGIN { $^W = 1 }
-dosmc(qw(-mt mininasm.c));  # Creates mininasm.com.
+dosmc(qw(-mt -cpn mininasm.c));  # Creates mininasm.com.
 my $size = -s("mininasm.com");
 print STDERR "info: created mininasm.com ($size bytes)\n";
