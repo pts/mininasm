@@ -754,7 +754,6 @@ static void print_labels_sorted_to_listing_fd(void) {
     struct label MY_FAR *node = label_list;
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
-    char c;
     /* Morris inorder traversal of binary tree: iterative (non-recursive,
      * so it uses O(1) stack), modifies the tree pointers temporarily, but
      * then restores them, runs in O(n) time.
@@ -768,7 +767,7 @@ static void print_labels_sorted_to_listing_fd(void) {
         } else {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
-            if ((c = node->name[0]) != '%') {  /* Skip macro definitions. */
+            if (node->name[0] != '%') {  /* Skip macro definitions. */
 #if USING_FAR
                 strcpy_far(global_label, node->name);  /* We copy because bbprintf(...) below doesn't support far pointers. */
 #endif
@@ -786,7 +785,6 @@ static void print_labels_sorted_to_listing_fd(void) {
 #endif
                                        GET_UVALUE(node->value));
             }
-            (void)c;
             node = RBL_GET_RIGHT(node);
         }
     }
