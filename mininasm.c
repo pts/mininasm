@@ -92,6 +92,9 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #else
 #  ifdef __DOSMC__
 #    include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
+#    ifndef MSDOS  /* Not necessary, already done in the newest __DOSMC__. */
+#      define MSDOS 1
+#    endif
 #  else /* Standard C. */
 #    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
 #    include <ctype.h>
@@ -135,7 +138,7 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #else
 #define __SIZEOF_INT__ 4
 #endif
-#ifdef _M_I386  /* OpenWatcom only defines this for 32-bit (and maybe 64-bit?) targets, e.g. `owcc -bwin32', but not for `owcc -bdos'. */
+#ifdef _M_I386  /* OpenWatcom only defines this for 32-bit (and maybe 64-bit?) targets, e.g. `owcc -bwin32' or `owcc -bdos32a', but not for `owcc -bdos'. */
 #endif
 #else  /* Else __WATCOMC__. */
 #ifdef _M_I86
@@ -501,12 +504,16 @@ static void message_end(void);
  * Log2 of maximum number of tree nodes in a process is at most: (sizeof(void*) << 3) - log2(sizeof(rb_node(a_type)).
  * Log2 of maximum number of tree nodes in a process is at most without RB_COMPACT: (sizeof(void*) << 3) - (sizeof(void*) >= 8 ? 4 : sizeof(void*) >= 4 ? 3 : 2).
  */
-#ifndef RB_LOG2_MAX_MEM_BYTES
-#ifdef __DOSMC__
-#define RB_LOG2_MAX_MEM_BYTES 20  /* 1 MiB. */
-#else
-#define RB_LOG2_MAX_MEM_BYTES (sizeof(void*) << 3)
-#endif
+#  ifndef RB_LOG2_MAX_MEM_BYTES
+#    ifdef MSDOS
+#      ifdef _M_I386  /* Only __WATCOMC__ (not in GCC, __TURBOC__ or _MSC_VER), only in 32-bit mode, but play it safe. */
+#        define RB_LOG2_MAX_MEM_BYTES (sizeof(void near*) == 2 ? 20 : (sizeof(void*) << 3))
+#      else
+#        define RB_LOG2_MAX_MEM_BYTES 20  /* 1 MiB. */
+#    endif
+#  else
+#    define RB_LOG2_MAX_MEM_BYTES (sizeof(void*) << 3)
+#  endif
 #endif
 /**/
 #ifndef RB_LOG2_MAX_NODES
