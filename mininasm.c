@@ -453,8 +453,8 @@ static struct label MY_FAR *label_list;
 static char has_undefined;
 
 #ifndef CONFIG_SPLIT_INSTRUCTION_SET
-#if defined(_MSC_VER) && _MSC_VER < 900  /* !!! _MSC_VER < 900; Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. */
-/* !!! warning C4009: string too big, trailing characters truncated */
+#if defined(_MSC_VER) && _MSC_VER < 900  /* _MSC_VER < 900: Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. */
+/* Without this split, Microsoft C 6.00a (_MSC_VER == 600) will report warning C4009: string too big, trailing characters truncated */
 #define CONFIG_SPLIT_INSTRUCTION_SET 1
 #else
 #define CONFIG_SPLIT_INSTRUCTION_SET 0
