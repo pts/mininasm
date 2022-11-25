@@ -77,7 +77,6 @@ int __cdecl remove(const char *pathname);
 void ATTRIBUTE_NORETURN __cdecl exit(int status);
 char *__cdecl strcpy(char *dest, const char *src);
 int __cdecl strcmp(const char *s1, const char *s2);
-char *__cdecl strcat(char *dest, const char *src);
 void *__cdecl memcpy(void *dest, const void *src, size_t n);
 int __cdecl isalpha(int c);
 int __cdecl isspace(int c);
