@@ -27,6 +27,10 @@ following improvements:
   Savings: about 17.1 KiB .com program instead of 30 KiB .com program
   with `owcc -bcom -Os'. (However, the size is now more: a bit less than
   20 KiB, because new features have been added.)
+* It depends on fewer runtime (libc) functions, so it can be compiled to a
+  Linux i386 executable program smaller than Tinyasm. Currently
+  mininasm.xtiny is about 20.1 KiB, and tinasm.xstatic (similar to Tinyasm)
+  is about 52.8 KiB.
 * Its behavior is adjusted for better compatibility with NASM 0.98.39.
   The most important difference is that it supports 16-bit numbers, but
   NASM 0.98.39 supports 32-bit numbers. See more differences between
