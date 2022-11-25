@@ -890,22 +890,22 @@ static int is_colonless_instruction(const char *p) {
  */
 static const char *match_label_prefix(const char *p) {
     const char *p2;
-    char cd[2];
-    cd[0] = *p;
-    if (cd[0] == '$') {
-        cd[0] = *++p;
-        if (isalpha(cd[0])) goto goodc;
-    } else if (isalpha(cd[0])) {
-        if (isalpha(cd[1] = p[1])) {
+    union { char a[2]; short s; } cd;  /* Avoid GCC warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing] */
+    cd.a[0] = *p;
+    if (cd.a[0] == '$') {
+        cd.a[0] = *++p;
+        if (isalpha(cd.a[0])) goto goodc;
+    } else if (isalpha(cd.a[0])) {
+        if (isalpha(cd.a[1] = p[1])) {
             if (!islabel(p[2])) {  /* 2-character label. */
                 if (CONFIG_CPU_UNALIGN && sizeof(short) == 2) {
-                    *(short*)cd &= ~0x2020;
+                    cd.s &= ~0x2020;
                 } else {
-                   cd[0] &= ~32;
-                   cd[1] &= ~32;
+                    cd.a[0] &= ~32;
+                    cd.a[1] &= ~32;
                 }
                 for (p2 = (char*)register_names; p2 != register_names + STRING_SIZE_WITHOUT_NUL(register_names); p2 += 2) {
-                    if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (*(short*)cd == *(short*)p2) : (cd[0] == p2[0] && cd[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
+                    if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? (cd.s == *(short*)p2) : (cd.a[0] == p2[0] && cd.a[1] == p2[1])) return NULL;  /* A register name without a `$' prefix is not a valid label name. */
                 }
             }
             if (is_colonless_instruction(p)) return NULL;
@@ -914,7 +914,7 @@ static const char *match_label_prefix(const char *p) {
         }
         goto goodc;
     }
-    if (cd[0] != '_' && cd[0] != '.' && cd[0] != '@' && cd[0] != '?') return NULL;
+    if (cd.a[0] != '_' && cd.a[0] != '.' && cd.a[0] != '@' && cd.a[0] != '?') return NULL;
   goodc:
     while (islabel(*++p)) {}
     return p;
@@ -1323,20 +1323,20 @@ static char is_define_value(const char *p) {
  */
 static const char *match_register(const char *p, int width, unsigned char *reg) {
     const char *r0, *r, *r2;
-    char puc[2];
+    union { char a[2]; short s; } puc;  /* Avoid GCC warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing] */
 
     p = avoid_spaces(p);
     if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
         return NULL;
     r0 = r = GP_REGISTER_NAMES + (width & 16);  /* Works for width == 8 and width == 16. */
     if (CONFIG_CPU_UNALIGN && sizeof(short) == 2) {
-        *(short*)puc = *(short*)p & ~0x2020;
+        puc.s = *(short*)p & ~0x2020;
     } else {
-        puc[0] = p[0] & ~32;
-        puc[1] = p[1] & ~32;
+        puc.a[0] = p[0] & ~32;
+        puc.a[1] = p[1] & ~32;
     }
     for (r2 = r + 16; r != r2; r += 2) {
-        if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? *(short*)puc == *(short*)r : (puc[0] == r[0] && puc[1] == r[1])) {
+        if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? puc.s == *(short*)r : (puc.a[0] == r[0] && puc.a[1] == r[1])) {
             *reg = (r - r0) >> 1;
             return p + 2;
         }
