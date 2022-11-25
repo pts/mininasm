@@ -42,7 +42,13 @@
  **
  */
 
-#ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
+#ifndef CONFIG_SKIP_LIBC
+#define CONFIG_SKIP_LIBC 0
+#endif
+
+#if !CONFIG_SKIP_LIBC && defined(__TINYC__)  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
 #  if !defined(__i386__) /* && !defined(__amd64__)*/ && !defined(__x86_64__)
 #    error tcc is supported only on i386 and amd64.  /* Because of ssize_t. */
 #  endif
@@ -97,50 +103,59 @@ int __cdecl close(int fd);
 #    define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine warning: fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.  */
 int __cdecl setmode(int _FileHandle,int _Mode);
 #  endif
-#else
-#  ifdef __DOSMC__
-#    include <dosmc.h>  /* strcpy_far(...), strcmp_far(...) etc. */
-#    ifndef MSDOS  /* Not necessary, already done in the newest __DOSMC__. */
-#      define MSDOS 1
-#    endif
-#  else /* Standard C. */
-#    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
-#    ifdef __XTINY__
-#      include <xtiny.h>
-#    else
-#      include <ctype.h>
-#      include <fcntl.h>  /* open(...), O_BINARY. */
-#      include <stdio.h>  /* remove(...) */
-#      include <stdlib.h>
-#      include <string.h>
-#      if defined(__TURBOC__) && !defined(MSDOS)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. */
-#        define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
-#      endif
-#      if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
-#        include <io.h>  /* setmode(...) */
-#        if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
-#          define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
-#        else
-#          define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
-#        endif
-#      else
-#        include <unistd.h>
-#      endif
-#      if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
-typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
-#      endif
-#    endif
-#    define open2(pathname, flags) open(pathname, flags, 0)
-#    if defined(__TURBOC__)
-#      pragma warn -rch  /* Unreachable code. */
-#      pragma warn -ccc  /* Condition is always true/false. */
-#    endif
-#  endif  /* Else ifdef __DOSMC__. */
+#endif  /* ifdef __TINYC__. */
+
+#if !CONFIG_SKIP_LIBC && defined(__DOSMC__)
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
+#  include <dosmc.h>  /* strcpy_far(...), strcmp_far(...), open2(...) etc. */
+#  ifndef MSDOS  /* Not necessary, already done in the newest __DOSMC__. */
+#    define MSDOS 1
+#  endif
 #endif
 
-#if defined(__WATCOMC__) && defined(__LINUX__)  /* Defined by __WATCOMC__: `owcc -blinux' or wcl `-bt=linux'. */
-#undef O_BINARY  /* Fix bug in OpenWatcom <unistd.h>. It defines O_BINARY as O_TRUNC, effectively overwriting input files. */
+#if !CONFIG_SKIP_LIBC && defined(__XTINY__)
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
+#  define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
+#  include <xtiny.h>
+#  define open2(pathname, flags) open(pathname, flags, 0)
 #endif
+
+#if !CONFIG_SKIP_LIBC  /* More or less Standard C. */
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
+#  define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
+#  include <ctype.h>
+#  include <fcntl.h>  /* open(...), O_BINARY. */
+#  include <stdio.h>  /* remove(...) */
+#  include <stdlib.h>
+#  include <string.h>
+#  if defined(__TURBOC__) && !defined(MSDOS)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. */
+#    define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
+#  endif
+#  if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
+#    include <io.h>  /* setmode(...) */
+#    if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
+#      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
+#    else
+#      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
+#    endif
+#  else
+#    include <unistd.h>
+#  endif
+#  if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
+typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
+#  endif
+#  if defined(__WATCOMC__) && defined(__LINUX__)  /* Defined by __WATCOMC__: `owcc -blinux' or wcl `-bt=linux'. */
+#    undef O_BINARY  /* Fix bug in OpenWatcom <unistd.h>. It defines O_BINARY as O_TRUNC, effectively overwriting input files. */
+#  endif
+#  define open2(pathname, flags) open(pathname, flags, 0)
+#  if defined(__TURBOC__)
+#    pragma warn -rch  /* Unreachable code. */
+#    pragma warn -ccc  /* Condition is always true/false. */
+#  endif
+#endif  /* Else ifdef __DOSMC__. */
 
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
