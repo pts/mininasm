@@ -32,6 +32,8 @@
  **   From Borland C++ >=4.0, the .exe program is ~23 KiB larger.
  **   The -w! flag (treat warnings as errors) is ignored by Borland C++ <4.0.
  **
+ **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
+ **
  */
 
 #ifdef __TINYC__  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
@@ -169,11 +171,11 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #endif
 #endif
 
-#if !defined(CONFIG_SHIFT_OK_31)
-#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(__i386__) || defined(__386) || defined(__X86_64__) || defined(_M_I386)  /* 32-bit or 64-bit x86. Doesn't match 16-bit. */
-#define CONFIG_SHIFT_OK_31 1  /* `x << 31' and `x >> 31' works in C for 16-bit and 32-bit value_t. */
+#if !defined(CONFIG_INT_SHIFT_OK_31)
+#if CONFIG_IS_SIZEOF_INT_AT_LEAST_4  /* 32-bit or 64-bit x86. Doesn't match 16-bit. */
+#define CONFIG_INT_SHIFT_OK_31 1  /* `(value_t)x << 31' and `(value_t)x >> 31' works in C for 16-bit and 32-bit value_t. */
 #else
-#define CONFIG_SHIFT_OK_31 0
+#define CONFIG_INT_SHIFT_OK_31 0
 #endif
 #endif
 
@@ -450,7 +452,20 @@ struct label {
 static struct label MY_FAR *label_list;
 static char has_undefined;
 
+#ifndef CONFIG_SPLIT_INSTRUCTION_SET
+#if defined(_MSC_VER) && _MSC_VER < 900  /* !!! _MSC_VER < 900; Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. */
+/* !!! warning C4009: string too big, trailing characters truncated */
+#define CONFIG_SPLIT_INSTRUCTION_SET 1
+#else
+#define CONFIG_SPLIT_INSTRUCTION_SET 0
+#endif
+#endif
+
 extern const char instruction_set[];
+#if CONFIG_SPLIT_INSTRUCTION_SET
+extern const char *instruction_set_nul;
+extern const char instruction_set2[];
+#endif
 
 static const MY_STRING_WITHOUT_NUL(register_names, "CSDSESSSALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI");
 #define GP_REGISTER_NAMES (register_names + 8)  /* Skip over segment register names. */
@@ -747,7 +762,7 @@ static struct label MY_FAR *find_label(const char MY_FAR *name) {
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
-static void print_labels_sorted_to_listing_fd(void) {
+static void print_labels_sorted_to_listing(void) {
     struct label MY_FAR *node = label_list;
     struct label MY_FAR *pre;
     struct label MY_FAR *pre_right;
@@ -815,6 +830,12 @@ static int islabel1(int c) {
 }
 #endif
 
+#ifndef __WATCOMC__  /* This c + (0U - 'A') is needed my Microsoft C 6.00 (_MSC_VER == 600), otherwise (e.g. with `c - 'A' + 0U') it generates incorrect code. */
+#define SUB_U(a, b) ((a) + (0U - (b)))  /* This would also work with __DOSMC__, but it would make the code 6 bytes longer. */
+#else
+#define SUB_U(a, b) ((a) - (b) + 0U)
+#endif
+
 /* Returns bool (0 == false or 1 == true) indicating whether the
  * NUL-terminated string p matches the NUL-terminated pattern.
  *
@@ -830,7 +851,7 @@ static int islabel1(int c) {
 static char casematch(const char *p, const char *pattern) {
     char c;
     for (; (c = *pattern++) != '*'; ++p) {
-        if (c - 'A' + 0U <= 'Z' - 'A' + 0U) {
+        if (SUB_U(c, 'A') <= 'Z' - 'A' + 0U) {
             if ((*p & ~32) != c) return 0;  /* Letters are matched case insensitively. */
         } else if (c == '!') {
             if (islabel(*p)) return 0;  /* Doesn't return 0 for end-of-string. */
@@ -1032,7 +1053,7 @@ static const char *match_expression(const char *match_p) {
         } else if (c == '0' && (match_p[1] | 32) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
             /*value1 = 0;*/
-            for (; (unsigned char)(c = match_p[0] + 0U - '0') < 8U; ++match_p) {
+            for (; (unsigned char)(c = SUB_U(match_p[0], '0')) < 8U; ++match_p) {
                 value1 = (value1 << 3) | c;
             }
           check_nolabel:
@@ -1054,7 +1075,7 @@ static const char *match_expression(const char *match_p) {
             }
         } else if (isdigit(c)) {  /* Decimal, even if it starts with '0'. */
             /*value1 = 0;*/
-            for (p2 = (char*)match_p; (unsigned char)(c = match_p[0] + 0U - '0') <= 9U; ++match_p) {
+            for (p2 = (char*)match_p; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 9U; ++match_p) {
                 value1 = value1 * 10 + c;
             }
             c = match_p[0];
@@ -1191,7 +1212,7 @@ static const char *match_expression(const char *match_p) {
                         if (assembler_pass > 1)  /* This also implies !has_undefined, if there is no bug. */
                             MESSAGE(1, "shift by larger than 31");
                         value2 = 0;
-#if !CONFIG_SHIFT_OK_31
+#if !IS_VALUE_LONG && !CONFIG_INT_SHIFT_OK_31
                     } else if (sizeof(int) == 2 && sizeof(value_t) == 2 && GET_UVALUE(value2) > 15) {
                         /* We want `db 1 << 16' to emit 0, but if the host
                          * architecture uses only the last 4 bits of the shift
@@ -1202,7 +1223,7 @@ static const char *match_expression(const char *match_p) {
 #else
                         value1 = 0;
 #endif
-#endif  /* CONFIG_SHIFT_OK_31 */
+#endif  /* !IS_VALUE_LONG && !CONFIG_INT_SHIFT_OK_31 */
                     } else {
 #if CONFIG_SHIFT_SIGNED
                         value1 = c ? GET_VALUE( value1) << GET_UVALUE(value2) : GET_VALUE( value1) >> GET_UVALUE(value2);  /* Sign-extend value1 to CONFIG_VALUE_BITS. */
@@ -1280,11 +1301,11 @@ static char is_define_value(const char *p) {
         for (; c = p[0], isxdigit(c); ++p) {}
     } else if (c == '0' && (p[1] | 32) == 'o') {  /* Octal. */
         p += 2;
-        for (; (unsigned char)(c = p[0]) - '0' + 0U < 8U; ++p) {}
+        for (; SUB_U((unsigned char)(c = p[0]), '0') < 8U; ++p) {}
     } else if (c == '\'' || c == '"') {  /* Character constant. */
         return p[1] != '\0' && p[1] != c && p[2] == c;
     } else if (isdigit(c)) {  /* Decimal or hexadecimal. */
-        for (; (unsigned char)(c = p[0]) - '0' + 0U <= 9U; ++p) {}
+        for (; SUB_U((unsigned char)(c = p[0]), '0') <= 9U; ++p) {}
         if ((c | 32) == 'h' || isxdigit(c)) {
             for (; c = p[0], isxdigit(c); ++p) {}
             return (c | 32) == 'h';
@@ -1454,7 +1475,7 @@ static const char *match_addressing(const char *p, int width) {
     p = avoid_spaces(p);
     if (*p == '[') {
         p = avoid_spaces(p + 1);
-        if (p[0] != '\0' && ((p[1] & ~32) == 'S') && ((c = p[0] & ~32) == 'S' || c - 'C' + 0U <= 'E' - 'C' + 0U)) {  /* Possible segment register: CS, DS, ES or SS. */
+        if (p[0] != '\0' && ((p[1] & ~32) == 'S') && ((c = p[0] & ~32) == 'S' || SUB_U(c, 'C') <= 'E' - 'C' + 0U)) {  /* Possible segment register: CS, DS, ES or SS. */
             p2 = avoid_spaces(p + 2);
             if (p2[0] == ':') {  /* Found segment register. */
                 p = avoid_spaces(p2 + 1);
@@ -1614,10 +1635,15 @@ static void emit_bytes(const char *s, int size)  {
 /*
  ** Emit one byte to output
  */
-static void emit_byte(int byte) {  /* Changing `c' to `char' would increase the file size for __DOSMC__. */
+static void emit_byte_func(int byte) {  /* Changing `c' to `char' would increase the file size for __DOSMC__. */
     const char c = byte;
     emit_bytes(&c, 1);
 }
+#ifdef _MSC_VER  /* Without this, Microsoft C 6.00a (_MSC_VER == 600) reports: warning C4061: long/short mismatch in argument : conversion supplied */
+#  define emit_byte(b) emit_byte_func((char)(b))
+#else
+#  define emit_byte(b) emit_byte_func(b)  /* Doing an explicit (char) conversion here would increase the file size by 25 bytes for __DOSMC__. */
+#endif
 
 /*
  ** Check for end of line
@@ -1679,7 +1705,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
-        if (dc - 'j' + 0U <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
+        if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
             if (dc == 'n') {
               do_n_or_o:
@@ -1861,10 +1887,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == '!') {
             if (islabel(*p)) goto mismatch;
             continue;
-        } else if (dc - 'a' + 0U <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
+        } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else {
-            if ((dc - 'A' + 0U <= 'Z' - 'A' + 0U ? *p & ~32 : *p) != dc) goto mismatch;  /* Case insensitive match for uppercase letters in pattern. */
+            if ((SUB_U(dc, 'A') <= 'Z' - 'A' + 0U ? *p & ~32 : *p) != dc) goto mismatch;  /* Case insensitive match for uppercase letters in pattern. */
             p++;
             if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
             continue;
@@ -2216,6 +2242,12 @@ static void process_instruction(const char *p) {
         p2 = instruction_set;
         for (;;) {
             if (*p2 == '\0') {
+#if CONFIG_SPLIT_INSTRUCTION_SET
+                if (p2 == instruction_set_nul) {
+                    p2 = instruction_set2;
+                    continue;
+                }
+#endif
                 MESSAGE1STR(1, "Unknown instruction '%s'", instr_name);
                 goto after_matches;
             }
@@ -2761,7 +2793,7 @@ static void do_assembly(const char *input_filename) {
             include = 1;
         } else if ((pc = casematch(instr_name, "%DEFINE")) != 0 || casematch(instr_name, "%ASSIGN")) {
             for (p3 = p; *p3 != '\0' && !isspace(*p3); ++p3) {}
-            set_macro((char*)p - 1, (char*)p3, p3, pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN);
+            set_macro((char*)p - 1, (char*)p3, p3, (char)(pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN));
         } else if (casematch(instr_name, "%UNDEF")) {
             unset_macro((char*)p - 1);
         } else {
@@ -3084,7 +3116,7 @@ int main(int argc, char **argv) {
                     return 1;
                 }
                 d |= 32;
-                if (d + 0U - '0' <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
+                if (SUB_U(d, '0') <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
                     opt_level = d - '0';
                 } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). */
                   set_opt_level_9:
@@ -3223,7 +3255,7 @@ int main(int argc, char **argv) {
                 bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u PROGRAM BYTES\r\n", GET_UVALUE(bytes));
                 bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u ASSEMBLER PASSES\r\n\r\n", GET_UVALUE(assembler_pass));
                 bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
-                print_labels_sorted_to_listing_fd();
+                print_labels_sorted_to_listing();
                 bbprintf(&message_bbb /* listing_fd */, "\r\n");
                 message_flush(NULL);
                 close(listing_fd);
@@ -3326,6 +3358,11 @@ const char instruction_set[] =
     "LOOPNE\0" "a E0a\0"
     "LOOPNZ\0" "a E0a\0"
     "LOOPZ\0" "a E1a\0"
+#if CONFIG_SPLIT_INSTRUCTION_SET
+;
+const char *instruction_set_nul = instruction_set + sizeof(instruction_set) - 1;
+const char instruction_set2[] =
+#endif
     "MOV\0" "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,h ozoozri" ALSO "r,i ozooorj" ALSO "m,u C7dzzzdj" ALSO "l,t C6dzzzdi\0"
     "MOVSB\0" " A4\0"
     "MOVSW\0" " A5\0"
