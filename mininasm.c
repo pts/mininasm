@@ -16,6 +16,10 @@
  **
  **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c && ls -ld mininasm.tcc64
  **
+ **   $ xtiny gcc -ansi -pedantic -W -Wall Wno-overlength-strings -o mininasm.xtiny mininasm.c && ls -ld mininasm.xtiny
+ **
+ **   $ xstatic gcc -ansi -pedantic -s -O2 -W -Wall Wno-overlength-strings -o mininasm.xstatic mininasm.c && ls -ld mininasm.xstatic
+ **
  **   $ dosmc -mt -cpn mininasm.c && ls -ld mininasm.com
  **
  **   $ owcc -bdos -o mininasm.exe -mcmodel=c -Os -s -fstack-check -Wl,option -Wl,stack=1800 -march=i86 -W -Wall -Wextra mininasm.c && ls -ld mininasm.exe
@@ -99,33 +103,37 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #    endif
 #  else /* Standard C. */
 #    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
-#    include <ctype.h>
-#    include <fcntl.h>  /* open(...), O_BINARY. */
-#    include <stdio.h>  /* remove(...) */
-#    include <stdlib.h>
-#    include <string.h>
-#    if defined(__TURBOC__) && !defined(MSDOS)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. */
-#      define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
-#    endif
-#    if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
-#      include <io.h>  /* setmode(...) */
-#      if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
-#        define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
-#      else
-#        define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
-#      endif
+#    ifdef __XTINY__
+#      include <xtiny.h>
 #    else
-#      include <unistd.h>
+#      include <ctype.h>
+#      include <fcntl.h>  /* open(...), O_BINARY. */
+#      include <stdio.h>  /* remove(...) */
+#      include <stdlib.h>
+#      include <string.h>
+#      if defined(__TURBOC__) && !defined(MSDOS)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. */
+#        define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
+#      endif
+#      if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
+#        include <io.h>  /* setmode(...) */
+#        if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
+#          define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
+#        else
+#          define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0)  /* 0 to prevent Wine msvcrt.dll warning: `fixme:msvcrt:MSVCRT__wsopen_s : pmode 0x406b9b ignored.'. Also works with `owcc -bwin32' (msvcrtl.dll) and `owcc -bdos'. */
+#        endif
+#      else
+#        include <unistd.h>
+#      endif
+#      if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
+typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
+#      endif
 #    endif
 #    define open2(pathname, flags) open(pathname, flags, 0)
-#    if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
-typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
-#    endif
 #    if defined(__TURBOC__)
 #      pragma warn -rch  /* Unreachable code. */
 #      pragma warn -ccc  /* Condition is always true/false. */
 #    endif
-#  endif
+#  endif  /* Else ifdef __DOSMC__. */
 #endif
 
 #ifndef O_BINARY  /* Unix. */
@@ -190,6 +198,9 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #define CONFIG_DOSMC_PACKED 0
 #endif
 #endif
+#if CONFIG_DOSMC_PACKED && !defined(__DOSMC__)
+#  error CONFIG_DOSMC_PACKED needs __DOSMC__.
+#endif
 
 #ifdef __DOSMC__
 __LINKER_FLAG(stack_size__0x140)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
@@ -244,20 +255,61 @@ static void far *malloc_far(int size);
 value [dx ax] \
 parm [ax] \
 modify [si cl]
-#define MY_FAR far
-#define USING_FAR 1
+#  define MY_FAR far
+#  define USING_FAR 1
 /* strcpy_far(...) and strcmp_far(...) are defined in <dosmc.h>. */
-#else  /* CONFIG_DOSMC. */
-#define MY_FAR
-#define USING_FAR 0
-#define strcpy_far(dest, src) strcpy(dest, src)
-#define strcmp_far(s1, s2) strcmp(s1, s2)
-#define malloc_far(size) malloc(size)
-#define malloc_init() do {} while (0)
-#if CONFIG_DOSMC_PACKED
-#error CONFIG_DOSMC_PACKED needs __DOSMC__.
+#else  /* Of ifdef __DOSMC__ */
+#  define MY_FAR
+#  define USING_FAR 0
+#  define strcpy_far(dest, src) strcpy(dest, src)
+#  define strcmp_far(s1, s2) strcmp(s1, s2)
+#  define malloc_init() do {} while (0)
+#  ifdef __XTINY__
+#if 0  /* For debugging. */
+static void writehex(const char *hdr, unsigned long u) {
+    char tmp[9], *p = tmp + 8;
+    unsigned char n;
+    (void)!write(2, hdr, strlen(hdr));
+    *p = '\n';
+    while (p != tmp) {
+        n = u & 15;
+        if (n > 9) n += 'a' - '0' - 10;
+        *--p = n + '0';
+        u >>= 4;
+    }
+    (void)!write(2, tmp, 9);
+}
 #endif
-#endif  /* Else CONFIG_DOSMC. */
+/*
+ ** A simplistic allocator which creates a heap of 64 KiB first, and then
+ ** doubles it when necessary. free(...)ing is not supported. Returns an
+ ** unaligned address (which is OK on x86).
+ */
+static void *malloc_far(size_t size) {
+    static char *base, *free, *end;
+    ssize_t new_heap_size;
+    if ((ssize_t)size <= 0) return NULL;  /* Fail if size is too large (or 0). */
+    /* sys_brk(2) is provided by __XTINY__ <xtiny.h>. */
+    if (!base) {
+        if (!(base = free = (char*)sys_brk(NULL))) return NULL;  /* Error getting the initial data segment size for the very first time. */
+        new_heap_size = 64 << 10;  /* 64 KiB. */
+        end = base + new_heap_size;
+        goto grow_heap;
+    }
+    while (size > (size_t)(end - free)) {  /* Double the heap size until there is `size' bytes free. */
+        new_heap_size = (end - base) << 1;
+      grow_heap:
+        if ((ssize_t)new_heap_size <= 0 || (size_t)base + new_heap_size < (size_t)base) return NULL;  /* Heap would be too large. */
+        end = base + new_heap_size;
+        if ((char*)sys_brk(end) != end) return NULL;  /* Out of memory. */
+    }
+    free += size;
+    return free - size;
+}
+#  else  /* Of ifdef __XTINY__ */
+#    define malloc_far(size) malloc(size)
+#  endif  /* Else ifdef __XTINY__ */
+#endif  /* Else ifdef __DOSMC__. */
 
 /* Example usage:
  * static const STRING_WITHOUT_NUL(msg, "Hello, World!\r\n$");
