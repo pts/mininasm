@@ -111,6 +111,9 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  ifndef MSDOS  /* Not necessary, already done in the newest __DOSMC__. */
 #    define MSDOS 1
 #  endif
+#  ifndef CONFIG_USE_MEMCPY_INLINE
+#    define CONFIG_USE_MEMCPY_INLINE 1
+#  endif
 #endif
 
 #if !CONFIG_SKIP_LIBC && defined(__XTINY__)
@@ -158,6 +161,10 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
+#endif
+
+#ifndef CONFIG_USE_MEMCPY_INLINE
+#  define CONFIG_USE_MEMCPY_INLINE 0
 #endif
 
 #ifndef CONFIG_IS_SIZEOF_INT_AT_LEAST_4
@@ -1676,7 +1683,7 @@ struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf
 static void emit_write(const char *s, int size) {
     int emit_free;
     while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
-#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
+#if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
         emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, emit_free);
 #else
         memcpy(emit_bbb.p, s, emit_free);
@@ -1685,7 +1692,7 @@ static void emit_write(const char *s, int size) {
         s += emit_free; size -= emit_free;
         emit_flush(0);
     }
-#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
+#if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
     emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, size);
 #else
     memcpy(emit_bbb.p, s, size);
@@ -2615,7 +2622,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
     *name_end = name_endc;
 }
 
-#ifdef __DOSMC__
+#if CONFIG_USE_MEMCPY_INLINE
 static void memcpy_void_my(void *dest, const void *src, size_t n) {
     memcpy_void_inline(dest, src, n);
 }
@@ -2879,7 +2886,7 @@ static void do_assembly(const char *input_filename) {
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
             liner = (p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
-#ifdef __DOSMC__  /* A few bytes smaller than memcpy(...). */
+#if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
             /* Calling memcpy_newdest_inline(...) or memcpy_void_inline(...) instead here would add 127 bytes to the program, so we are not doing it. OpenWatcom optimization is weird. */
             memcpy_void_my(liner, p, p3 - p);
 #else
