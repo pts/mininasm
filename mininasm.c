@@ -3208,7 +3208,7 @@ int main(int argc, char **argv)
                 d |= 32;
                 if (SUB_U(d, '0') <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
                     opt_level = d - '0';
-                } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). */
+                } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). !! TODO(pts): Allow -O99999999 etc., for compatibility with NASM 0.98.39, whern -09 is too small and causes ``error: phase error detected at end of assembly''.. */
                   set_opt_level_9:
                     opt_level = 9;
                 } else if (d == 'l') {  /* -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */
