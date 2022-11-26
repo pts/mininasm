@@ -3139,16 +3139,27 @@ static void do_assembly(const char *input_filename) {
 
 static MY_STRING_WITHOUT_NUL(mininasm_macro_name, " __MININASM__");
 
+#ifndef CONFIG_MAIN_ARGV
+#define CONFIG_MAIN_ARGV 0
+#endif
+
 /*
  ** Main program
  */
-int main(int argc, char **argv) {
+#if CONFIG_MAIN_ARGV
+int main_argv(char **argv)
+#else
+int main(int argc, char **argv)
+#endif
+{
     int d;
     const char *p;
     char *ifname;
     char *listing_filename;
     value_t prev_address;
+#if !CONFIG_MAIN_ARGV
     (void)argc;
+#endif
 
 #if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
