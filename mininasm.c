@@ -229,6 +229,14 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #  error CONFIG_DOSMC_PACKED needs __DOSMC__.
 #endif
 
+#ifndef CONFIG_MALLOC_FAR_USING_SYS_BRK
+#ifdef __XTINY__
+#define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
+#else
+#define CONFIG_MALLOC_FAR_USING_SYS_BRK 0
+#endif
+#endif
+
 #ifdef __DOSMC__
 __LINKER_FLAG(stack_size__0x140)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
@@ -291,7 +299,8 @@ modify [si cl]
 #  define strcpy_far(dest, src) strcpy(dest, src)
 #  define strcmp_far(s1, s2) strcmp(s1, s2)
 #  define malloc_init() do {} while (0)
-#  ifdef __XTINY__
+#  if CONFIG_MALLOC_FAR_USING_SYS_BRK
+/* MAYBE_STATIC void *sys_brk(void *addr); */  /* Provided by the libc. */
 #if 0  /* For debugging. */
 static void writehex(const char *hdr, unsigned long u) {
     char tmp[9], *p = tmp + 8;
@@ -309,14 +318,16 @@ static void writehex(const char *hdr, unsigned long u) {
 #endif
 /*
  ** A simplistic allocator which creates a heap of 64 KiB first, and then
- ** doubles it when necessary. free(...)ing is not supported. Returns an
- ** unaligned address (which is OK on x86).
+ ** doubles it when necessary. It is implemented using Linux system call
+ ** brk(2), exported by the libc as sys_brk(...). free(...)ing is not
+ ** supported. Returns an unaligned address (which is OK on x86).
+ **
+ ** TODO(pts): Rewrite it in assembly, size-optimize it.
  */
 static void *malloc_far(size_t size) {
     static char *base, *free, *end;
     ssize_t new_heap_size;
     if ((ssize_t)size <= 0) return NULL;  /* Fail if size is too large (or 0). */
-    /* sys_brk(2) is provided by __XTINY__ <xtiny.h>. */
     if (!base) {
         if (!(base = free = (char*)sys_brk(NULL))) return NULL;  /* Error getting the initial data segment size for the very first time. */
         new_heap_size = 64 << 10;  /* 64 KiB. */

@@ -12,10 +12,10 @@
  * * mininasm.swatli3: 21533 bytes (no OpenWatcom libc)
  * * mininasm.nwatli3: 19631 bytes (smarter ELF linking with NASM)
  *
- * TODO(pts): Reimplement the C functions in this file in assembly only.
  * TODO(pts): Remove the PHDR program header from the ELF executable program (done in compile_nwatli3.pl).
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).
- * TODO(pts): Change the section aligment of .data and .bss (and all symbols) to 1 in wcc. How much does it help?
+ * TODO(pts): Change the section aligment of .data and .bss (and all symbols) to 1 in wcc. How much does it help? Not changing makes int up to 4*3 bytes longer. That's fine.
+ * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
  */
 
 #ifndef __WATCOMC__
@@ -107,38 +107,6 @@ static int strcmp_inline(const char *s1, const char *s2);
 LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1, s2); }
 /* This is much shorter than in OpenWatcom libc and shorter than QLIB 2.12.1 and Zortech C++. */
 #pragma aux strcmp_inline = "xchg esi, eax"  "xor eax, eax"  "xchg edi, edx"  "next: lodsb"  "scasb"  "jne short diff"  "cmp al, 0"  "jne short next"  "jmp short done"  "diff: mov al, 1"  "jnc short done"  "neg eax"  "done: xchg edi, edx"  value [ eax ] parm [ eax ] [ edx ] modify [ esi ];
-
-/* --- Memory allocator based on brk(2). */
-
-LIBC_STATIC void *sys_brk(void *addr);
-
-/*
- * A simplistic allocator which creates a heap of 64 KiB first, and then
- * doubles it when necessary. free(...)ing is not supported. Returns an
- * unaligned address (which is OK on x86).
- *
- * TODO(pts): Rewrite it in assembly, size-optimize it.
- */
-LIBC_STATIC void *malloc(size_t size) {
-  static char *base, *free, *end;
-  ssize_t new_heap_size;
-  if ((ssize_t)size <= 0) return NULL;  /* Fail if size is too large (or 0). */
-  if (!base) {
-    if (!(base = free = (char*)sys_brk(NULL))) return NULL;  /* Error getting the initial data segment size for the very first time. */
-    new_heap_size = 64 << 10;  /* 64 KiB. */
-    end = base + new_heap_size;
-    goto grow_heap;
-  }
-  while (size > (size_t)(end - free)) {  /* Double the heap size until there is `size' bytes free. */
-    new_heap_size = (end - base) << 1;
-    grow_heap:
-    if ((ssize_t)new_heap_size <= 0 || (size_t)base + new_heap_size < (size_t)base) return NULL;  /* Heap would be too large. */
-    end = base + new_heap_size;
-    if ((char*)sys_brk(end) != end) return NULL;  /* Out of memory. */
-  }
-  free += size;
-  return free - size;
-}
 
 /* --- Linux i386 system calls.
  *
@@ -271,4 +239,5 @@ __declspec(aborts) void _start(void) { start_inline(); }
 #endif
 
 #define CONFIG_SKIP_LIBC 1
+#define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
 #include "mininasm.c"
