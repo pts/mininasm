@@ -3,19 +3,20 @@
  * by pts@fazekas.hu at Fri Nov 25 21:41:31 CET 2022
  *
  # Compile without: owcc -blinux -o mininasm.watli3 -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c && sstrip mininasm.watli3 && ls -ld mininasm.watli3
- * Compile: owcc -blinux -fnostdlib -Wl,option -Wl,start=_start_ -o mininasm.swatli3 -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatli3.c && sstrip swatli3 && ls -ld mininasm.swatli3
+ * Compile: owcc -blinux -fnostdlib -Wl,option -Wl,start=_start_ -o mininasm.swatli3 -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatli3.c && sstrip mininasm.swatli3 && ls -ld mininasm.swatli3
  * Compile better: ./compile_nwatli3.sh
  *
  * Size reduction:
  *
  * * mininasm.watli3:  29882 bytes
  * * mininasm.swatli3: 21533 bytes (no OpenWatcom libc)
- * * mininasm.nwatli3: 19631 bytes (smarter ELF linking with NASM)
+ * * mininasm.nwatli3: 19591 bytes (smarter ELF linking with NASM)
  *
  * TODO(pts): Remove the PHDR program header from the ELF executable program (done in compile_nwatli3.pl).
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).
  * TODO(pts): Change the section aligment of .data and .bss (and all symbols) to 1 in wcc. How much does it help? Not changing makes int up to 4*3 bytes longer. That's fine.
  * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
+ * TODO(pts): Inline the single call to syscall3_optregorder. OpenWatcom doesn't seem to be able to do it without breaking tail calls in read(...), write(...) etc.
  */
 
 #ifndef __WATCOMC__
@@ -131,9 +132,7 @@ LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1
 #define __NR_brk		 45
 
 static int syscall1_inline(int nr, int arg1);
-/*#pragma aux syscall1_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ];*/
-/* Gets the syscall number in ebx, for better inlining with the __watcall calling convention.
- * TODO(pts): Is there a way to unify the tail return (from "test eax, eax")? OpenWatcom seems to be smart if it generates the code.
+/* Gets the syscall number in ebx, for better inlining with the OpenWatcom __watcall calling convention.
  */
 #pragma aux syscall1_inline = "xchg eax, ebx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ];
 
@@ -145,6 +144,10 @@ static int syscall2_inline(int nr, int arg1, int arg2);
 
 static int syscall3_inline(int nr, int arg1, int arg2, int arg3);
 #pragma aux syscall3_inline = "xchg eax, ebx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ] [ edx ];
+
+/* Arguments reorderd to match __watcall, for shorter caller code */
+static int syscall3_optregorder_inline(int arg1, int arg2, int arg3, int nr);
+#pragma aux syscall3_optregorder_inline = "xchg ebx, eax"  "xchg eax, edx"  "xchg eax, ecx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] [ ecx ];
 
 LIBC_STATIC void *sys_brk(void *addr) { return (void*)syscall1_inline(__NR_brk, (int)addr); }
 
@@ -162,8 +165,13 @@ __declspec(aborts) LIBC_STATIC void exit(int status) {
 LIBC_STATIC int unlink(const char *pathname) { return syscall1_inline(__NR_unlink, (int)pathname); }
 #define remove(pathname) unlink(pathname)
 
+/* --- Put syscall3 functions (open3, read, write, lseek) next to each other, for better tail call locality. */
+
+/* For the optimization to take effect, `int nr' must be passed last here. */
+static int syscall3_optregorder(int arg1, int arg2, int arg3, int nr) { return syscall3_optregorder_inline(arg1, arg2, arg3, nr); }
+
 /* This would work, but OpenWatcom generates suboptimal code (with lots of stack pushes) for this. */
-LIBC_STATIC int open3(const char *pathname, int flags, int mode) { return syscall3_inline(__NR_open, (int)pathname, flags, mode); }
+LIBC_STATIC int open3(const char *pathname, int flags, int mode) { return syscall3_optregorder((int)pathname, flags, mode, __NR_open); }
 /* Without this renaming, OpenWatcom generates suboptimal code (with lots of stack pushes) for this. Why? Because of the hidden `...' in the function prototype? */
 #define open(pathname, flags, mode) open3(pathname, flags, mode)
 
@@ -174,13 +182,15 @@ typedef unsigned short mode_t;
 typedef int mode_t;
 #endif
 
+LIBC_STATIC ssize_t read(int fd, void *buf, size_t count) { return syscall3_optregorder(fd, (int)buf, count, __NR_read); }
+
+LIBC_STATIC ssize_t write(int fd, const void *buf, size_t count) { return syscall3_optregorder(fd, (int)buf, count, __NR_write); }
+
+LIBC_STATIC off_t lseek(int fd, off_t offset, int whence) { return syscall3_optregorder(fd, offset, whence, __NR_lseek); }
+
+/* --- End of syscall3 functions. */
+
 LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
-
-LIBC_STATIC ssize_t read(int fd, void *buf, size_t count) { return syscall3_inline(__NR_read, fd, (int)buf, count); }
-
-LIBC_STATIC ssize_t write(int fd, const void *buf, size_t count) { return syscall3_inline(__NR_write, fd, (int)buf, count); }
-
-LIBC_STATIC off_t lseek(int fd, off_t offset, int whence) { return syscall3_inline(__NR_lseek, fd, offset, whence); }
 
 LIBC_STATIC int close(int fd) { return syscall1_inline(__NR_close, fd); }
 
