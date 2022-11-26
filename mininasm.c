@@ -16,7 +16,7 @@
  **
  **   $ pts-tcc64 -m64 -s -O2 -W -Wall -o mininasm.tcc64 mininasm.c && ls -ld mininasm.tcc64
  **
- **   $ xtiny gcc -ansi -pedantic -W -Wall Wno-overlength-strings -o mininasm.xtiny mininasm.c && ls -ld mininasm.xtiny
+ **   $ xtiny gcc -march=i386 -ansi -pedantic -W -Wall Wno-overlength-strings -o mininasm.xtiny mininasm.c && ls -ld mininasm.xtiny
  **
  **   $ xstatic gcc -ansi -pedantic -s -O2 -W -Wall Wno-overlength-strings -o mininasm.xstatic mininasm.c && ls -ld mininasm.xstatic
  **
