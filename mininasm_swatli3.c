@@ -39,7 +39,13 @@
 #if 0  /* No need for these OpenWatcom libc headers. But would work even with them. */
 #include <fcntl.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <io.h>
+#endif
+
+#ifdef _IO_H_INCLUDED  /* Most of the time no, se `#if 0' above. */
+#  define LIBC_STATIC
+#else
+#  define LIBC_STATIC static
 #endif
 
 #define NULL ((void *)0)
@@ -61,31 +67,31 @@ typedef long off_t;  /* !! TODO(pts): Use 64-bit file offset (#define _FILE_OFFS
 /* --- <ctype.h> */
 
 static int isalpha_inline(int c);
-int isalpha(int c) { return isalpha_inline(c); }
+LIBC_STATIC int isalpha(int c) { return isalpha_inline(c); }
 #pragma aux isalpha_inline = "or al, 32"  "sub al, 97"  "cmp al, 26"  "sbb eax, eax"  "neg eax"  value [ eax ] parm [ eax ];
 
 static int isspace_inline(int c);
-int isspace(int c) { return isspace_inline(c); }
+LIBC_STATIC int isspace(int c) { return isspace_inline(c); }
 #pragma aux isspace_inline = "sub al, 9"  "cmp al, 13-9+1"  "jc short @$1"  "sub al, 32-9"  "cmp al, 1"  "@$1: sbb eax, eax"  "neg eax"  value [ eax ] parm [ eax ];
 
 static int isdigit_inline(int c);
-int isdigit(int c) { return isdigit_inline(c); }
+LIBC_STATIC int isdigit(int c) { return isdigit_inline(c); }
 #pragma aux isdigit_inline = "sub al, 48"  "cmp al, 10"  "sbb eax, eax"  "neg eax"  value [ eax ] parm [ eax ];
 
 static int isxdigit_inline(int c);
-int isxdigit(int c) { return isxdigit_inline(c); }
+LIBC_STATIC int isxdigit(int c) { return isxdigit_inline(c); }
 #pragma aux isxdigit_inline = "sub al, 48"  "cmp al, 10"  "jc short @$1"  "or al, 32"  "sub al, 49"  "cmp al, 6"  "@$1: sbb eax, eax"  "neg eax"  value [ eax ] parm [ eax ];
 
 /* --- <string.h> */
 
 static size_t strlen_inline(const char *s);
 static size_t strlen_inline2(const char *s);  /* Unused. Maybe shorter for inlining. */
-size_t strlen(const char *s) { return strlen_inline(s); }
+LIBC_STATIC size_t strlen(const char *s) { return strlen_inline(s); }
 #pragma aux strlen_inline = "xchg esi, eax"  "xor eax, eax"  "dec eax"  "again: cmp byte ptr [esi], 1"  "inc esi"  "inc eax"  "jnc short again"  value [ eax ] parm [ eax ] modify [ esi] ;
 #pragma aux strlen_inline2 = "xor eax, eax"  "dec eax"  "again: cmp byte ptr [esi], 1"  "inc esi"  "inc eax"  "jnc short again"  value [ eax ] parm [ esi ] modify [ esi ];
 
 static char *strcpy_inline(char *dest, const char *src);
-char *strcpy(char *dest, const char *src) { return strcpy_inline(dest, src); }
+LIBC_STATIC char *strcpy(char *dest, const char *src) { return strcpy_inline(dest, src); }
 #pragma aux strcpy_inline = "xchg esi, edx"  "xchg edi, eax"  "push edi"  "again: lodsb"  "stosb"  "cmp al, 0"  "jne short again"  "pop eax"  "xchg esi, edx"  value [ eax ] parm [ eax ] [ edx ] modify [ edi ];
 
 static void memcpy_void_inline(void *dest, const void *src, size_t n);
@@ -98,13 +104,13 @@ static void *memcpy_newdest_inline(void *dest, const void *src, size_t n);
 #define CONFIG_USE_MEMCPY_INLINE 1
 
 static int strcmp_inline(const char *s1, const char *s2);
-int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1, s2); }
+LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1, s2); }
 /* This is much shorter than in OpenWatcom libc and shorter than QLIB 2.12.1 and Zortech C++. */
 #pragma aux strcmp_inline = "xchg esi, eax"  "xor eax, eax"  "xchg edi, edx"  "next: lodsb"  "scasb"  "jne short diff"  "cmp al, 0"  "jne short next"  "jmp short done"  "diff: mov al, 1"  "jnc short done"  "neg eax"  "done: xchg edi, edx"  value [ eax ] parm [ eax ] [ edx ] modify [ esi ];
 
 /* --- Memory allocator based on brk(2). */
 
-void *sys_brk(void *addr);
+LIBC_STATIC void *sys_brk(void *addr);
 
 /*
  * A simplistic allocator which creates a heap of 64 KiB first, and then
@@ -113,7 +119,7 @@ void *sys_brk(void *addr);
  *
  * TODO(pts): Rewrite it in assembly, size-optimize it.
  */
-void *malloc(size_t size) {
+LIBC_STATIC void *malloc(size_t size) {
   static char *base, *free, *end;
   ssize_t new_heap_size;
   if ((ssize_t)size <= 0) return NULL;  /* Fail if size is too large (or 0). */
@@ -172,12 +178,12 @@ static int syscall2_inline(int nr, int arg1, int arg2);
 static int syscall3_inline(int nr, int arg1, int arg2, int arg3);
 #pragma aux syscall3_inline = "xchg eax, ebx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ] [ edx ];
 
-void *sys_brk(void *addr) { return (void*)syscall1_inline(__NR_brk, (int)addr); }
+LIBC_STATIC void *sys_brk(void *addr) { return (void*)syscall1_inline(__NR_brk, (int)addr); }
 
 __declspec(aborts) static void exit_inline(int status);
 #pragma aux exit_inline = "xchg eax, ebx"  "xor eax, eax"  "inc eax"  "int 80h"  parm [ eax ];
 
-__declspec(aborts) void exit(int status) {
+__declspec(aborts) LIBC_STATIC void exit(int status) {
 #if 1
   exit_inline(status);
 #else
@@ -185,28 +191,30 @@ __declspec(aborts) void exit(int status) {
 #endif
 }
 
-int unlink(const char *pathname) { return syscall1_inline(__NR_unlink, (int)pathname); }
+LIBC_STATIC int unlink(const char *pathname) { return syscall1_inline(__NR_unlink, (int)pathname); }
 #define remove(pathname) unlink(pathname)
 
 /* This would work, but OpenWatcom generates suboptimal code (with lots of stack pushes) for this. */
-int open3(const char *pathname, int flags, int mode) { return syscall3_inline(__NR_open, (int)pathname, flags, mode); }
+LIBC_STATIC int open3(const char *pathname, int flags, int mode) { return syscall3_inline(__NR_open, (int)pathname, flags, mode); }
 /* Without this renaming, OpenWatcom generates suboptimal code (with lots of stack pushes) for this. Why? Because of the hidden `...' in the function prototype? */
 #define open(pathname, flags, mode) open3(pathname, flags, mode)
 
-#ifdef _IO_H_INCLUDED  /* OpenWatcom <io.h> has `unsigned short' type for `mode' below. */
-/* This has a `movzx' instead of a `mov' (1 byte longer). */
-int creat(const char *pathname, unsigned short mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
+#ifdef _IO_H_INCLUDED  /* OpenWatcom <io.h> has `unsigned short' type for `mode_t'. */
+/* With this creat(...) has a `movzx' instead of a `mov' (1 byte longer). */
+typedef unsigned short mode_t;
 #else
-int creat(const char *pathname, int mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
+typedef int mode_t;
 #endif
 
-ssize_t read(int fd, void *buf, size_t count) { return syscall3_inline(__NR_read, fd, (int)buf, count); }
+LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
 
-ssize_t write(int fd, const void *buf, size_t count) { return syscall3_inline(__NR_write, fd, (int)buf, count); }
+LIBC_STATIC ssize_t read(int fd, void *buf, size_t count) { return syscall3_inline(__NR_read, fd, (int)buf, count); }
 
-off_t lseek(int fd, off_t offset, int whence) { return syscall3_inline(__NR_lseek, fd, offset, whence); }
+LIBC_STATIC ssize_t write(int fd, const void *buf, size_t count) { return syscall3_inline(__NR_write, fd, (int)buf, count); }
 
-int close(int fd) { return syscall1_inline(__NR_close, fd); }
+LIBC_STATIC off_t lseek(int fd, off_t offset, int whence) { return syscall3_inline(__NR_lseek, fd, offset, whence); }
+
+LIBC_STATIC int close(int fd) { return syscall1_inline(__NR_close, fd); }
 
 /* --- Startup code. Run as: owcc -fnostdlib -Wl,option -Wl,start=_start */
 
