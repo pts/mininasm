@@ -139,31 +139,39 @@ typedef int mode_t;
 #define __NR_lseek		 19
 #define __NR_brk		 45
 
+#if 1
+#define SYSCALL_ASM "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  /* 9 bytes, with jump. */
+#else
+#define SYSCALL_ASM "int 80h"  "cmp eax, 080000000h"  "cmc"  "sbb ebx, ebx"  "or eax, ebx"  /* 12 bytes, without a jump. Doesn't help OpenWatcom with tail optimizations. */
+#endif
+
 static int syscall1_inline(int nr, int arg1);
 /* Gets the syscall number in ebx, for better inlining with the OpenWatcom __watcall calling convention. */
-#pragma aux syscall1_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ];
+#pragma aux syscall1_inline = SYSCALL_ASM  value [ eax ] parm [ eax ] [ ebx ];
 
 static int syscall1_optregorder_inline(int arg1, int nr);
-#pragma aux syscall1_optregorder_inline = "xchg eax, ebx" "xchg eax, edx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] modify [ ebx edx ];
+#pragma aux syscall1_optregorder_inline = "xchg eax, ebx" "xchg eax, edx"  SYSCALL_ASM  value [ eax ] parm [ eax ] [ edx ] modify [ ebx edx ];
 
 __declspec(aborts) static int syscall1_noreturn_inline(int nr, int arg1);
 #pragma aux syscall1_noreturn_inline = "xchg eax, ebx"  "int 80h"  value [ eax ] parm [ ebx ] [ eax ];
 
 static int syscall2_inline(int nr, int arg1, int arg2);
-#pragma aux syscall2_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ] [ ecx ];
+#pragma aux syscall2_inline = SYSCALL_ASM  value [ eax ] parm [ eax ] [ ebx ] [ ecx ];
 
 static int syscall2_optregorder_inline(int arg1, int arg2, int nr);
-#pragma aux syscall2_optregorder_inline = "xchg eax, ebx"  "xchg ecx, edx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] modify [ ebx ecx edx ];
+#pragma aux syscall2_optregorder_inline = "xchg eax, ebx"  "xchg ecx, edx"  SYSCALL_ASM  value [ eax ] parm [ eax ] [ edx ] [ ebx ] modify [ ebx ecx edx ];
 
 static int syscall3_inline(int nr, int arg1, int arg2, int arg3);
-#pragma aux syscall3_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ] [ ecx ] [ edx ];
+#pragma aux syscall3_inline = SYSCALL_ASM  value [ eax ] parm [ eax ] [ ebx ] [ ecx ] [ edx ];
 
 /* Arguments reorderd to match __watcall, for shorter caller code */
 static int syscall3_optregorder_inline(int arg1, int arg2, int arg3, int nr);
-#pragma aux syscall3_optregorder_inline = "xchg ebx, eax"  "xchg eax, edx"  "xchg eax, ecx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] [ ecx ] modify [ ebx ecx edx ];
+#pragma aux syscall3_optregorder_inline = "xchg ebx, eax"  "xchg eax, edx"  "xchg eax, ecx"  SYSCALL_ASM  value [ eax ] parm [ eax ] [ edx ] [ ebx ] [ ecx ] modify [ ebx ecx edx ];
 
 __declspec(aborts) static void exit_inline(int status);
 #pragma aux exit_inline = "xchg eax, ebx"  "xor eax, eax"  "inc eax"  "int 80h"  parm [ eax ];
+
+#undef SYSCALL_ASM
 
 /* Inlining this function would make the executable program 12 bytes longer,because of (?) some tail optimization misses. */
 __declspec(aborts) LIBC_STATIC void exit(int status) {
