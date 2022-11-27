@@ -335,7 +335,7 @@ static void *malloc_far(size_t size) {
         goto grow_heap;
     }
     while (size > (size_t)(end - free)) {  /* Double the heap size until there is `size' bytes free. */
-        new_heap_size = (end - base) << 1;
+        new_heap_size = (end - base) << 1;  /* !! TODO(pts): Don't allocate more than 1 MiB if not needed. */
       grow_heap:
         if ((ssize_t)new_heap_size <= 0 || (size_t)base + new_heap_size < (size_t)base) return NULL;  /* Heap would be too large. */
         end = base + new_heap_size;
