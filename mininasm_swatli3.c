@@ -16,7 +16,7 @@
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).
  * TODO(pts): Change the section aligment of .data and .bss (and all symbols) to 1 in wcc. How much does it help? Not changing makes int up to 4*3 bytes longer. That's fine.
  * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
- * TODO(pts): Inline the single call to syscall3_optregorder. OpenWatcom doesn't seem to be able to do it without breaking tail calls in read(...), write(...) etc.
+ * TODO(pts): Inline the single call to syscall1_optregorder and also to syscall3_optregorder. Unify parts of syscall1_optregorder and syscall3_optregorder. OpenWatcom doesn't seem to be able to do it without breaking tail calls in read(...), write(...) etc.
  */
 
 #ifndef __WATCOMC__
@@ -88,7 +88,7 @@ LIBC_STATIC int isxdigit(int c) { return isxdigit_inline(c); }
 static size_t strlen_inline(const char *s);
 static size_t strlen_inline2(const char *s);  /* Unused. Maybe shorter for inlining. */
 LIBC_STATIC size_t strlen(const char *s) { return strlen_inline(s); }
-#pragma aux strlen_inline = "xchg esi, eax"  "xor eax, eax"  "dec eax"  "again: cmp byte ptr [esi], 1"  "inc esi"  "inc eax"  "jnc short again"  value [ eax ] parm [ eax ] modify [ esi] ;
+#pragma aux strlen_inline = "xchg esi, eax"  "xor eax, eax"  "dec eax"  "again: cmp byte ptr [esi], 1"  "inc esi"  "inc eax"  "jnc short again"  value [ eax ] parm [ eax ] modify [ esi ] ;
 #pragma aux strlen_inline2 = "xor eax, eax"  "dec eax"  "again: cmp byte ptr [esi], 1"  "inc esi"  "inc eax"  "jnc short again"  value [ eax ] parm [ esi ] modify [ esi ];
 
 static char *strcpy_inline(char *dest, const char *src);
@@ -132,28 +132,29 @@ LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1
 #define __NR_brk		 45
 
 static int syscall1_inline(int nr, int arg1);
-/* Gets the syscall number in ebx, for better inlining with the OpenWatcom __watcall calling convention.
- */
-#pragma aux syscall1_inline = "xchg eax, ebx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ];
+/* Gets the syscall number in ebx, for better inlining with the OpenWatcom __watcall calling convention. */
+#pragma aux syscall1_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ];
+
+static int syscall1_optregorder_inline(int arg1, int nr);
+#pragma aux syscall1_optregorder_inline = "xchg eax, ebx" "xchg eax, edx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] modify [ ebx edx ];
 
 __declspec(aborts) static int syscall1_noreturn_inline(int nr, int arg1);
 #pragma aux syscall1_noreturn_inline = "xchg eax, ebx"  "int 80h"  value [ eax ] parm [ ebx ] [ eax ];
 
 static int syscall2_inline(int nr, int arg1, int arg2);
-#pragma aux syscall2_inline = "xchg eax, ebx" "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ];
+#pragma aux syscall2_inline = "xchg eax, ebx" "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ] modify [ ebx ];
 
 static int syscall3_inline(int nr, int arg1, int arg2, int arg3);
-#pragma aux syscall3_inline = "xchg eax, ebx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ] [ edx ];
+#pragma aux syscall3_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ] [ ecx ] [ edx ];
 
 /* Arguments reorderd to match __watcall, for shorter caller code */
 static int syscall3_optregorder_inline(int arg1, int arg2, int arg3, int nr);
-#pragma aux syscall3_optregorder_inline = "xchg ebx, eax"  "xchg eax, edx"  "xchg eax, ecx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] [ ecx ];
-
-LIBC_STATIC void *sys_brk(void *addr) { return (void*)syscall1_inline(__NR_brk, (int)addr); }
+#pragma aux syscall3_optregorder_inline = "xchg ebx, eax"  "xchg eax, edx"  "xchg eax, ecx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] [ ecx ] modify [ ebx ecx edx ];
 
 __declspec(aborts) static void exit_inline(int status);
 #pragma aux exit_inline = "xchg eax, ebx"  "xor eax, eax"  "inc eax"  "int 80h"  parm [ eax ];
 
+/* TODO(pts): Define custom calling convention for all the non-inline functions, so that the xchgs are not needed. */
 __declspec(aborts) LIBC_STATIC void exit(int status) {
 #if 1
   exit_inline(status);
@@ -162,12 +163,21 @@ __declspec(aborts) LIBC_STATIC void exit(int status) {
 #endif
 }
 
-LIBC_STATIC int unlink(const char *pathname) { return syscall1_inline(__NR_unlink, (int)pathname); }
+/* --- Put syscall3 functions (sys_brk, unlink, close) next to each other, for better tail call locality. */
+
+/* For the optimization to take effect, `int nr' must be passed last here, and this must be a non-inline function. */
+static int syscall1_optregorder(int arg1, int nr) { return syscall1_optregorder_inline(arg1, nr); }
+
+LIBC_STATIC void *sys_brk(void *addr) { return (void*)syscall1_optregorder((int)addr, __NR_brk); }
+
+LIBC_STATIC int unlink(const char *pathname) { return syscall1_optregorder((int)pathname, __NR_unlink); }
 #define remove(pathname) unlink(pathname)
+
+LIBC_STATIC int close(int fd) { return syscall1_optregorder(fd, __NR_close); }
 
 /* --- Put syscall3 functions (open3, read, write, lseek) next to each other, for better tail call locality. */
 
-/* For the optimization to take effect, `int nr' must be passed last here. */
+/* For the optimization to take effect, `int nr' must be passed last here, and this must be a non-inline function. */
 static int syscall3_optregorder(int arg1, int arg2, int arg3, int nr) { return syscall3_optregorder_inline(arg1, arg2, arg3, nr); }
 
 /* This would work, but OpenWatcom generates suboptimal code (with lots of stack pushes) for this. */
@@ -191,8 +201,6 @@ LIBC_STATIC off_t lseek(int fd, off_t offset, int whence) { return syscall3_optr
 /* --- End of syscall3 functions. */
 
 LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
-
-LIBC_STATIC int close(int fd) { return syscall1_inline(__NR_close, fd); }
 
 /* --- Startup code. Run as: owcc -fnostdlib -Wl,option -Wl,start=_start */
 
