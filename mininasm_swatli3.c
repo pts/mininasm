@@ -121,6 +121,13 @@ LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1
  * Simplification: they don't set errno (but they return -1 as needed).
  */
 
+#ifdef _IO_H_INCLUDED  /* OpenWatcom <io.h> has `unsigned short' type for `mode_t'. */
+/* With this creat(...) has a `movzx' instead of a `mov' (1 byte longer). */
+typedef unsigned short mode_t;
+#else
+typedef int mode_t;
+#endif
+
 #define __NR_exit		  1
 #define __NR_read		  3
 #define __NR_write		  4
@@ -142,7 +149,10 @@ __declspec(aborts) static int syscall1_noreturn_inline(int nr, int arg1);
 #pragma aux syscall1_noreturn_inline = "xchg eax, ebx"  "int 80h"  value [ eax ] parm [ ebx ] [ eax ];
 
 static int syscall2_inline(int nr, int arg1, int arg2);
-#pragma aux syscall2_inline = "xchg eax, ebx" "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ ebx ] [ eax ] [ ecx ] modify [ ebx ];
+#pragma aux syscall2_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ] [ ecx ];
+
+static int syscall2_optregorder_inline(int arg1, int arg2, int nr);
+#pragma aux syscall2_optregorder_inline = "xchg eax, ebx"  "xchg ecx, edx"  "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ edx ] [ ebx ] modify [ ebx ecx edx ];
 
 static int syscall3_inline(int nr, int arg1, int arg2, int arg3);
 #pragma aux syscall3_inline = "int 80h"  "test eax, eax"  "jns short done"  "or eax, -1"  "done:"  value [ eax ] parm [ eax ] [ ebx ] [ ecx ] [ edx ];
@@ -175,22 +185,20 @@ LIBC_STATIC int unlink(const char *pathname) { return syscall1_optregorder((int)
 
 LIBC_STATIC int close(int fd) { return syscall1_optregorder(fd, __NR_close); }
 
+/* --- Put syscall2 functions (creat) next to each other, for better tail call locality. */
+
+/* No need for syscall2_optregorder(...) function, because creat(...) is a single syscall2 function. */
+LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_optregorder_inline((int)pathname, mode, __NR_creat); }
+
 /* --- Put syscall3 functions (open3, read, write, lseek) next to each other, for better tail call locality. */
 
 /* For the optimization to take effect, `int nr' must be passed last here, and this must be a non-inline function. */
 static int syscall3_optregorder(int arg1, int arg2, int arg3, int nr) { return syscall3_optregorder_inline(arg1, arg2, arg3, nr); }
 
 /* This would work, but OpenWatcom generates suboptimal code (with lots of stack pushes) for this. */
-LIBC_STATIC int open3(const char *pathname, int flags, int mode) { return syscall3_optregorder((int)pathname, flags, mode, __NR_open); }
+LIBC_STATIC int open3(const char *pathname, int flags, mode_t mode) { return syscall3_optregorder((int)pathname, flags, mode, __NR_open); }
 /* Without this renaming, OpenWatcom generates suboptimal code (with lots of stack pushes) for this. Why? Because of the hidden `...' in the function prototype? */
 #define open(pathname, flags, mode) open3(pathname, flags, mode)
-
-#ifdef _IO_H_INCLUDED  /* OpenWatcom <io.h> has `unsigned short' type for `mode_t'. */
-/* With this creat(...) has a `movzx' instead of a `mov' (1 byte longer). */
-typedef unsigned short mode_t;
-#else
-typedef int mode_t;
-#endif
 
 LIBC_STATIC ssize_t read(int fd, void *buf, size_t count) { return syscall3_optregorder(fd, (int)buf, count, __NR_read); }
 
@@ -199,8 +207,6 @@ LIBC_STATIC ssize_t write(int fd, const void *buf, size_t count) { return syscal
 LIBC_STATIC off_t lseek(int fd, off_t offset, int whence) { return syscall3_optregorder(fd, offset, whence, __NR_lseek); }
 
 /* --- End of syscall3 functions. */
-
-LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_inline(__NR_creat, (int)pathname, mode); }
 
 /* --- Startup code. Run as: owcc -fnostdlib -Wl,option -Wl,start=_start */
 
