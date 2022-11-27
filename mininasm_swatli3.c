@@ -16,7 +16,8 @@
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).
  * TODO(pts): Change the section aligment of .data and .bss (and all symbols) to 1 in wcc. How much does it help? Not changing makes int up to 4*3 bytes longer. That's fine.
  * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
- * TODO(pts): Inline the single call to syscall1_optregorder and also to syscall3_optregorder. Unify parts of syscall1_optregorder and syscall3_optregorder. OpenWatcom doesn't seem to be able to do it without breaking tail calls in read(...), write(...) etc.
+ * TODO(pts): Inline the single call to syscall1_optregorder and also to syscall3_optregorder. Unify parts of syscall1_optregorder and syscall3_optregorder. OpenWatcom doesn't seem to be able to do it without breaking tails in read(...), write(...) etc.
+ * TODO(pts): Define custom calling convention for all the non-inline functions, so that the xchgs are not needed.
  */
 
 #ifndef __WATCOMC__
@@ -164,7 +165,7 @@ static int syscall3_optregorder_inline(int arg1, int arg2, int arg3, int nr);
 __declspec(aborts) static void exit_inline(int status);
 #pragma aux exit_inline = "xchg eax, ebx"  "xor eax, eax"  "inc eax"  "int 80h"  parm [ eax ];
 
-/* TODO(pts): Define custom calling convention for all the non-inline functions, so that the xchgs are not needed. */
+/* Inlining this function would make the executable program 12 bytes longer,because of (?) some tail optimization misses. */
 __declspec(aborts) LIBC_STATIC void exit(int status) {
 #if 1
   exit_inline(status);
@@ -173,7 +174,7 @@ __declspec(aborts) LIBC_STATIC void exit(int status) {
 #endif
 }
 
-/* --- Put syscall3 functions (sys_brk, unlink, close) next to each other, for better tail call locality. */
+/* --- Put syscall3 functions (sys_brk, unlink, close) next to each other, for better tail locality. */
 
 /* For the optimization to take effect, `int nr' must be passed last here, and this must be a non-inline function. */
 static int syscall1_optregorder(int arg1, int nr) { return syscall1_optregorder_inline(arg1, nr); }
@@ -185,12 +186,12 @@ LIBC_STATIC int unlink(const char *pathname) { return syscall1_optregorder((int)
 
 LIBC_STATIC int close(int fd) { return syscall1_optregorder(fd, __NR_close); }
 
-/* --- Put syscall2 functions (creat) next to each other, for better tail call locality. */
+/* --- Put syscall2 functions (creat) next to each other, for better tail locality. */
 
 /* No need for syscall2_optregorder(...) function, because creat(...) is a single syscall2 function. */
 LIBC_STATIC int creat(const char *pathname, mode_t mode) { return syscall2_optregorder_inline((int)pathname, mode, __NR_creat); }
 
-/* --- Put syscall3 functions (open3, read, write, lseek) next to each other, for better tail call locality. */
+/* --- Put syscall3 functions (open3, read, write, lseek) next to each other, for better tail locality. */
 
 /* For the optimization to take effect, `int nr' must be passed last here, and this must be a non-inline function. */
 static int syscall3_optregorder(int arg1, int arg2, int arg3, int nr) { return syscall3_optregorder_inline(arg1, arg2, arg3, nr); }
