@@ -126,7 +126,7 @@ LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1
 /* With this creat(...) has a `movzx' instead of a `mov' (1 byte longer). */
 typedef unsigned short mode_t;
 #else
-typedef int mode_t;
+typedef unsigned mode_t;
 #endif
 
 #define __NR_exit		  1
