@@ -172,8 +172,10 @@ __restore_macros_low __SAVEDS
 _elf_start (%1), SystemV, (%2)|sect_many|shentsize|bss_end_align4
 %endm
 
+
 %macro __elf_set_bits 0
 bits _PROG_CPU_BITS
+%ifndef _ELF_PROG_CPU_UNCHANGED
 %if _PROG_CPU_BITS == 32
 cpu 386  ; Later can be changed to 386, 486, 586 (PENTIUM), 686 (P6, PPRO).
 %elif _PROG_CPU_BITS == 64
@@ -186,6 +188,7 @@ cpu x64
 %error unknown ELF CPU bits: _PROG_CPU_BITS
 bits 0  ; Enforce the error in NASM 0.98.* and 0.99.*.
 %endif  ; _PROG_CPU_BITS
+%endif  ; ifndef _ELF_PROG_CPU_UNCHANGED
 %endm
 
 %ifidn __OUTPUT_FORMAT__,bin
