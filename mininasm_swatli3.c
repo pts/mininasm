@@ -10,7 +10,7 @@
  *
  * * mininasm.watli3:  29882 bytes
  * * mininasm.swatli3: 21533 bytes (no OpenWatcom libc)
- * * mininasm.nwatli3: 19591 bytes (smarter ELF linking with NASM)
+ * * mininasm.nwatli3: 19541 bytes (smarter ELF linking with NASM)
  *
  * TODO(pts): Remove the PHDR program header from the ELF executable program (done in compile_nwatli3.pl).
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).
