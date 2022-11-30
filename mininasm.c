@@ -237,6 +237,16 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #endif
 #endif
 
+#ifdef __GNUC__
+#  define UNALIGNED __attribute__((aligned(1)))
+#else
+#  ifdef __WATCOMC__
+#    define UNALIGNED __unaligned
+#  else
+#    define UNALIGNED
+#  endif
+#endif
+
 #ifdef __DOSMC__
 __LINKER_FLAG(stack_size__0x140)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
@@ -354,10 +364,10 @@ static void *malloc_far(size_t size) {
  * ... printmsgx(msg);
  */
 #ifdef __cplusplus  /* We must reserve space for the NUL. */
-#define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value)] = value
+#define MY_STRING_WITHOUT_NUL(name, value) UNALIGNED char name[sizeof(value)] = value
 #define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name) - 1)
 #else
-#define MY_STRING_WITHOUT_NUL(name, value) char name[sizeof(value) - 1] = value
+#define MY_STRING_WITHOUT_NUL(name, value) UNALIGNED char name[sizeof(value) - 1] = value
 #define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name))
 #endif
 
@@ -551,7 +561,7 @@ static char has_undefined;
 #endif
 #endif
 
-extern const char instruction_set[];
+extern UNALIGNED const char instruction_set[];
 #if CONFIG_SPLIT_INSTRUCTION_SET
 extern const char *instruction_set_nul;
 extern const char instruction_set2[];
@@ -1546,7 +1556,7 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
 
 /* --- */
 
-static const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
+static UNALIGNED const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
 
 /*
  ** Match addressing (r/m): can be register or effective address [...].
@@ -3381,7 +3391,10 @@ int main(int argc, char **argv)
  ** Notice some instructions are sorted by less byte usage first.
  */
 #define ALSO "-"
-const char instruction_set[] =
+/* GCC 7.5 adds an alignment to 32 bytes without the UNALIGNED. We don't
+ * want to waste program size because of such useless alignments.
+ */
+UNALIGNED const char instruction_set[] =
     "AAA\0" " 37\0"
     "AAD\0" "i D5i" ALSO " D50A\0"
     "AAM\0" "i D4i" ALSO " D40A\0"
@@ -3462,7 +3475,7 @@ const char instruction_set[] =
 #if CONFIG_SPLIT_INSTRUCTION_SET
 ;
 const char *instruction_set_nul = instruction_set + sizeof(instruction_set) - 1;
-const char instruction_set2[] =
+UNALIGNED const char instruction_set2[] =
 #endif
     "MOV\0" "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,h ozoozri" ALSO "r,i ozooorj" ALSO "m,u C7dzzzdj" ALSO "l,t C6dzzzdi\0"
     "MOVSB\0" " A4\0"
