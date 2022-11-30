@@ -1757,7 +1757,7 @@ static const char *check_end(const char *p) {
     return p;
 }
 
-char was_strict;
+static char was_strict;
 
 static const char *avoid_strict(const char *p) {
     const char *p1;

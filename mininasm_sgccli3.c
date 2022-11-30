@@ -285,8 +285,6 @@ __asm__(
 "		ret\n"
 );
 
-int dummy1, dummy2, dummy3;  /* !! TODO(pts): Why does the final program file become 440 bytes longer if we omit at leas 1 of these 3 variables? */
-
 /* --- */
 
 #define open2(pathname, flags) open(pathname, flags, 0)
