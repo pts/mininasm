@@ -239,12 +239,18 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 
 #ifdef __GNUC__
 #  define UNALIGNED __attribute__((aligned(1)))
+#  if defined(__i386__) || defined(__386) || defined(_M_I386) || defined(_M_ARM) || defined(__m68k__) || defined(__powerpc__) || defined(_M_PPC)  /* Not the 64-bit variants. */
+#    define ALIGN_MAYBE_4 __attribute__((aligned(4)))
+#  else
+#    define ALIGN_MAYBE_4
+#  endif
 #else
 #  ifdef __WATCOMC__
 #    define UNALIGNED __unaligned
 #  else
 #    define UNALIGNED
 #  endif
+#  define ALIGN_MAYBE_4
 #endif
 
 #ifdef __DOSMC__
@@ -472,8 +478,8 @@ static unsigned char do_opt_segreg;  /* -OG. */
 
 #define MAX_SIZE        256
 
-static char instr_name[10];  /* Assembly instruction mnemonic name or preprocessor directive name. Always ends with '\0', maybe truncated. */
-static char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
+static UNALIGNED char instr_name[10];  /* Assembly instruction mnemonic name or preprocessor directive name. Always ends with '\0', maybe truncated. */
+static UNALIGNED char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
 static char *g;  /* !! TODO(pts): Rename this variable, make it longer for easier searching. */
@@ -750,7 +756,7 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
          * The choice of algorithm bounds the depth of a tree to twice the binary
          * log of the number of elements in the tree; the following bound follows.
          */
-        static struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
+        static ALIGN_MAYBE_4 struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
         struct tree_path_entry *pathp;
         RBL_SET_RED_1(label);
         path->label = label_list;
@@ -1048,7 +1054,7 @@ static value_t value_mod(value_t a, value_t b) {
  ** Sets `has_undefined' indicating whether ther was an undefined label.
  */
 static const char *match_expression(const char *match_p) {
-    static struct match_stack_item {
+    static ALIGN_MAYBE_4 struct match_stack_item {
         signed char casei;
         unsigned char level;
         value_t value1;
@@ -1685,7 +1691,7 @@ static const char *match_addressing(const char *p, int width) {
 /* Not declaring static for compatibility with C++ and forward declarations. */
 extern struct bbprintf_buf emit_bbb;
 
-static char emit_buf[512];
+static UNALIGNED char emit_buf[512];
 
 static void emit_flush(struct bbprintf_buf *bbb) {
     const int size = emit_bbb.p - emit_buf;
@@ -2178,7 +2184,7 @@ static const char *separate(const char *p) {
     return p;
 }
 
-static char message_buf[512];
+static UNALIGNED char message_buf[512];
 
 static void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
@@ -2410,7 +2416,7 @@ static void create_label(void) {
     }
 }
 
-static char line_buf[512];
+static UNALIGNED char line_buf[512];
 typedef char assert_line_buf_size[sizeof(line_buf) >= 2 * MAX_SIZE];  /* To avoid too much copy per line in do_assembly(...). */
 
 #if !CONFIG_CPU_UNALIGN
@@ -2433,7 +2439,7 @@ struct assembly_info {
  * Supports %INCLUDE depth of more than 21 on DOS with 8.3 filenames (no pathname).
  */
 #if CONFIG_CPU_UNALIGN
-static char assembly_stack[512];
+static UNALIGNED char assembly_stack[512];
 #else
 static struct assembly_info assembly_stack[(512 + sizeof(struct assembly_info) - 1) / sizeof(struct assembly_info)];
 #endif
