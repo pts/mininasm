@@ -237,6 +237,15 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #endif
 #endif
 
+#ifndef CONFIG_CAN_FD_BE_NEGATIVE
+#  define CONFIG_CAN_FD_BE_NEGATIVE 0
+#endif
+#if CONFIG_CAN_FD_BE_NEGATIVE
+#  define HAS_OPEN_FAILED(result) ((result) == -1)
+#else
+#  define HAS_OPEN_FAILED(result) ((result) < 0)
+#endif
+
 #ifdef __GNUC__
 #  define UNALIGNED __attribute__((aligned(1)))
 #  if defined(__i386__) || defined(__386) || defined(_M_I386) || defined(_M_ARM) || defined(__m68k__) || defined(__powerpc__) || defined(_M_PPC)  /* Not the 64-bit variants. */
@@ -2696,7 +2705,7 @@ static void do_assembly(const char *input_filename) {
   do_open_again:
     line_number = 0;  /* Global variable. */
     filename_for_message = aip->input_filename;
-    if ((input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY)) < 0) {
+    if (HAS_OPEN_FAILED(input_fd = open2(aip->input_filename, O_RDONLY | O_BINARY))) {
         MESSAGE1STR(1, "cannot open '%s' for input", aip->input_filename);
         return;
     }
@@ -3133,7 +3142,7 @@ static void do_assembly(const char *input_filename) {
             goto do_assembly_push;
         } else if (include == 2) {  /* INCBIN. */
             *liner = '\0';  /* NUL-terminate the filename in p3. It's OK, we've already written the line to listing_fd. */
-            if ((incbin_fd = open2(p3, O_RDONLY | O_BINARY)) < 0) {
+            if (HAS_OPEN_FAILED(incbin_fd = open2(p3, O_RDONLY | O_BINARY))) {
                 MESSAGE1STR(1, "Error: Cannot open '%s' for input", p3);
             } else {
                 if (incbin_offset != 0 && lseek(incbin_fd, incbin_offset, SEEK_SET) != incbin_offset) {
@@ -3331,13 +3340,13 @@ int main(int argc, char **argv)
         do {
             if (GET_U16(++assembler_pass) == 0) --assembler_pass;  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
-                if ((listing_fd = creat(listing_filename, 0644)) < 0) {
+                if (HAS_OPEN_FAILED(listing_fd = creat(listing_filename, 0644))) {
                     MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
                     return 1;
                 }
                 generated_ptr = generated;  /* Start saving bytes to the `generated' array, for the listing. */
             }
-            if ((output_fd = creat(output_filename, 0644)) < 0) {
+            if (HAS_OPEN_FAILED(output_fd = creat(output_filename, 0644))) {
                 MESSAGE1STR(1, "couldn't open '%s' as output file", output_filename);
                 return 1;
             }
