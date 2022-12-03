@@ -330,7 +330,7 @@ LIBC_STATIC void *sys_brk(void *addr) { return NULL; }  /* !! implement it */
 static char __libc_malloc_buf[1 << 16];  /* !!! Why does this .bss become part of the .exe by the OpenWatcom linker?? Also why not on Linux? */
 static char *__libc_malloc_p = __libc_malloc_buf;
 
-void *malloc(size_t size) {
+LIBC_STATIC void *malloc(size_t size) {
   void *result;
   if (__libc_malloc_p + size > __libc_malloc_buf + sizeof(__libc_malloc_buf)) return 0;
   result = __libc_malloc_p;
