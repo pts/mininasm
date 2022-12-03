@@ -78,6 +78,8 @@ typedef unsigned short wchar_t;
 typedef wchar_t                 WCHAR;
 typedef WCHAR                   *LPWSTR;
 typedef long            LONG_PTR;
+typedef unsigned long   ULONG_PTR;
+typedef ULONG_PTR   SIZE_T;
 
 typedef struct _OVERLAPPED  *LPOVERLAPPED;
 typedef struct _SECURITY_ATTRIBUTES *LPSECURITY_ATTRIBUTES;
@@ -95,6 +97,8 @@ __declspec(dllimport) BOOL   __stdcall CloseHandle(HANDLE hObject);
 __declspec(dllimport) DWORD  __stdcall SetFilePointer(HANDLE hFile, LONG lDinstanceToMove, PLONG *lpDistanceToMoveHigh, DWORD dwMoveMethod);
 __declspec(dllimport) BOOL   __stdcall MoveFileExA(LPCSTR lpExistingFileName, LPCSTR lpNewFileName, DWORD dwFlags);
 __declspec(dllimport) HANDLE __stdcall CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+__declspec(dllimport) LPVOID __stdcall HeapAlloc(HANDLE hHeap, DWORD dwFlags, SIZE_T dwBytes);
+__declspec(dllimport) HANDLE __stdcall GetProcessHeap(void);
 
 #if 0  /* Not needed by mininasm. */
 __declspec(dllimport) BOOL   __stdcall CreateDirectoryA(LPCSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
@@ -326,16 +330,13 @@ LIBC_STATIC void *sys_brk(void *addr) { return NULL; }  /* !! implement it */
 #endif
 
 /* !!! No .bss is happening with: owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.swatw32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatw32.c && ls -ld mininasm.swatw32.exe && cp -a mininasm.swatw32.exe s.exe */
-/* !!! Use HeapAlloc(...). Or roll our own with VirtualAlloc? */
-static char __libc_malloc_buf[1 << 16];  /* !!! Why does this .bss become part of the .exe by the OpenWatcom linker?? Also why not on Linux? */
-static char *__libc_malloc_p = __libc_malloc_buf;
+/*static char __libc_malloc_buf[1 << 16];*/  /* !!! Why does this .bss become part of the .exe by the OpenWatcom linker?? Also why not on Linux? */
+
+static HANDLE __libc_heap;
 
 LIBC_STATIC void *malloc(size_t size) {
-  void *result;
-  if (__libc_malloc_p + size > __libc_malloc_buf + sizeof(__libc_malloc_buf)) return 0;
-  result = __libc_malloc_p;
-  __libc_malloc_p += size;
-  return result;
+  /* !! TODO(pts): Add a bit longer allocator which wastes fewer bytes. It should use VirtualAlloc, allocate 64 KiB ... 1 MiB, then continue with 1 MiB blocks. */
+  return HeapAlloc(__libc_heap, 0, size);  /* Returns 0 on failure. */
 }
 
 #define setmode(fd, mode) do {} while(0)
@@ -438,6 +439,9 @@ __declspec(aborts) void __cdecl mainCRTStartup(void) {  /* !! why cdecl?? */
   WriteFile(hfile, "BOOT\r\n", 6, &bw, 0);
   ExitProcess(12);  /* Will exit with code 6 (!), rather than 12 with MWPESTUB. Strange. !!! report bug: declaring ExitProcess non-__declspec(aborts) fixes it (call becomes jmp) -- why?? what's wrong with our stack frame? */
 #endif
+  /* Moved here for faster malloc(...). */
+  /* GetProcessHeap() also returns NULL on failure, but we don't check specifically here. */
+  __libc_heap = GetProcessHeap();
   __libc_parse_to_argv_and_argc(GetCommandLineA());
   ExitProcess(main_argv(__libc_argv));
 }
