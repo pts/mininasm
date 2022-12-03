@@ -96,6 +96,13 @@ __declspec(dllimport) DWORD  __stdcall SetFilePointer(HANDLE hFile, LONG lDinsta
 __declspec(dllimport) BOOL   __stdcall MoveFileExA(LPCSTR lpExistingFileName, LPCSTR lpNewFileName, DWORD dwFlags);
 __declspec(dllimport) HANDLE __stdcall CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
 
+#if 0  /* Not needed by mininasm. */
+__declspec(dllimport) BOOL   __stdcall CreateDirectoryA(LPCSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
+__declspec(dllimport) BOOL   __stdcall RemoveDirectoryA(LPCSTR lpPathName);
+__declspec(dllimport) BOOL   __stdcall SetCurrentDirectoryA(LPCSTR lpPathName);
+__declspec(dllimport) DWORD  __stdcall GetCurrentProcessId(void);
+#endif
+
 /* nStdHandle for GetStdHandle(...): */
 #define STD_INPUT_HANDLE    ((DWORD)-10)
 #define STD_OUTPUT_HANDLE   ((DWORD)-11)
@@ -225,6 +232,8 @@ typedef unsigned short mode_t;
 typedef unsigned mode_t;
 #endif
 
+typedef int pid_t;
+
 #if 1
 #define exit ExitProcess
 #else
@@ -292,9 +301,22 @@ LIBC_STATIC int unlink(const char *pathname) {
 }
 #define remove(pathname) unlink(pathname)
 
-#if 0
+#if 0  /* Not needed by mininasm. */
 LIBC_STATIC int rename(const char *oldpath, const char *newpath) {
   return MoveFileExA(oldpath, newpath, MOVEFILE_REPLACE_EXISTING) - 1;
+}
+LIBC_STATIC int chdir(const char *pathname) {
+  return SetCurrentDirectoryA(pathname) - 1;
+}
+LIBC_STATIC int mkdir(const char *pathname, mode_t mode) {
+  (void)mode;
+  return CreateDirectoryA(pathname, NULL) - 1;
+}
+LIBC_STATIC int rmdir(const char *pathname) {
+  return RemoveDirectoryA(pathname) - 1;
+}
+LIBC_STATIC pid_t getpid(void) {
+  return GetCurrentProcessId();
 }
 #endif
 
