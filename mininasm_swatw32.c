@@ -7,6 +7,23 @@
  *
  * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
  * TODO(pts): Define custom calling convention for all the non-inline functions, so that the xchgs are not needed.
+ * !! TODO(pts): Use assembly-optimized libc functions for mininasm.nwatli3.
+ *
+ * File sizes:
+ *
+ * * mininasm.win32.exe:   47616 bytes (includes OpenWatcom libc, symbols)
+ * * mininasm.swatw32.exe: 29184 bytes (includes .bss codd as NUL bytes)
+ * * mininasm.nwatw32.exe: 20287 bytes
+ * * mininasm.nwatli3:     19541 bytes
+ * * mininasm.com:         19399 bytes
+ *
+ * mininasm.win32.exe works on Windoes NT 3.1 and Windows 95.
+ *
+ * mininasm.swatw32.exe cannot open the source file on Windows 95. Is it an
+ * incorrect filename, or argv parsing, or sharing?
+ *
+ * mininasm.nwatw32.exe works on Windows NT 3.1, but it crashes when assembling
+ * on !! Windows 95. Is it HeapAlloc?
  */
 
 #ifndef __WATCOMC__
