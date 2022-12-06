@@ -11,7 +11,7 @@
 ;
 ; This version of minnnasm.com (19399 bytes) is bit-by-bit identical to
 ; mininasm.com built from
-; https://github.com/pts/mininasm/blob/dfde61f593331b65124c88b38bbcc0baa90fe7e5/mininasm.c
+; https://github.com/pts/mininasm/blob/28d95e0e9c47e70288fb0909a020700e14d27024/mininasm.c
 ; with `dosmc -mt -cpn mininasm.c'.
 ;
 ; Compilation instructions (use any one of):
