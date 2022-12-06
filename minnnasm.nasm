@@ -9,9 +9,9 @@
 ; to what is produced by NASM (>= 0.98.39) and mininasm
 ; (https://github.com/pts/mininasm).
 ;
-; This version of minnnasm.com (19400 bytes) is bit-by-bit identical to
+; This version of minnnasm.com (19399 bytes) is bit-by-bit identical to
 ; mininasm.com built from
-; https://github.com/pts/mininasm/blob/651a992d2ba9cd01ab3144ebaea604b52985fd5d/mininasm.c
+; https://github.com/pts/mininasm/blob/dfde61f593331b65124c88b38bbcc0baa90fe7e5/mininasm.c
 ; with `dosmc -mt -cpn mininasm.c'.
 ;
 ; Compilation instructions (use any one of):
@@ -2101,10 +2101,10 @@ print_labels_sorted_to_listing_fd_:
 		mov dx, es
 		call near RBL_GET_LEFT_
 @$80:
-		mov word [bp-4], ax
-		mov di, dx
-		mov ax, word [bp-4]
-		mov dx, di
+		mov di, ax
+		mov word [bp-4], dx
+		mov ax, di
+		mov dx, word [bp-4]
 		call near RBL_GET_RIGHT_
 		mov bx, dx
 		test dx, dx
@@ -2122,8 +2122,8 @@ print_labels_sorted_to_listing_fd_:
 ;             RBL_SET_RIGHT(pre, node);
 		mov bx, si
 		mov cx, word [bp-2]
-		mov ax, word [bp-4]
-		mov dx, di
+		mov ax, di
+		mov dx, word [bp-4]
 		call near RBL_SET_RIGHT_
 
 ;             node = RBL_GET_LEFT(node);
@@ -2143,16 +2143,15 @@ print_labels_sorted_to_listing_fd_:
 @$84:
 		xor bx, bx
 		xor cx, cx
-		mov ax, word [bp-4]
-		mov dx, di
+		mov ax, di
+		mov dx, word [bp-4]
 		call near RBL_SET_RIGHT_
 
 ;           do_print:
-;             if ((c = node->name[0]) != '%') {  /* Skip macro definitions. */
+;             if (node->name[0] != '%') {  /* Skip macro definitions. */
 @$85:
 		mov es, word [bp-2]
-		mov al, byte [es:si+9]
-		cmp al, 0x25
+		cmp byte [es:si+9], 0x25
 		je @$86
 
 ; #if USING_FAR
@@ -10813,7 +10812,7 @@ main_:
 ;     set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "3", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
 		mov cx, 1
 		mov bx, @$943
-		mov dx, _mininasm_macro_name+0xc
+		mov dx, _mininasm_macro_name.end
 		mov ax, _mininasm_macro_name
 		call near set_macro_
 
@@ -12183,6 +12182,7 @@ _message_bbb:
 		dw 0
 		dw message_flush_
 _mininasm_macro_name db ' __MININASM__'
+.end:
 
 ; --- Variables initialized to 0 by _start.
 ___section_nobss_end:
