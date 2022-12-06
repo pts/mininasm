@@ -11879,7 +11879,7 @@ ___section_mininasm_c_const:
 @$940		db 'Cannot seek in INCBIN file: ', 0
 @$941		db 'Error: Error reading from ', 39, '%s', 39, 0
 @$942		db 'pending %IF at end of file', 0
-@$943		db '3', 0
+@$943		db '4', 0
 @$944		db 'bad optimization argument', 0
 @$945		db 'flag too long: %s', 0
 @$946		db 'no argument for %s', 0
