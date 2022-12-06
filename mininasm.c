@@ -3071,7 +3071,7 @@ int main(int argc, char **argv) {
     /* default_start_address = 0; */  /* Default. */
     /* is_start_address_set = 0; */  /* Default. */
     malloc_init();
-    set_macro(mininasm_macro_name,  mininasm_macro_name + sizeof(mininasm_macro_name) - 1, "3", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
+    set_macro(mininasm_macro_name, mininasm_macro_name + STRING_SIZE_WITHOUT_NUL(mininasm_macro_name), "3", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
     while (argv[0] != NULL) {
         if (0) DEBUG1("arg=(%s)\n", argv[0]);
         if (argv[0][0] == '-') {    /* All arguments start with dash */
