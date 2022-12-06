@@ -66,6 +66,25 @@ typedef long off_t;  /* !! TODO(pts): Use 64-bit file offset (#define _FILE_OFFS
 
 #undef O_BINARY
 
+/* --- <stdarg.h> */
+
+#if defined(__GNUC__) || (defined(__WATCOMC__) && !defined(_IO_H_INCLUDED))  /* i386 only, not amd64 */
+#define CONFIG_SKIP_STDARG 1
+#if 1  /* Shorter by 24 bytes, same as for GCC. */
+typedef char *va_list;  /* i386 only. */
+#define va_start(ap, last) ((ap) = (char*)&(last) + ((sizeof(last)+3)&~3), (void)0)  /* i386 only. */
+#define va_arg(ap, type) ((ap) += (sizeof(type)+3)&~3, *(type*)((ap) - ((sizeof(type)+3)&~3)))  /* i386 only. */
+#define va_copy(dest, src) ((dest) = (src), (void)0)  /* i386 only. */
+#define va_end(ap) /*((ap) = 0, (void)0)*/  /* i386 only. Adding the `= 0' back doesn't make a difference. */
+#else  /* Similar definition to OpenWatcom <stdarg.h>, same number of bytes. */
+typedef char *va_list[1];  /* i386 only. */
+#define va_start(ap, last) ((ap)[0] = (char*)&(last) + ((sizeof(last)+3)&~3),(void)0)  /* i386 only. */
+#define va_arg(ap, type) ((ap)[0] += ((sizeof(type)+3)&~3), *(type*)((ap)[0] - ((sizeof(type)+3)&~3)))  /* i386 only. */
+#define va_copy(dest, src) ((dest)[0] = (src)[0], (void)0)  /* i386 only. */
+#define va_end(ap) ((ap)[0] = 0, (void)0)  /* i386 only. */
+#endif
+#endif
+
 /* --- <ctype.h> */
 
 static int isalpha_inline(int c);
