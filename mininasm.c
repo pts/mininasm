@@ -46,6 +46,12 @@
 #define CONFIG_SKIP_LIBC 0
 #endif
 
+#if !CONFIG_SKIP_LIBC && defined(__LIBCH__)  /* Works with gcc, tcc, pts-tcc (Linux i386 target) and `owcc -blinux'. */
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
+#  include <libc.h>
+#endif  /* ifdef __TINYC__. */
+
 #if !CONFIG_SKIP_LIBC && defined(__TINYC__)  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
 #  undef  CONFIG_SKIP_LIBC
 #  define CONFIG_SKIP_LIBC 1
@@ -55,7 +61,6 @@
 #  if (defined(_WIN32) && !defined(__i386)) || defined(_WIN64)
 #    error Windows is supported only on i386.
 #  endif
-#  define ATTRIBUTE_NORETURN __attribute__((noreturn))
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
@@ -74,7 +79,7 @@ typedef long off_t;  /* Good for __i386__ (4 bytes) and __amd64__ (8 bytes). */
 void *__cdecl malloc(size_t size);
 size_t __cdecl strlen(const char *s);
 int __cdecl remove(const char *pathname);
-void ATTRIBUTE_NORETURN __cdecl exit(int status);
+__attribute__((noreturn)) void __cdecl exit(int status);
 char *__cdecl strcpy(char *dest, const char *src);
 int __cdecl strcmp(const char *s1, const char *s2);
 void *__cdecl memcpy(void *dest, const void *src, size_t n);
@@ -94,7 +99,6 @@ off_t __cdecl lseek(int fd, off_t offset, int whence);  /* Just 32-bit off_t. */
 int __cdecl open(const char *pathname, int flags, ...);  /* int mode */
 int __cdecl creat(const char *pathname, int mode);
 int __cdecl close(int fd);
-#  define open2(pathname, flags) open(pathname, flags)
 #  ifdef _WIN32
 #    define O_CREAT 0x100
 #    define O_TRUNC 0x200
@@ -114,6 +118,9 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  ifndef CONFIG_USE_MEMCPY_INLINE
 #    define CONFIG_USE_MEMCPY_INLINE 1
 #  endif
+#  ifndef CONFIG_USE_OPEN2
+#    define CONFIG_USE_OPEN2 1  /* Provided by __DOSMC__. */
+#  endif
 #endif
 
 #if !CONFIG_SKIP_LIBC && defined(__XTINY__)
@@ -121,7 +128,9 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  define CONFIG_SKIP_LIBC 1
 #  define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
 #  include <xtiny.h>
-#  define open2(pathname, flags) open(pathname, flags, 0)
+#  ifndef CONFIG_MALLOC_FAR_USING_SYS_BRK
+#    define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
+#  endif
 #endif
 
 #if !CONFIG_SKIP_LIBC  /* More or less Standard C. */
@@ -152,7 +161,6 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #  if defined(__WATCOMC__) && defined(__LINUX__)  /* Defined by __WATCOMC__: `owcc -blinux' or wcl `-bt=linux'. */
 #    undef O_BINARY  /* Fix bug in OpenWatcom <unistd.h>. It defines O_BINARY as O_TRUNC, effectively overwriting input files. */
 #  endif
-#  define open2(pathname, flags) open(pathname, flags, 0)
 #  if defined(__TURBOC__)
 #    pragma warn -rch  /* Unreachable code. */
 #    pragma warn -ccc  /* Condition is always true/false. */
@@ -161,6 +169,13 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
+#endif
+
+#ifndef CONFIG_USE_OPEN2
+#  define CONFIG_USE_OPEN2 0
+#endif
+#if !CONFIG_USE_OPEN2
+#  define open2(pathname, flags) open(pathname, flags, 0)
 #endif
 
 #ifndef CONFIG_USE_MEMCPY_INLINE
@@ -230,11 +245,7 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #endif
 
 #ifndef CONFIG_MALLOC_FAR_USING_SYS_BRK
-#ifdef __XTINY__
-#define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
-#else
 #define CONFIG_MALLOC_FAR_USING_SYS_BRK 0
-#endif
 #endif
 
 #ifndef CONFIG_CAN_FD_BE_NEGATIVE
@@ -369,9 +380,9 @@ static void *malloc_far(size_t size) {
     free += size;
     return free - size;
 }
-#  else  /* Of ifdef __XTINY__ */
+#  else  /* Of if CONFIG_MALLOC_FAR_USING_SYS_BRK. */
 #    define malloc_far(size) malloc(size)
-#  endif  /* Else ifdef __XTINY__ */
+#  endif  /* Else if CONFIG_MALLOC_FAR_USING_SYS_BRK. */
 #endif  /* Else ifdef __DOSMC__. */
 
 /* Example usage:
