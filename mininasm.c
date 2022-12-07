@@ -245,6 +245,30 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #define CONFIG_BALANCED 1
 #endif
 
+#ifndef CONFIG_STRUCT_PACKED
+#if defined(__DOSMC__) || ((defined(__WATCOMC__) || defined(__GNUC__) || defined(__TINYC__)) && CONFIG_CPU_UNALIGN)
+#define CONFIG_STRUCT_PACKED 1
+#else
+#define CONFIG_STRUCT_PACKED 0
+#endif
+#endif
+
+#undef  STRUCT_PACKED_PREFIX
+#define STRUCT_PACKED_PREFIX
+#undef  STRUCT_PACKED_SUFFIX
+#define STRUCT_PACKED_SUFFIX
+#if CONFIG_STRUCT_PACKED
+#if defined(__DOSMC__) || (defined(__WATCOMC__) && CONFIG_CPU_UNALIGN)
+#undef  STRUCT_PACKED_PREFIX
+#define STRUCT_PACKED_PREFIX _Packed  /* Disable extra aligment byte at the end of `struct label' etc. */
+#else
+#if (defined(__GNUC__) || defined(__TINYC__)) && CONFIG_CPU_UNALIGN
+#undef  STRUCT_PACKED_SUFFIX
+#define STRUCT_PACKED_SUFFIX __attribute__((packed)) __attribute__((aligned(1)))
+#endif
+#endif
+#endif
+
 #ifndef CONFIG_DOSMC_PACKED
 #ifdef __DOSMC__
 #define CONFIG_DOSMC_PACKED 1
@@ -529,10 +553,7 @@ static uvalue_t warnings;
 static uvalue_t bytes;
 static char have_labels_changed;
 
-#if CONFIG_DOSMC_PACKED
-_Packed  /* Disable extra aligment byte at the end of `struct label'. */
-#endif
-struct label {
+STRUCT_PACKED_PREFIX struct label {
 #if CONFIG_DOSMC_PACKED
     /* The fields .left_right_ofs, .left_seg_swapped and .right_seg together
      * contain 2 far pointers (tree_left and tree_right), the is_node_deleted
@@ -585,7 +606,7 @@ struct label {
     char is_node_deleted;
 #endif
     char name[1];  /* Usually multiple characters terminated by NUL. The last byte is alsways zero. */
-};
+} STRUCT_PACKED_SUFFIX;
 
 static struct label MY_FAR *label_list;
 static char has_undefined;
@@ -1495,13 +1516,10 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
  * which is a requirement for -O0.
  */
 
-#if CONFIG_DOSMC_PACKED
-_Packed  /* Disable extra aligment byte at the end of `struct label'. */
-#endif
-struct wide_instr_block {
+STRUCT_PACKED_PREFIX struct wide_instr_block {
     struct wide_instr_block MY_FAR *next;
     uvalue_t instrs[128];
-};
+} STRUCT_PACKED_SUFFIX;
 
 static struct wide_instr_block MY_FAR *wide_instr_first_block;
 static struct wide_instr_block MY_FAR *wide_instr_last_block;
