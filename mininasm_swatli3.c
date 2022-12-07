@@ -5,12 +5,17 @@
  # Compile without: owcc -blinux -o mininasm.watli3 -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c && sstrip mininasm.watli3 && ls -ld mininasm.watli3
  * Compile: owcc -blinux -fnostdlib -Wl,option -Wl,start=_start_ -o mininasm.swatli3 -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatli3.c && sstrip mininasm.swatli3 && ls -ld mininasm.swatli3
  * Compile better: ./compile_nwatli3.sh
+ * Compile even better, smaller libc: owcc -c -D__LIBCH__ -I../minilibc32 -blinux -fnostdlib -Os -fno-stack-check -march=i386 -W -Wall -Wextra -o mininasm.nwalli3.obj mininasm.c && ../minilibc32/as2nasm.pl -o mininasm.nwalli3 mininasm.nwalli3.obj
+ * Compile similarly, with GCC: gcc -S -m32 -mno-align-stringops -mregparm=3 -fno-pic -fno-stack-protector -fomit-frame-pointer -fno-ident -ffreestanding -fno-builtin -fno-unwind-tables -fno-asynchronous-unwind-tables -nostdlib -nostdinc -Os -falign-functions=1 -mpreferred-stack-boundary=2 -falign-jumps=1 -falign-loops=1 -march=i386 -ansi -pedantic -W -Wall -Werror=implicit-function-declaration -Wno-overlength-strings -o mininasm.gcc75.s mininasm_sgccli3.c && ../minilibc32/as2nasm.pl -o mininasm.ngccli3 mininasm.gcc75.s
  *
  * Size reduction:
  *
- * * mininasm.watli3:  29882 bytes
- * * mininasm.swatli3: 21533 bytes (no OpenWatcom libc)
- * * mininasm.nwatli3: 19541 bytes (smarter ELF linking with NASM)
+ * * mininasm.watli3:  29882 bytes (OpenWatcom)
+ * * mininasm.swatli3: 21533 bytes (OpenWatcom, inlined libc instead of OpenWatcom libc)
+ * * mininasm.xtiny:   20580 bytes (GCC with pts-xtiny libc: https://github.com/pts/pts-xtiny )
+ * * mininasm.ngccli3: 19996 bytes (GCC, better optimized libc, smarter ELF linking with NASM)
+ * * mininasm.nwatli3: 19517 bytes (OpenWatcom, smarter ELF linking with NASM)
+ * * mininasm.nwalli3: 19417 bytes (OpenWatcom, libc better optimized than the inlined version, smarter ELF linking with NASM)
  *
  * TODO(pts): Remove the PHDR program header from the ELF executable program (done in compile_nwatli3.pl).
  * TODO(pts): Remove the alignment NUL bytes between the TEXT (AUTO) and DGROUP sections (done in compile_nwatli3.pl).

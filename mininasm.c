@@ -50,8 +50,17 @@
 #  undef  CONFIG_SKIP_LIBC
 #  define CONFIG_SKIP_LIBC 1
 #  include <libc.h>
+   /* !! TODO(pts): Use the main_argv function (rather than main_from_libc to take argv only. */
 #  ifndef CONFIG_USE_OPEN2
 #    define CONFIG_USE_OPEN2 1  /* Non-POSIX API provided by <libc.h>. Same as open(..., ..., 0). */
+#  endif
+#  if 0 && defined(__WATCOMC__) && defined(_M_I386)  /* Not enabling it, doesn't make a size difference. */
+     static void memcpy_void_inline(void *dest, const void *src, size_t n);
+#    pragma aux memcpy_void_inline = "rep movsb"  parm [ edi ] [ esi ] [ ecx ] modify [ esi edi ecx ];
+     /* Returns dest + n. */
+     static void *memcpy_newdest_inline(void *dest, const void *src, size_t n);
+#    pragma aux memcpy_newdest_inline = "rep movsb"  value [ edi ] parm [ edi ] [ esi ] [ ecx ] modify [ esi ecx ];
+#    define CONFIG_USE_MEMCPY_INLINE 1
 #  endif
 #endif  /* ifdef __TINYC__. */
 
@@ -1733,7 +1742,7 @@ struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf
 static void emit_write(const char *s, int size) {
     int emit_free;
     while ((emit_free = emit_bbb.buf_end - emit_bbb.p) <= size) {
-#if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
+#if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...) for __DOSMC__. Doesn't make a difference with __WATCOMC__ Linux i386 <libc.h>.  */
         emit_bbb.p = (char*)memcpy_newdest_inline(emit_bbb.p, s, emit_free);
 #else
         memcpy(emit_bbb.p, s, emit_free);
@@ -2673,9 +2682,14 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
 }
 
 #if CONFIG_USE_MEMCPY_INLINE
+#if 1
 static void memcpy_void_my(void *dest, const void *src, size_t n) {
     memcpy_void_inline(dest, src, n);
 }
+#else
+/* This would make the __WATCOMC__ Linux i386 <libc.h> executable program 160 bytes larger (!). Also it would cause similar size increases for __DOSMC__. */
+#define memcpy_void_my memcpy_void_inline
+#endif
 #endif
 
 /*
