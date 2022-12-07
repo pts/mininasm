@@ -50,6 +50,9 @@
 #  undef  CONFIG_SKIP_LIBC
 #  define CONFIG_SKIP_LIBC 1
 #  include <libc.h>
+#  ifndef CONFIG_USE_OPEN2
+#    define CONFIG_USE_OPEN2 1  /* Non-POSIX API provided by <libc.h>. Same as open(..., ..., 0). */
+#  endif
 #endif  /* ifdef __TINYC__. */
 
 #if !CONFIG_SKIP_LIBC && defined(__TINYC__)  /* Works with tcc, pts-tcc (Linux i386 target), pts-tcc64 (Linux amd64 target) and tcc.exe (Win32, Windows i386 target). */
