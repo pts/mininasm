@@ -65,6 +65,26 @@ typedef va_list __gnuc_va_list;
 #endif
 #endif  /* !defined(va_arg) */
 
+#if defined(__GNUC__) && defined(__i386__)  /* TODO(pts): Check MinGW GCC Win32 target. */
+/* This is a size optimization. It only works on i386 and if the function
+ * taking the `...' arguments is __attribute__((noinline)). It makes the
+ * program 104 bytes shorter.
+ */
+#define BBVA_NOINLINE __attribute__((noinline))
+typedef char *bbva_list;
+#define bbva_start(ap, last) ((ap) = (char*)&(last) + ((sizeof(last)+3)&~3), (void)0)  /* i386 only. */
+#define bbva_arg(ap, type) ((ap) += (sizeof(type)+3)&~3, *(type*)((ap) - ((sizeof(type)+3)&~3)))  /* i386 only. */
+#define bbva_copy(dest, src) ((dest) = (src), (void)0)  /* i386 only. */
+#define bbva_end(ap) /*((ap) = 0, (void)0)*/  /* i386 only. Adding the `= 0' back doesn't make a difference. */
+#else
+#define BBVA_NOINLINE
+#define bbva_list va_list  /* This would change the executable program with __DOSMC__: `typedef va_list bbva_list;`. */
+#define bbva_start(ap, last) va_start(ap, last)
+#define bbva_arg(ap, type) va_arg(ap, type)
+#define bbva_copy(dest, src) va_copy(dest, src)
+#define bbva_end(ap) va_end(ap)
+#endif
+
 #ifndef CONFIG_BBPRINTF_LONG
 #define CONFIG_BBPRINTF_LONG 0
 #endif
@@ -88,7 +108,7 @@ CONFIG_BBPRINTF_STATIC void bbwrite1(struct bbprintf_buf *bbb, int c) {
 #define BBPRINTF_INT int
 #endif
 
-static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
+static int print(struct bbprintf_buf *bbb, const char *format, bbva_list args) {
   register unsigned width, pad;
   register unsigned pc = 0;
   /* String buffer large enough for the longest %u and %x. */
@@ -121,7 +141,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
       c = *format;
       s = print_buf;
       if (c == 's') {
-        s = va_arg(args, char*);
+        s = bbva_arg(args, char*);
         if (!s) s = (char*)"(null)";
        do_print_s:
         /* pc += prints(bbb, s, width, pad); */
@@ -150,7 +170,7 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
         }
       } else if (c == 'c') {
         /* char are converted to int then pushed on the stack */
-        s[0] = (char)va_arg(args, int);
+        s[0] = (char)bbva_arg(args, int);
         if (width == 0) {  /* Print '\0'. */
           bbwrite1(bbb, s[0]);
           ++pc;
@@ -160,16 +180,16 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
       } else {
 #if CONFIG_BBPRINTF_LONG
         if (c == 'l') {  /* !! TODO(pts): Keep u as `long' if sizeof(int) >= 4. This is for saving space and time if sizeof(long) > 4. */
-          u = va_arg(args, unsigned long);
+          u = bbva_arg(args, unsigned long);
           c = *++format;
         } else {
-          u = va_arg(args, unsigned);
+          u = bbva_arg(args, unsigned);
         }
 #else
-        u = va_arg(args, unsigned);
+        u = bbva_arg(args, unsigned);
 #endif
         if (!(c == 'd' || c == 'u' || (c | 32) == 'x' )) goto done;  /* Assumes ASCII. */
-        /* pc += printi(bbb, va_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
+        /* pc += printi(bbb, bbva_arg(args, int), (c | 32) == 'x' ? 16 : 10, c == 'd', width, pad, c == 'X' ? 'A' : 'a'); */
         /* This code block modifies `width', and it's fine to modify `width' and `pad'. */
         if (u == 0) {
           s[0] = '0';
@@ -211,24 +231,24 @@ static int print(struct bbprintf_buf *bbb, const char *format, va_list args) {
     }
   }
  done:
-  va_end(args);
+  bbva_end(args);
   return pc;
 }
 
-CONFIG_BBPRINTF_STATIC int bbprintf(struct bbprintf_buf *bbb, const char *format, ...) {
-  va_list args;
-  va_start(args, format);
+CONFIG_BBPRINTF_STATIC BBVA_NOINLINE int bbprintf(struct bbprintf_buf *bbb, const char *format, ...) {
+  bbva_list args;
+  bbva_start(args, format);
   return print(bbb, format, args);
 }
 
 #if 0  /* Unused. */
-CONFIG_BBPRINTF_STATIC int bbsprintf(char *out, const char *format, ...) {
+CONFIG_BBPRINTF_STATIC BBVA_NOINLINE int bbsprintf(char *out, const char *format, ...) {
   int result;
   struct bbprintf_buf bbb;
-  va_list args;
+  bbva_list args;
   bbb.buf = bbb.buf_end = bbb.p = out;
   --bbb.buf_end;
-  va_start(args, format);
+  bbva_start(args, format);
   result = print(&bbb, format, args);
   *bbb.p = '\0';
   return result;
@@ -236,13 +256,13 @@ CONFIG_BBPRINTF_STATIC int bbsprintf(char *out, const char *format, ...) {
 #endif
 
 #if 0  /* Unused. */
-CONFIG_BBPRINTF_STATIC int bbsnprintf(char *out, int size, const char *format, ...) {
+CONFIG_BBPRINTF_STATIC BBVA_NOINLINE int bbsnprintf(char *out, int size, const char *format, ...) {
   int result;
   struct bbprintf_buf bbb;
-  va_list args;
+  bbva_list args;
   bbb.buf = bbb.p = out;
   bbb.buf_end = out + size - 1;
-  va_start(args, format);
+  bbva_start(args, format);
   result = print(&bbb, format, args);
   *bbb.p = '\0';
   return result;

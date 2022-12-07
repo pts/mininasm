@@ -43,11 +43,18 @@ typedef long off_t;  /* Not implemented: 64-bit off_t (#define _FILE_OFFSET_BITS
 
 /* --- <stdarg.h> */
 
-typedef char *va_list;  /* i386 only. */
-#define va_start(ap, last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)  /* i386 only. */
-#define va_arg(ap, type) (ap += (sizeof(type)+3)&~3, *(type *)(ap - ((sizeof(type)+3)&~3)))  /* i386 only. */
-#define va_copy(dest, src) (dest) = (src)  /* i386 only. */
-#define va_end(ap)  /* i386 only. */
+#if defined(__GNUC__)
+#define CONFIG_SKIP_STDARG 1
+/* GCC 7.5, GCC 4.8.4, GCC 4.1 needs this (other hacks produce incorrect
+ * results without __attribute__((noinline)). bbprintf.c has an optimized
+ * implementation with __attribute__((noinline)).
+ */
+typedef __builtin_va_list va_list;
+#define va_start(ap, last) __builtin_va_start(ap, last)
+#define va_arg(ap, type) __builtin_va_arg(ap, type)
+#define va_copy(dest, src) __builtin_va_copy(dest, src)
+#define va_end(ap) __builtin_va_end(ap)
+#endif
 
 /* --- <ctype.h> */
 
@@ -292,6 +299,5 @@ __asm__(
 /* TODO(pts): Add memcpy_void_inline and memcpy_newdest_inline, to match to size improvements from mininasm_sgwatli.c. */
 
 #define CONFIG_SKIP_LIBC 1
-#define CONFIG_SKIP_STDARG 1
 #define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
 #include "mininasm.c"
