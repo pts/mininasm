@@ -5,8 +5,14 @@ mininasm is a minimalistic NASM-compatible assembler targeting the Intel
 8086 (and 8088). It's implemented in C, and it can be compiled to DOS
 (targeting 8086) and to modern systems.
 
-mininasm is based on https://github.com/nanochess/tinyasm , with the
-following improvements:
+mininasm is released as C (C89 or later) source (mininasm.c,
+bbprintf.c, bbprintf.h, see compilation instructions near the beginning of
+mininasm.c) on http:ss/github.com/pts/mininasm and there are also
+binary releases for DOS 8086, Linux i386 (also runs on Linux amd64) and
+Win32, on https://github.com/pts/mininasm/releases .
+
+mininasm is based on Tinyasm (https://github.com/nanochess/tinyasm), with
+the following improvements:
 
 * It supports 32-bit numbers. (However, it doesn't support the 32-bit
   or 64-bit instructions, and it can't generate 32-bit DOS programs.)
