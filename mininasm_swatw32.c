@@ -3,27 +3,25 @@
  * by pts@fazekas.hu at Fri Nov 25 21:41:31 CET 2022
  *
  # Compile without: owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.win32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm.c nouser32.c && ls -ld mininasm.win32.exe
- * Compile: owcc -bwin32 -fnostdlib -Wl,option -Wl,start=_mainCRTStartup -Wl,runtime -Wl,console=3.10 -o mininasm.swatw32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatw32.c && ls -ld mininasm.swatw32.exe
+ * Compile: owcc -bwin32 -fnostdlib -Wl,option -Wl,start=_mainCRTStartup -Wl,option -Wl,dosseg -Wl,runtime -Wl,console=3.10 -o mininasm.swatw32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatw32.c && ls -ld mininasm.swatw32.exe
+ * Compile: owcc -bwin32 -fnostdlib -Wl,option -Wl,start=_mainCRTStartup -Wl,option -Wl,dosseg -Wl,option -Wl,norelocs -Wl,runtime -Wl,console=3.10 -o mininasm.swatw32nr.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatw32.c && ls -ld mininasm.swatw32nr.exe
  *
- * TODO(pts): Rewrite malloc_far(...) in mininasm.c in i386 assembly, size-optimize it.
  * TODO(pts): Define custom calling convention for all the non-inline functions, so that the xchgs are not needed.
- * !! TODO(pts): Use assembly-optimized libc functions for mininasm.nwatli3.
+ * TODO(pts): Use assembly-optimized libc functions which use KERNEL32.DLL (e.g. read(...)).
  *
  * File sizes:
  *
- * * mininasm.win32.exe:   47616 bytes (includes OpenWatcom libc, symbols)
- * * mininasm.swatw32.exe: 29184 bytes (includes .bss codd as NUL bytes)
- * * mininasm.nwatw32.exe: 20287 bytes
- * * mininasm.nwatli3:     19541 bytes
- * * mininasm.com:         19399 bytes
+ * * mininasm.win32.exe:     47616 bytes (has relocations, has OpenWatcom libc, no symbols, has large alignment padding between sections)
+ * * mininasm.swatw32.exe:   23552 bytes (has relocations, has minimal embedded libc, no symbols, has large alignment padding between sections)
+ * * mininasm.swatw32nr.exe: 21504 bytes (no relocations, has minimal embedded libc, no symbols, has large alignment padding between sections)
+ * * mininasm.nwatw32.exe:   20303 bytes (no relocations, no symbols, no alignment, no symbols, sections tightly packed)
+ * * mininasm.nwatli3:       19541 bytes (Linux i386 target)
+ * * mininasm.com:           19399 bytes (DOS 8086 target)
  *
- * mininasm.win32.exe works on Windoes NT 3.1 and Windows 95.
- *
- * mininasm.swatw32.exe cannot open the source file on Windows 95. Is it an
- * incorrect filename, or argv parsing, or sharing?
- *
- * mininasm.nwatw32.exe works on Windows NT 3.1, but it crashes when assembling
- * on !! Windows 95. Is it HeapAlloc?
+ * mininasm.win32.exe, mininasm.swatw32.exe and mininasm.nwat32.exe work on
+ * Windoes NT 3.1 and Windows 95, and later versions of Windows. However,
+ * some antivirus software reports them as false positives (see
+ * virtustotal.com), especially many for mininasm.nwatw32.exe.
  */
 
 #ifndef __WATCOMC__
@@ -103,7 +101,8 @@ typedef struct _SECURITY_ATTRIBUTES *LPSECURITY_ATTRIBUTES;
 
 /* kernel32.dll, <windows.h> */
 /* TODO(pts): Write alternative implementation which uses UTF-8 and the *W(...) APIs with WTF-8 encoding: https://nullprogram.com/blog/2022/02/18/ */
-/*__declspec(aborts)!!*/ __declspec(dllimport) void __stdcall ExitProcess(UINT uExitCode);
+/*__declspec(aborts)*/  /* With this, OpenWatcom would generate incorrect code (jmp rather than call) in the callee for ExitProcess(...) https://github.com/open-watcom/open-watcom-v2/issues/1010 */
+__declspec(dllimport) void __stdcall ExitProcess(UINT uExitCode);
 __declspec(dllimport) HANDLE __stdcall GetStdHandle(DWORD nStdHandle);
 __declspec(dllimport) BOOL   __stdcall WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, LPOVERLAPPED lpOverlapped);
 __declspec(dllimport) BOOL   __stdcall ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
@@ -341,14 +340,6 @@ LIBC_STATIC pid_t getpid(void) {
 }
 #endif
 
-#if 0
-LIBC_STATIC void *sys_brk(void *addr) { return NULL; }  /* !! implement it */
-#define CONFIG_MALLOC_FAR_USING_SYS_BRK 0
-#endif
-
-/* !!! No .bss is happening with: owcc -bwin32 -Wl,runtime -Wl,console=3.10 -o mininasm.swatw32.exe -Os -s -fno-stack-check -march=i386 -W -Wall -Wextra mininasm_swatw32.c && ls -ld mininasm.swatw32.exe && cp -a mininasm.swatw32.exe s.exe */
-/*static char __libc_malloc_buf[1 << 16];*/  /* !!! Why does this .bss become part of the .exe by the OpenWatcom linker?? Also why not on Linux? */
-
 static HANDLE __libc_heap;
 
 LIBC_STATIC void *malloc(size_t size) {
@@ -437,7 +428,7 @@ static void __libc_parse_to_argv_and_argc(char *pw) {
       } else if (!is_quote && (c == ' ' || c == '\t')) {
         goto after_arg;
       } else {
-        *pw++ = c;  /* Overwrite in-place. Subsequent calls to GetCommandLineA(...) will return garbage. !! Document it in the libc docs. */
+        *pw++ = c;  /* Overwrite in-place. Subsequent calls to GetCommandLineA(...) will return garbage. TODO(pts): Document it in the libc docs. */
       }
     }
   }
@@ -445,21 +436,32 @@ static void __libc_parse_to_argv_and_argc(char *pw) {
 }
 
 #define CONFIG_MAIN_ARGV 1
+/* If we use main(...), OpenWatcom will force _cstart_ as the entry point,
+ * and it will also add __argc as an external symbol reference (but not
+ * actually used).
+ */
 extern int main_argv(char **argv);
 
-__declspec(aborts) void __cdecl mainCRTStartup(void) {  /* !! why cdecl?? */
+/* The __cdecl would adds a `_' prefix (rather then a `_' suffix of the
+ * default __watcall) to the symbol name.
+ *
+ * For size optimization purposes it's imporant not to generate any push/pop
+ * instructions saving/restoring registers used in this function. For this
+ * code, any of__cdecl and __watcall arranges that.
+ */
+__declspec(aborts) void __cdecl mainCRTStartup(void) {
 #if 0
   char *p;
   DWORD bw;
   HANDLE hfile = GetStdHandle(STD_OUTPUT_HANDLE);   
   write(2, "Foo\r\n", 5);
   WriteFile(hfile, "BOOT\r\n", 6, &bw, 0);
-  ExitProcess(12);  /* Will exit with code 6 (!), rather than 12 with MWPESTUB. Strange. !!! report bug: declaring ExitProcess non-__declspec(aborts) fixes it (call becomes jmp) -- why?? what's wrong with our stack frame? */
+  ExitProcess(12);
 #endif
   /* Moved here for faster malloc(...). */
   /* GetProcessHeap() also returns NULL on failure, but we don't check specifically here. */
   __libc_heap = GetProcessHeap();
-  __libc_parse_to_argv_and_argc(GetCommandLineA());
+  __libc_parse_to_argv_and_argc(GetCommandLineA());  /* Populates __libc_argv. */
   ExitProcess(main_argv(__libc_argv));
 }
 
