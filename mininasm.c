@@ -40,6 +40,9 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
+ ** !! TODO(pts): feature: allow `mov ax, [1+bx]',  not just `mov ax, [bx+1]'
+ ** !! TODO(pts): feature: add line in brackets: `[org 100h]', for `nasm -E output'
+ **
  */
 
 #ifndef CONFIG_SKIP_LIBC
