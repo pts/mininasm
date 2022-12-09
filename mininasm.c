@@ -3284,6 +3284,7 @@ int main(int argc, char **argv)
                 for (p = argv[0] + 2; *p != '\0' && *p != '='; ++p) {}
                 set_macro(argv[0] + 1, (char*)p, p + (*p == '='), MACRO_SET_DEFINE_CMDLINE);
                 if (errors) return 1;
+            } else if (d == 'w') {  /* NASM warning flag, ignore. */
             } else if (argv[0][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
                 d = argv[0][2];
                 if (d == '\0' || argv[0][3] != '\0') { bad_opt_level:

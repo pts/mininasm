@@ -46,8 +46,8 @@ Similarities between mininasm and NASM:
   binary output.
 
 * Command-line parsing is the same, as long as only `-f ...',
-  `-l <listing-file>', `-o <output-file>', `-D<macro>=<value>' and
-  `<assembly-source-file' are specified.
+  `-l <listing-file>', `-o <output-file>', `-D<macro>=<value>',
+  `-w[-+]<warning>' and `<assembly-source-file' are specified.
 
 * The following directives (and data instructions) are supported:
 
@@ -193,7 +193,11 @@ Differences between mininasm and NASM:
 * The `strict' modifier in `strict byte' and `strict word' is alloed
   only for immediate arguments.
 
-* mininasm doesn't display any warnings.
+* mininasm doesn't display any warnings, the NASM `-w[-+]<warning>'
+  command-line flags are ignored.
+
+* The recommended flag for NASM 0.98.39 is `-w+orphan-labels', and for
+  orphan labels mininasm reports an error.
 
 * Command-line flags are case insensitive.
 
