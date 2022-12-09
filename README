@@ -60,6 +60,7 @@ Similarities between mininasm and NASM:
         %else
         %endif
         %include
+        %line
         incbin
         times
         use16

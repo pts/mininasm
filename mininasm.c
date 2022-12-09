@@ -2959,6 +2959,7 @@ static void do_assembly(const char *input_filename) {
             set_macro((char*)p - 1, (char*)p3, p3, (char)(pc ? MACRO_SET_DEFINE : MACRO_SET_ASSIGN));
         } else if (casematch(instr_name, "%UNDEF")) {
             unset_macro((char*)p - 1);
+        } else if (casematch(instr_name, "%LINE")) {  /* Just ignore. */
         } else {
             MESSAGE1STR(1, "Unknown preprocessor directive: %s", instr_name);
         }
