@@ -207,6 +207,16 @@ static int isxdigit_inline(int c);
 LIBC_STATIC int isxdigit(int c) { return isxdigit_inline(c); }
 #pragma aux isxdigit_inline = "sub al, 48"  "cmp al, 10"  "jc short @$1"  "or al, 32"  "sub al, 49"  "cmp al, 6"  "@$1: sbb eax, eax"  "neg eax"  value [ eax ] parm [ eax ];
 
+#if 0  /* Unused. */
+static int tolower_inline(int c);
+LIBC_STATIC int tolower(int c) { return tolower_inline(c); }
+#pragma aux tolower_inline = "sub al, 'A'"  "cmp al, 'Z' - 'A'"  "ja @$done"  "add al, 'a' - 'A'"  "@$done: add al, 'A'"  "ret"  value [ eax ] parm [ eax ];
+/**/
+static int toupper_inline(int c);
+LIBC_STATIC int toupper(int c) { return toupper_inline(c); }
+#pragma aux toupper_inline = "sub al, 'a'"  "cmp al, 'z' - 'a'"  "ja @$done"  "add al, 'A' - 'a'"  "@$done: add al, 'a'"  "ret"  value [ eax ] parm [ eax ];
+#endif
+
 /* --- <string.h> */
 
 static size_t strlen_inline(const char *s);
@@ -232,6 +242,20 @@ static int strcmp_inline(const char *s1, const char *s2);
 LIBC_STATIC int strcmp(const char *s1, const char *s2) { return strcmp_inline(s1, s2); }
 /* This is much shorter than in OpenWatcom libc and shorter than QLIB 2.12.1 and Zortech C++. */
 #pragma aux strcmp_inline = "xchg esi, eax"  "xor eax, eax"  "xchg edi, edx"  "next: lodsb"  "scasb"  "jne short diff"  "cmp al, 0"  "jne short next"  "jmp short done"  "diff: mov al, 1"  "jnc short done"  "neg eax"  "done: xchg edi, edx"  value [ eax ] parm [ eax ] [ edx ] modify [ esi ];
+
+#if 0  /* Unused. */
+static char* strcat_inline(char *s1, const char *s2);
+LIBC_STATIC char* strcat(char *s1, const char *s2) { return strcat_inline(s1, s2); }
+#pragma aux strcat_inline = "push edi"  "xchg esi, edx"  "xchg edi, eax"  "push edi"  "dec edi"  "@$skipagain: inc edi"  "cmp byte ptr [edi], 1"  "jnc @$skipagain"  "@$again: lodsb"  "stosb"  "cmp al, 0"  "jne @$again"  "pop eax"  "xchg esi, edx"  "pop edi"  "ret"  value [ eax ] parm [ eax ] [ edx ];
+/**/
+static int memcmp_inline(const char *s1, const char *s2, size_t n);
+LIBC_STATIC int memcmp(const char *s1, const char *s2, size_t n) { return memcmp_inline(s1, s2, n); }
+#pragma aux memcmp_inline = "push esi"  "xchg esi, eax"  "xor eax, eax"  "xchg edi, edx"  "xchg ecx, ebx"  "jecxz @$done"  "repz cmpsb"  "je @$done"  "inc eax"  "jnc @$done"  "neg eax"  "@$done: xchg ecx, ebx"  "xchg edi, edx"  "pop esi"  "ret"  value [ eax ] parm [ eax ] [ edx ] [ ebx ];
+/**/
+static void* memcpy_inline(void *dest, const void *src, size_t n);
+LIBC_STATIC void* memcpy(void *dest, const void *src, size_t n) { return memcpy_inline(dest, src, n); }
+#pragma aux memcpy_inline = "push edi"  "xchg esi, edx"  "xchg edi, eax"  "xchg ecx, ebx"  "push edi"  "rep movsb"  "pop eax"  "xchg ecx, ebx"  "xchg esi, edx"  "pop edi"  "ret"  value [ eax ] parm [ eax ] [ edx ] [ ebx ];
+#endif
 
 /* --- Unix system calls implemented using Win32 kernel32.dll functions.
  *
