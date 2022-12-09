@@ -433,9 +433,9 @@ static void *malloc_far(size_t size) {
 #define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name))
 #endif
 
-/* We aim for compatibility with NASM 0.98.39, so we do signed by default.
- * Signed (sign-extended): NASM 0.99.06, Yasm 1.2.0, Yasm, 1.3.0.
- * Unsigned (zero-extended): NASM 0.98.39, NASM 2.13.02.
+/* We aim for compatibility with NASM 0.98.39, so we do unsigned by default.
+ * Signed (sign-extended): NASM 0.99.06, Yasm 1.2.0, Yasm, 1.3.0, NASM 2.13.02.
+ * Unsigned (zero-extended): NASM 0.98.39
  */
 #ifndef CONFIG_SHIFT_SIGNED
 #define CONFIG_SHIFT_SIGNED 0
@@ -3297,7 +3297,7 @@ int main(int argc, char **argv)
                     do_opt_lea = 1;
                 } else if (d == 'g') {  /* -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
                     do_opt_segreg = 1;
-                } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equilvalent to `-O9 -OL -OG'. */
+                } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equivalent to `-O9 -OL -OG'. */
                     do_opt_lea = 1;
                     do_opt_segreg = 1;
                     goto set_opt_level_9;

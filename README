@@ -3,13 +3,224 @@ modern systems
 ^^^^^^^^^^^^^^
 mininasm is a minimalistic NASM-compatible assembler targeting the Intel
 8086 (and 8088). It's implemented in C, and it can be compiled to DOS
-(targeting 8086) and to modern systems.
+(8086 instructions only) and to modern systems. It aims to be an extremely
+lightweight, compatible, drop-in replacement of NASM (for the subset of NASM
+syntax it supports), so that it runs on an 1983 IBM PC running PC DOS 2.0,
+enabling software development without cross-compilation.
 
 mininasm is released as C (C89 or later) source (mininasm.c,
 bbprintf.c, bbprintf.h, see compilation instructions near the beginning of
 mininasm.c) on http:ss/github.com/pts/mininasm and there are also
 binary releases for DOS 8086, Linux i386 (also runs on Linux amd64) and
-Win32, on https://github.com/pts/mininasm/releases .
+Win32, on https://github.com/pts/mininasm/releases . The minimalism of
+mininasm is reflected in the size of the released executable programs: about
+20 KiB each.
+
+Similarities between mininasm and NASM:
+
+* mininasm implements a small subset of NASM (with a few extras), trying
+  to be compatible with NASM 0.98.39 (released on 2005-01-20, the last NASM
+  with 32-bit integers, newer releases had 64-bit integers), rather than
+  the most recent NASM. The goal is that the same assembly source code should
+  work identically (generating identical binary output) with mininasm and NASM,
+  provided that mininasm supports all the NASM features used.
+
+* `bits 16', `cpu 8086', `use16' are supported.
+
+* All 8086 instructions (including prefixes) and opcodes are supported.
+  Instructions with multiple binary encodings are encoded identically as
+  NASM 0.98.39 at the same optimization level.
+
+* Binary output (`-f bin' command-line flag) is supported.
+
+* Local labels (starting with a period) are supported. The local label's
+  final name is derived from concatenation of the last global label (not
+  starting with period) and the local label.
+
+* Generating a listing file (`-l ...' command-line flag) is supported, but
+  the listing file is different from what NASM generates.
+
+* Optimization flags `-O0' (default, no optimization, as is for NASM
+  0.98.39, but not in most newer versions) and `-Ox' (same as `-O999999999',
+  all NASM optimizations enabled) are supported, and produce identical
+  binary output.
+
+* Command-line parsing is the same, as long as only `-f ...',
+  `-l <listing-file>', `-o <output-file>', `-D<macro>=<value>' and
+  `<assembly-source-file' are specified.
+
+* The following directives (and data instructions) are supported:
+
+        %define
+        %assign
+        %undef
+        %ifdef
+        %ifndef
+        %if
+        %else
+        %endif
+        %include
+        incbin
+        times
+        use16
+        bits 16
+        cpu 8086
+        equ
+        db
+        dw
+        dd
+        align
+        resb
+        section .bss align=1
+
+* Size qualifiers `byte' and `word' are supported, and behave identically as
+  in NASM. (A lot of manual testing at multiple optimization levels has been
+  put into this.) The `strict' size qualifier prefix is also supported for
+  immediates.
+
+* Instructions, directives, register names and size qualifiers are case
+  insensitive. Labels, macro names and string literals are case sensitive.
+
+* Integers (in immediates, displacements, data instructions, expressions
+  etc.) are 32-bit, just like in NASM 0.98.39. Newer versions of NASM
+  have 64-bit integers.
+
+* The following arithmetic operators are supported:
+
+        |	Bitwise OR
+        ^	Bitwise XOR
+        &	Bitwise AND
+        ~	Unary bitwise NOT
+        <<	Shift to left
+        >>	Shift to right (unsigned, as in NASM 0.98.39, unlike in newer versions of NASM)
+        +	Addition
+        -	Subtraction
+        * 	Multiplication
+        /	Division (unsigned)
+        //	Division (signed)
+        %	Modulo (unsigned)
+        %%	Modulo (signed)
+        (expr)	Parenthesis
+        -	Unary negation
+        +       Unary addition (no-op).
+
+* The following integer literal syntaxes are implemented:
+
+        0b0000_0100	Binary, you can use underscore (it will be ignored)
+        0xabcd		Hexadecimal.
+        0o123		Octal.
+        $0abcd		Hexadecimal (after $ the first digit must be a number)
+        'a'		Character constant.
+        10		Decimal.
+        $$		Start address.
+        $		Current address.
+
+* A small subset of single-line macro definitions is supported, see below.
+
+Differences between mininasm and NASM:
+
+* In mininasm,
+  there is only support for 8086/8088 processors (`bits 16', `cpu 8086'), no
+  later 16-bit instructions (`cpu 186'; `cpu 286'), no 8087 floating point
+  instructions, no 32-bit instructions (`bits 32', in protected mode), no
+  64-bit instructions (`bits 64', in long mode).
+
+* Only the binary output format (`-f bin' command-line flag) is supported,
+  others (e.g. `-f elf', `-f obj', `-f win32') aren't.
+
+* Only `db', `dw' and `dq' are the supported data instructions (so no `dq'
+  or or `dt').
+
+* Floating point literals are not supported.
+
+* Label definitions without (a leading `$' or a trailing `:') are supported
+  only for `equ', `db', `dw' and `dd'.
+
+* `section' definitions are not supported, except for
+  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
+  In mininasm it's not possible to switch back to `section .text', but
+  in NASM it is.
+
+* All label values are integers, there are no section-relative values. This
+  makes mininasm more permissive, e.g. `db $ * 3' works in mininasm, but
+  only `db ($ - $$) * 3' works in NASM, because `$' is section-relative in
+  NASM.
+
+* Only some of the NASM directives are supported (see above).
+
+* Only some of the NASM arithmetic operators are supported (see above).
+
+* Only some of the NASM integer literal syntaxes are supported (see above).
+
+* Single-line macros (e.g. with `%define' and `%assign') must have an
+  integer value, and must not take any macro arguments.
+
+* For `%define' (but not for `%assign'), the macro value must be an integer
+  literal possibly prefixed by a sequence of unary `+', `-' and/or `~'.
+  Alternatively, a macro can define to itself (e.g. `%define NAME NAME'),
+  to make a difference for `%ifdef'. So e.g. `%define good' (without
+  a value) is not supported.
+
+* Macros defined in the command-line (with `-D...') behave like `%define',
+  but cannot be changed or undefined. (This is to simplify state restoration
+  between assembly passes in mininasm.) They also must have a value as an
+  integer literal (possibly prefixed by unary operators) as a value.
+
+* A macro and a label must not have the same name, except if the
+  macro is defined to itself as `%define NAME NAME'.
+
+* Multi-line macros (e.g. `%macro' and `%endm') are not supported.
+
+* Comparison operators (e.g. `==') and logical operators (e.g. `&&') are not
+  supported in `%if' expressions.
+
+* Source lines longer than 255 bytes (not counting the trailing whitespace +
+  optional comment + LF line terminator) are not allowed, and will be
+  reported as error.
+
+* mininasm reports an error for some register operations of the wrong size
+  (e.g. `dec byte bx' and `dec word bh'), while NASM reports only a warning.
+
+* `section' definitions are not supported, except for
+  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
+  In mininasm it's not possible to switch back to `section .text', but
+  in NASM it is.
+
+* If the input file is at least 2 GiB long, and it contains an `%include',
+  then it may get processed incorrectly.
+
+* The `strict' modifier in `strict byte' and `strict word' is alloed
+  only for immediate arguments.
+
+* mininasm doesn't display any warnings.
+
+* Command-line flags are case insensitive.
+
+* mininasm doesn't display a useful help message.
+
+* Shifts larger than 31 are not allowed (to avoid unspecified NASM
+  behavior).
+
+Improvements of mininasm over NASM (if in conflict, disabled by default):
+
+* Optimization of the `lea' instruction (enable with flag `-OL').
+
+* Optimization of effective addresses with segment prefixes (enable with
+  flag `-OG').
+
+* Turning on all NASM optimizations (`-Ox') and non-NASM optimizations
+  with flag `-OA'.
+
+* mininasm silently works correctly if the integer argument of `align' is
+  not a power of 2.
+
+* mininasm has deterministic behavior (same as NASM on i386) if some
+  arguments of division (`//') or modulo (`%%') are negative. NASM on other
+  host system architectures may behave differently.
+
+* In general, mininasm does deterministic output no matter what the host
+  system architecture is, thus mininasm is more suited as a cross-compiler
+  than NASM.
 
 mininasm is based on Tinyasm (https://github.com/nanochess/tinyasm), with
 the following improvements:
@@ -23,8 +234,11 @@ the following improvements:
 * Its output (stderr, output file, listing file) doesn't depend on the host,
   not even for integer overflow (e.g. number of bytes reported), this it's a
   true cross-assembler.
-* When compiled for DOS, it uses memory with efficiently, and thus it is able
-  to compile an assembly inpout file with >55000 labels (see the file
+* When compiled for DOS with dosmc, it needs only 64 KiB of memory (but it
+  can use more, up to 595 KiB), whereas Tinyasm needs 128 KiB (and cannot use
+  more than ~50 KiB of memory for labels).
+* When compiled for DOS with dosmc, it uses memory more efficiently, and thus
+  it is able to compile an assembly inpout file with >55000 labels (see file
   most.asm). Most other 16-bit DOS assemblers support less than 8000 labels
   (e.g. A86 4.05 supports ~7200 labels, TASM 4.1 supports ~7400 labels,
   MASM 5.10a supports ~11800 labels, NASM 0.98.39 lite supports ~8000 labels).
@@ -35,7 +249,7 @@ the following improvements:
   20 KiB, because new features have been added.)
 * It depends on fewer runtime (libc) functions, so it can be compiled to a
   Linux i386 executable program smaller than Tinyasm. Currently
-  mininasm.xtiny is about 20.1 KiB, and tinasm.xstatic (similar to Tinyasm)
+  mininasm.li3 is about 19.4 KiB, and tinasm.xstatic (similar to Tinyasm)
   is about 52.8 KiB.
 * Its behavior is adjusted for better compatibility with NASM 0.98.39.
   The most important difference is that it supports 16-bit numbers, but
@@ -51,87 +265,11 @@ the following improvements:
 * mininasm is an optimizing assembler, with its -O9 flag, it implements the
   same optimizations as NAsM. With its -OA flag, it implements some
   additional optimizations.
-
-Differences between mininasm and NASM:
-
-* There is only support for 8086/8088 processors (bits 16, cpu 8086), no
-  later 16-bit instructions (cpu 186; cpu 286), no 8087 floating point
-  instructions, no 32-bit instructions (bits 32, in protected mode), no 64-bit
-  instructions (bits 64, in long mode).
-
-* Label definitions without (a leading `$' or a trailing `:') are supported
-  only for `equ', `db', `dw' and `dd'.
-
-* All label values are integers, there are no section-relative values. This
-  makes mininasm more permissive, e.g. `db $ * 3' works in mininasm, but
-  only `db ($ - $$) * 3' works in NASM, because `$' is section-relative in
-  NASM.
-
-* Only the following directives are supported:
-
-        %define
-        %assign
-        %undef
-	%ifdef
-	%ifndef
-	%if
-	%else
-	%endif
-	%include
-	incbin
-	times
-	use16
-	bits 16
-	cpu 8086
-	equ
-	db
-	dw
-	dd
-	align
-	resb
-
-* Single-line macros (e.g. with `%define' and `%assign') must have an
-  integer value (only integer literals and unarhy `+', `-' and `~' are
-  supported), and most not take any macro arguments.
-
-* Macros defined in the command line cannot be changed or undefined.
-
-* A macro and a label must not have the same name, except if the
-  macro is defined to itself as `%define NAME NAME'.
-
-* Multiline macros (e.g. `macro' and `endm') are not supported.
-
-* Comparison operators (e.g. `==') and logical operators (e.g. `&&') are not
-  supported in `%if' expressions.
-
-* Source lines longer than 255 bytes (not counting the trailing whitespace +
-  optional comment + LF line terminator) are not allowed.
-
-* mininasm reports an error for some register operations of the wrong size
-  (e.g. `dec byte bx' and `dec word bh'), while NASM reports only a warning.
-
-* mininasm silently works correctly if the integer argument of `align' is
-  not a power of 2.
-
-* `section' definitions are not supported, except for
-  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
-  In mininasm it's not possible to switch back to `section .text', but
-  in NASM it is.
-
-* If the input file is at least 2 GiB long, and it contains an `%include',
-  then it may get processed incorrectly.
-
-* The `strict' modifier in `strict byte' and `strict word' is alloed
-  only for immediate arguments.
-
-* mininasm doesn't display any warnings.
-
-Similarities with NASM:
-
-* Local labels are supported, and should start with period.
-  The local labels final name is derived from concatenation
-  of the last global label (not starting with period) and
-  the local label.
+* It supports the `strict' size qualifier prefix for immediates.
+* It supports `%define', `%assign' and `%undef' in a limited way (rather
+  than not at all).
+* mininasm supports the 2-argument form of `align'.
+* In mininasm, `%ifdef' doesn't trigger for labels, only for macros.
 
 Possible future mininasm features:
 
@@ -140,36 +278,6 @@ Possible future mininasm features:
   This hasn't been implemented yet.
 * It supports 287 floating point instructions.
   This hasn't been implemented yet.
-
-The following operators are implemented:
-
-	|	Bitwise OR
-	^	Bitwise XOR
-	&	Bitwise AND
-	~	Unary bitwise NOT
-	<<	Shift to left
-	>>	Shift to right
-	+	Addition
-	-	Subtraction
-	* 	Multiplication
-	/	Division (unsigned)
-	//	Division (signed)
-	%	Modulo (unsigned)
-	%%	Modulo (signed)
-	(expr)	Parenthesis
-	-	Unary negation
-        +       Unary addition (no-op).
-
-The following numbers are implemented:
-
-	0b0000_0100	Binary, you can use underscore (it will be ignored)
-	0xabcd		Hexadecimal.
-	0o123		Octal.
-	$0abcd		Hexadecimal (after $ the first digit must be a number)
-	'a'		Character constant.
-	10		Decimal.
-	$$		Start address.
-	$		Current address.
 
 Host system compatibiliy of mininasm:
 
@@ -192,7 +300,8 @@ Host system compatibiliy of mininasm:
   unsigned long division.
 
 * Known modern compilers that can compile mininasm.c: GCC, Clang, TCC (Tiny
-  C), OpenWatcom C compiler, dosmc (https://github.com/pts/dosmc).
+  C), OpenWatcom C compiler, dosmc (https://github.com/pts/dosmc). Older
+  DOS compilers such as Turbo C++, Borland C++ and Microsoft C also work.
 
 * mininasm.com (compilation output of mininasm.c with dosmc) and
   minnnasm.com (compilation output of minnnasm.nasm with NASM or mininasm)
@@ -346,7 +455,7 @@ Not self-hosting assemblers:
 
 * vasm (open source, written in C).
 
-Below is a copy of the README of Tinyasm.
+Below are excerpts from the README of Tinyasm.
 
 ,--------.,--.
 '--.  .--'`--',--,--, ,--. ,--.,--,--. ,---. ,--,--,--.
@@ -414,20 +523,20 @@ disks).
 
 Do the following (replace filename as desired):
 
-	DEBUG ROGUE.IMG
-		Extract now your working disk and insert a blank one!!!
-	A300
-	MOV AX,0301
-	MOV BX,0100
-	MOV CX,1
-	MOV DX,0
-	INT 13
-	JB 300
-	INT 20
-	RIP
-	300
-	G
-		Now the boot sector is replaced with the program!!!
+        DEBUG ROGUE.IMG
+        	Extract now your working disk and insert a blank one!!!
+        A300
+        MOV AX,0301
+        MOV BX,0100
+        MOV CX,1
+        MOV DX,0
+        INT 13
+        JB 300
+        INT 20
+        RIP
+        300
+        G
+        	Now the boot sector is replaced with the program!!!
 
 
 >> BUILDING THE ASSEMBLER >>
@@ -457,12 +566,12 @@ Sector Games).
 
 The test cases come from my own programs:
 
-	https://github.com/nanochess/fbird
-	https://github.com/nanochess/invaders
-	https://github.com/nanochess/pillman
-	https://github.com/nanochess/bootBASIC
-	https://github.com/nanochess/bootOS
-	https://github.com/nanochess/bootRogue
+        https://github.com/nanochess/fbird
+        https://github.com/nanochess/invaders
+        https://github.com/nanochess/pillman
+        https://github.com/nanochess/bootBASIC
+        https://github.com/nanochess/bootOS
+        https://github.com/nanochess/bootRogue
 
 
 >> ATTENTION <<
