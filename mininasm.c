@@ -1181,16 +1181,24 @@ static const char *match_expression(const char *match_p) {
               MATCH_CASEI_LEVEL_TO_VALUE2(3, 6);
               value1 += value2;
             }
-        } else if (c == '0' && (match_p[1] | 32) == 'b') {  /* Binary. */
+        } else if (c == '0' && (match_p[1] | 32) == 'b') {  /* Binary or hexadecimal. */
+            p2 = (char*)match_p;
             match_p += 2;
             /*value1 = 0;*/
-            while (match_p[0] == '0' || match_p[0] == '1' || match_p[0] == '_') {
-                if (match_p[0] != '_') {
+            while ((c = match_p[0]) == '0' || c == '1' || c == '_') {
+                if (c != '_') {
                     value1 <<= 1;
-                    if (match_p[0] == '1')
+                    if (c == '1')
                         value1 |= 1;
                 }
                 match_p++;
+            }
+          parse_hex1:  /* Maybe hexadecimal. */
+            if ((c | 32) == 'h' || isxdigit(c)) {  /* Hexadecimal, start again. */
+                match_p = p2;
+                shift = 1;
+                value1 = 0;
+                goto parse_hex;
             }
             goto check_nolabel;
         } else if (c == '0' && (match_p[1] | 32) == 'x') {  /* Hexadecimal. */
@@ -1232,19 +1240,13 @@ static const char *match_expression(const char *match_p) {
             } else {
                 ++match_p;
             }
-        } else if (isdigit(c)) {  /* Decimal, even if it starts with '0'. */
+        } else if (isdigit(c)) {  /* Decimal or hexadecimal, even if it starts with '0'. */
             /*value1 = 0;*/
             for (p2 = (char*)match_p; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 9U; ++match_p) {
                 value1 = value1 * 10 + c;
             }
             c = match_p[0];
-            if (islabel(c)) {
-                if ((c | 32) != 'h' && !isxdigit(c)) goto bad_label;
-                match_p = p2;
-                shift = 1;
-                value1 = 0;
-                goto parse_hex;
-            }
+            goto parse_hex1;
         } else if (c == '$') {
             c = *++match_p;
             if (c == '$') {  /* Start address ($$). */
