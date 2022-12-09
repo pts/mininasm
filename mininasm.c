@@ -3287,14 +3287,14 @@ int main(int argc, char **argv)
             } else if (d == 'w') {  /* NASM warning flag, ignore. */
             } else if (argv[0][2] != '\0' && d == 'o') {  /* Optimization level (`nasm -O...'). */
                 d = argv[0][2];
-                if (d == '\0' || argv[0][3] != '\0') { bad_opt_level:
+                if (d == '\0' || (d != '9' && argv[0][3] != '\0')) { bad_opt_level:
                     MESSAGE(1, "bad optimization argument");
                     return 1;
                 }
                 d |= 32;
                 if (SUB_U(d, '0') <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
                     opt_level = d - '0';
-                } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9 (compatible with NASM). !! TODO(pts): Allow -O99999999 etc., for compatibility with NASM 0.98.39, whern -09 is too small and causes ``error: phase error detected at end of assembly''.. */
+                } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9, -O9... (compatible with NASM). We allow e.g. -O99999999 etc., for compatibility with NASM 0.98.39, where -09 can be too small, causing ``error: phase error detected at end of assembly''.. */
                   set_opt_level_9:
                     opt_level = 9;
                 } else if (d == 'l') {  /* -OL (not compatible with NASM, `nasm -O9' doesn't do it) to optimize `lea', including `lea ax, [bx]' and `lea ax, [es:bx]'. */

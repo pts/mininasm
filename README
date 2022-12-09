@@ -43,7 +43,10 @@ Similarities between mininasm and NASM:
 * Optimization flags `-O0' (default, no optimization, as is for NASM
   0.98.39, but not in most newer versions) and `-Ox' (same as `-O999999999',
   all NASM optimizations enabled) are supported, and produce identical
-  binary output.
+  binary output. Please note that NASM 0.98.39 doesn't support `-Ox' (but
+  NASM 0.99.06 already does), so for a compatible behavior of enabling all
+  NASM optimizations, specify `-O999999999', which works in mininasm and
+  NASM >=0.98.39.
 
 * Command-line parsing is the same, as long as only `-f ...',
   `-l <listing-file>', `-o <output-file>', `-D<macro>=<value>',
