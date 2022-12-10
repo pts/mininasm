@@ -57,9 +57,11 @@ Similarities between mininasm and NASM:
         %define
         %assign
         %undef
+        %if
         %ifdef
         %ifndef
-        %if
+        %ifidn __OUTPUT_FORMAT__, ...
+        %ifnidn __OUTPUT_FORMAT__, ...
         %else
         %endif
         %include
@@ -233,6 +235,10 @@ Improvements of mininasm over NASM (if in conflict, disabled by default):
 * In general, mininasm does deterministic output no matter what the host
   system architecture is, thus mininasm is more suited as a cross-compiler
   than NASM.
+
+* `%ifidn' and `%ifnidn' in mininasm are useful only for checking 
+  `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
+  in NASM).
 
 mininasm is based on Tinyasm (https://github.com/nanochess/tinyasm), with
 the following improvements:

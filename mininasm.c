@@ -2764,7 +2764,7 @@ static void do_assembly(const char *input_filename) {
     int input_fd;
     int incbin_fd;
     char pc;
-    char is_ifndef;
+    char is_if_not;
     char is_bss;
     struct label MY_FAR *label;
 
@@ -2925,7 +2925,7 @@ static void do_assembly(const char *input_filename) {
             }
             check_end(p);
         } else if (casematch(instr_name, "%IFDEF")) {
-            is_ifndef = 0;
+            is_if_not = 0;
           ifdef_or_ifndef:
             if (GET_UVALUE(++level) == 0) goto if_too_deep;
             if (avoid_level != 0 && level >= avoid_level)
@@ -2937,14 +2937,35 @@ static void do_assembly(const char *input_filename) {
             } else {
                 pc = *--p;
                 *(char*)p = '%';  /* Prefix the macro name with a '%'. */
-                if (((label = find_label(p)) != NULL && !RBL_IS_DELETED(label)) == is_ifndef) {
+                if (((label = find_label(p)) != NULL && !RBL_IS_DELETED(label)) == is_if_not) {
                     avoid_level = level;  /* Our %IFDEF or %IFNDEF is false, start hiding. */
                 }
                 *(char*)p = pc;  /* Restore original character for listing_fd. */
             }
         } else if (casematch(instr_name, "%IFNDEF")) {
-            is_ifndef = 1;
+            is_if_not = 1;
             goto ifdef_or_ifndef;
+        } else if (casematch(instr_name, "%IFIDN")) {  /* Only `%ifidn __OUTPUT_FORMAT__, ...' is supported, and it is true only for `bin'. */
+            is_if_not = 0;
+          ifidn_or_ifnidn:
+            if (GET_UVALUE(++level) == 0) goto if_too_deep;
+            if (avoid_level != 0 && level >= avoid_level)
+                goto after_line;
+            for (p3 = "__OUTPUT_FORMAT__"; p3[0] != '\0' && p[0] == p3[0]; ++p, ++p3) {}
+            if (p3[0] != '\0') { bad_ifidn:
+                MESSAGE(1, "bad %IFIDN");
+            } else if ((p = avoid_spaces(p))[0] != ',') {
+                goto bad_ifidn;
+            } else {
+                p = avoid_spaces(p + 1);
+                /* strcmp(...) would also work (there are no far pointers here), but we can save a few bytes if we avoid linking strcmp(...), for __DOSMC__. */
+                if ((strcmp_far(p, "bin") == 0) == is_if_not) {
+                    avoid_level = level;  /* Our %IFIDN or %IFNIDN is false, start hiding. */
+                }
+            }
+        } else if (casematch(instr_name, "%IFNIDN")) {
+            is_if_not = 1;
+            goto ifidn_or_ifnidn;
         } else if (casematch(instr_name, "%ELSE")) {
             if (level == 1) {
                 MESSAGE(1, "%ELSE without %IF");
@@ -3120,6 +3141,7 @@ static void do_assembly(const char *input_filename) {
                 }
             }
         } else if (casematch(instr_name, "SECTION")) {
+            /* In NASM, .bss is case sensitive. */
             if (!casematch(p, ".bss *") || !casematch(avoid_spaces(p + 5), "ALIGN=1")) {
                 MESSAGE1STR(1, "Unsupported SECTION: %s", p);
             } else if (!is_bss) {
