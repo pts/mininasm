@@ -1638,24 +1638,38 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
 
 /* --- */
 
-static UNALIGNED const unsigned char reg_to_addressing[8] = { 0, 0, 0, 7 /* BX */, 0, 6 /* BP */, 4 /* SI */, 5 /* DI */ };
+/* Table for describing a single register addition (+..) to an effective address.
+
+        [bx+si]=0 [bx+di]=1 [bp+si]=2 [bp+di]=3   [si]=4    [di]=5    [bp]=6    [bx]=7    []=8     [bad]=9
++BX=3:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bx+si]=0 [bx+di]=1 [bad]=9   [bad]=9   [bx]=7   [bad]=9
++SP=4:  [bad]=9...
++BP=5:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bp+si]=2 [bp+di]=3 [bad]=9   [bad]=9   [bp]=6   [bad]=9
++SI=6:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bad]=9   [bad]=9   [bp+si]=2 [bx+si]=0 [si]=4   [bad]=9
++DI=7:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bad]=9   [bad]=9   [bp+di]=3 [bx+di]=1 [di]=5   [bad]=9
+*/
+static UNALIGNED const unsigned char reg_add_to_addressing[5 * 5] = {
+    /* +BX: */ 0, 1, 9, 9, 7,
+    /* +SP: */ 9, 9, 9, 9, 9,
+    /* +BP: */ 2, 3, 9, 9, 6,
+    /* +DI: */ 9, 9, 2, 0, 4,
+    /* +SI: */ 9, 9, 3, 1, 5,
+};
 
 /*
  ** Match addressing (r/m): can be register or effective address [...].
  ** As a side effect, it sets instruction_addressing, instruction_offset, instruction_offset_width.
  */
 static const char *match_addressing(const char *p, int width) {
-    unsigned char reg, reg2, reg12;
-    unsigned char *instruction_addressing_p = &instruction_addressing;  /* Using this pointer saves 20 bytes in __DOSMC__. */
+    unsigned char state, reg, has_any_undefined;
     const char *p2;
     char c;
 
     instruction_offset = 0;
     instruction_offset_width = 0;
     instruction_addressing_segment = 0;
-
+    has_any_undefined = 0;
     p = avoid_spaces(p);
-    if (*p == '[') {
+    if (*p == '[') {  /* Effective address. */
         p = avoid_spaces(p + 1);
         if (p[0] != '\0' && ((p[1] & ~32) == 'S') && ((c = p[0] & ~32) == 'S' || SUB_U(c, 'C') <= 'E' - 'C' + 0U)) {  /* Possible segment register: CS, DS, ES or SS. */
             p2 = avoid_spaces(p + 2);
@@ -1664,103 +1678,65 @@ static const char *match_addressing(const char *p, int width) {
                 instruction_addressing_segment = c == 'C' ? 0x2e : c == 'D' ? 0x3e : c == 'E' ? 0x26 : /* c == 'S' ? */ 0x36;
             }
         }
-        p2 = match_register(p, 16, &reg);
-        if (p2 != NULL) {
-            p = avoid_spaces(p2);
-            if (*p == ']') {
-                p++;
-                if (reg == 5) {  /* Just [BP] without offset. */
-                    *instruction_addressing_p = 0x46;
-                    /*instruction_offset = 0;*/  /* Already set. */
-                    ++instruction_offset_width;
-                } else {
-                    if ((*instruction_addressing_p = reg_to_addressing[reg]) == 0) return NULL;
-                }
-            } else if (*p == '+' || *p == '-') {
-                if (*p == '+') {
-                    p = avoid_spaces(p + 1);
-                    p2 = match_register(p, 16, &reg2);
-                } else {
-                    p2 = NULL;
-                }
-                if (p2 != NULL) {
-                    reg12 = reg * reg2;
-                    if (reg12 == 6 * 3) {  /* BX+SI / SI+BX. */
-                    } else if (reg12 == 7 * 3) {  /* BX+DI / DI+BX. */
-                    } else if (reg12 == 6 * 5) {  /* BP+SI / SI+BP. */
-                    } else if (reg12 == 7 * 5) {  /* BP+DI / DI+BP. */
-                    } else {  /* Not valid. */
-                        return NULL;
-                    }
-                    *instruction_addressing_p = reg + reg2 - 9;  /* Magic formula for encoding any of BX+SI, BX+DI, BP+SI, BP+DI. */
-                    p = avoid_spaces(p2);
-                    if (*p == ']') {
-                        p++;
-                    } else if (*p == '+' || *p == '-') {
-                        p = match_expression(p);
-                        if (p == NULL)
-                            return NULL;
-                        if (*p != ']')
-                            return NULL;
-                        p++;
-                        reg = 0;  /* Make sure it's not BP, as checked below. */
-                        instruction_offset = GET_U16(instruction_value);  /* Higher bits are ignored. */
-                      set_width:
-                        if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
-                           if (assembler_pass == 1) {
-                               if (has_undefined) {
-                                   instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1(...) should be called later if this match is taken. */
-                                   goto set_16bit_offset;
-                               }
-                           } else {
-                               if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
-                           }
-                        }
-                        if (instruction_offset != 0 || reg == 5 /* BP only */) {
-                            if ((instruction_offset + 0x80) & 0xff00U) {
-                              force_16bit_offset:
-                                instruction_offset_width = 2;
-                              set_16bit_offset:
-                                *instruction_addressing_p |= 0x80;  /* 16-bit offset. */
-                            } else {
-                                ++instruction_offset_width;
-                                *instruction_addressing_p |= 0x40;  /* Signed 8-bit offset. */
-                            }
-                        }
-                    } else {    /* Syntax error */
-                        return NULL;
-                    }
-                } else {
-                    if ((*instruction_addressing_p = reg_to_addressing[reg]) == 0) return NULL;
-                    p = match_expression(p);
-                    if (p == NULL)
-                        return NULL;
-                    if (*p != ']')
-                        return NULL;
-                    p++;
-                    instruction_offset = GET_U16(instruction_value);
-                    goto set_width;
-                }
-            } else {    /* Syntax error */
-                return NULL;
+        state = 8;  /* [] so far. */
+        for (;;) {
+            p2 = match_register(p, 16, &reg);
+            if (p2 != NULL) {
+                if (reg - 3U > 7U - 3U || state < 4) return NULL;  /* Bad register combination. */
+                state = reg_add_to_addressing[state - 19 + 5 * reg];
+                if (state > 8) return NULL;  /* Bad register combination. */
+                p = p2;
+            } else {  /* Displacement. */
+                if ((p = match_expression(p)) == NULL) return NULL;  /* Displacemeny syntax error. */
+                instruction_offset += GET_U16(instruction_value);  /* Higher bits are ignored. */
+                has_any_undefined |= has_undefined;
             }
-        } else {    /* No valid register, try expression (absolute addressing) */
-            p = match_expression(p);
-            if (p == NULL)
-                return NULL;
-            instruction_offset = GET_U16(instruction_value);
-            if (*p != ']')
-                return NULL;
-            p++;
-            *instruction_addressing_p = 0x06;
-            instruction_offset_width = 2;
+            p = avoid_spaces(p);
+            if (*p == ']') {
+               ++p;
+               break;
+            } else if (*p == '-') {
+            } else if (*p == '+') {
+               ++p;  /* In case of +register. */
+            } else {
+              return NULL;  /* Displacement not followed by ']', '+' or '-'. */
+            }
+            p = avoid_spaces(p);
         }
-    } else {    /* Register */
+        if (state == 8) {  /* Absolute address without register. */
+            state = 0x06;
+            instruction_offset_width = 2;
+        } else {
+            if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
+               if (assembler_pass == 1) {
+                   if (has_any_undefined) {
+                       instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1(...) should be called later if this match is taken. */
+                       goto set_16bit_offset;
+                   }
+               } else {
+                   if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
+               }
+            }
+            instruction_offset = GET_U16(instruction_offset);
+            if (instruction_offset != 0 || state == 6 /* [bp]. */) {
+                if ((instruction_offset + 0x80) & 0xff00U) {
+                  force_16bit_offset:
+                    instruction_offset_width = 2;
+                  set_16bit_offset:
+                    state |= 0x80;  /* 16-bit offset. */
+                } else {
+                    ++instruction_offset_width;  /* = 1; */
+                    state |= 0x40;  /* Signed 8-bit offset. */
+                }
+            }
+        }
+    } else {  /* Register. */
         p = match_register(p, width, &reg);
         if (p == NULL)
             return NULL;
-        *instruction_addressing_p = 0xc0 | reg;
+        state = 0xc0 | reg;
     }
+    instruction_addressing = state;
     return p;
 }
 
