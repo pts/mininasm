@@ -2070,10 +2070,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             continue;
         } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
+        } else if (dc == ',') {
+            p = avoid_spaces(p);
+            if (*p != ',') goto mismatch;
+            p = avoid_spaces(p + 1);
+            continue;
         } else {
             if ((SUB_U(dc, 'A') <= 'Z' - 'A' + 0U ? *p & ~32 : *p) != dc) goto mismatch;  /* Case insensitive match for uppercase letters in pattern. */
             p++;
-            if (dc == ',') p = avoid_spaces(p);  /* Allow spaces in p after comma in pattern and p. */
             continue;
         }
         if (p == NULL) goto mismatch;
