@@ -41,7 +41,6 @@
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
  ** !! TODO(pts): feature: allow `mov ax, [1+bx]',  not just `mov ax, [bx+1]'
- ** !! TODO(pts): feature: add line in brackets: `[org 100h]', for `nasm -E output'
  **
  */
 
@@ -2890,12 +2889,20 @@ static void do_assembly(const char *input_filename) {
         include = 0;
 
         p = avoid_spaces(line);
+        if (p[0] == '[') {  /* Change e.g. `[org 100h]' (as in output of the NASM preprocessor `nasm -E' to `org 100h'. */
+            p3 = p + strlen(p) - 1;
+            if (p3[0] == ']') {
+                for (; p3[-1] == ' '; --p3) {}
+                ((char*)p3)[0] = '\0';
+                p = avoid_spaces(p + 1);
+            }
+        }
         if (p[0] == '\0') {  /* Empty line. */
             goto after_line;
         } else if (p[0] != '%') {
             if (avoid_level != 0 && level >= avoid_level) {
 #if DEBUG
-                if (0) MESSAGE1STR(1, "Avoiding '%s'", line);
+                if (0) MESSAGE1STR(1, "Avoiding '%s'", p);
 #endif
                 goto after_line;
             }
