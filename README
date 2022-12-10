@@ -142,7 +142,7 @@ Differences between mininasm and NASM:
 * Floating point literals are not supported.
 
 * Label definitions without (a leading `$' or a trailing `:') are supported
-  only for `equ', `db', `dw' and `dd'.
+  only for `equ', `times', `db', `dw' and `dd'.
 
 * `section' definitions are not supported, except for
   `section .bss align=1'. Just like in NASM, .bss is case sensitive.

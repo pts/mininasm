@@ -1042,6 +1042,8 @@ static int is_colonless_instruction(const char *p) {
             ) && !islabel(p[2]);
     } else if (c == 'R') {
         return casematch(p, "RESB!");
+    } else if (c == 'T') {
+        return casematch(p, "TIMES!");
     } else {
         return 0;
     }
