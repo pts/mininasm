@@ -1199,8 +1199,8 @@ static const char *match_expression(const char *match_p) {
           parse_hex1:  /* Maybe hexadecimal. */
             if ((c | 32) == 'h' || isxdigit(c)) {  /* Hexadecimal, start again. */
                 match_p = p2;
-                shift = 1;
                 value1 = 0;
+                shift = 1;
                 goto parse_hex;
             }
             goto check_nolabel;
@@ -1222,9 +1222,15 @@ static const char *match_expression(const char *match_p) {
             goto check_nolabel;
         } else if (c == '0' && (match_p[1] | 32) == 'o') {  /* Octal. NASM 0.98.39 doesn't support it, but NASM 0.99.06 does. */
             match_p += 2;
+            shift = 0;
+          parse_octal:
             /*value1 = 0;*/
             for (; (unsigned char)(c = SUB_U(match_p[0], '0')) < 8U; ++match_p) {
                 value1 = (value1 << 3) | c;
+            }
+            if (shift) {  /* Expect c == 'O' || c == 'o'. */
+                if (c != (char)('o' - '0')) goto bad_label;
+                ++match_p;
             }
           check_nolabel:
             c = match_p[0];
@@ -1248,8 +1254,22 @@ static const char *match_expression(const char *match_p) {
             for (p2 = (char*)match_p; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 9U; ++match_p) {
                 value1 = value1 * 10 + c;
             }
-            c = match_p[0];
-            goto parse_hex1;
+            c = match_p[0] | 32;
+            if (c == 'o') {
+                match_p = p2;
+                value1 = 0;
+                shift = 1;
+                goto parse_octal;
+            } else if (c == 'b') {
+                value1 = 0;
+                for (match_p = p2; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 2U; ++match_p) {
+                    value1 <<= 1;
+                    value1 |= c;
+                }
+                ++match_p;  /* Skip over the 'b' or 'B'. */
+            } else {
+                goto parse_hex1;
+            }
         } else if (c == '$') {
             c = *++match_p;
             if (c == '$') {  /* Start address ($$). */

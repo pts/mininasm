@@ -111,11 +111,15 @@ Similarities between mininasm and NASM:
 * The following integer literal syntaxes are implemented:
 
         0b0000_0100	Binary, you can use underscore (it will be ignored)
+        00000100b       Binary.
         0xabcd		Hexadecimal.
-        0o123		Octal.
         $0abcd		Hexadecimal (after $ the first digit must be a number)
-        'a'		Character constant.
-        10		Decimal.
+        0abcdh          Hexadecimal.
+        0o567		Octal.
+        567o		Octal.
+        98		Decimal.
+        'a'		Character constant (single-byte only).
+        "a"		Character constant (single-byte only).
         $$		Start address.
         $		Current address.
 
