@@ -40,8 +40,6 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
- ** !! TODO(pts): feature: allow `mov ax, [1+bx]',  not just `mov ax, [bx+1]'
- **
  */
 
 #ifndef CONFIG_SKIP_LIBC
@@ -1104,6 +1102,8 @@ static value_t value_mod(value_t a, value_t b) {
 }
 #endif
 
+static const char *match_register(const char *p, int width, unsigned char *reg);
+
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
@@ -1362,14 +1362,16 @@ static const char *match_expression(const char *match_p) {
         if (level <= 4) {
             while (1) {
                 match_p = avoid_spaces(match_p);
-                if ((c = match_p[0]) == '+') {  /* Add operator. */
-                    match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(15, 5);
-                    value1 += value2;
-                } else if (c == '-') {  /* Subtract operator. */
-                    match_p++;
-                    MATCH_CASEI_LEVEL_TO_VALUE2(16, 5);
-                    value1 -= value2;
+                if (((c = match_p[0]) == '+' || c == '-') && !match_register(match_p + 1, 16, NULL)) {  /* We stop early before matching `+si', so match_addressing(...) can pick up right after the '+' or '-'. */
+                    if (c == '+') {  /* Add operator. */
+                        match_p++;
+                        MATCH_CASEI_LEVEL_TO_VALUE2(15, 5);
+                        value1 += value2;
+                    } else /*if (c == '-')*/ {  /* Subtract operator. */
+                        match_p++;
+                        MATCH_CASEI_LEVEL_TO_VALUE2(16, 5);
+                        value1 -= value2;
+                    }
                 } else {
                     break;
                 }
@@ -1522,7 +1524,7 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
     }
     for (r2 = r + 16; r != r2; r += 2) {
         if ((CONFIG_CPU_UNALIGN && sizeof(short) == 2) ? puc.s == *(short*)r : (puc.a[0] == r[0] && puc.a[1] == r[1])) {
-            *reg = (r - r0) >> 1;
+            if (reg) *reg = (r - r0) >> 1;
             return p + 2;
         }
     }
