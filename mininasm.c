@@ -1928,12 +1928,17 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
-            /* !! TODO(pts): Match the buggy behavior of NASM 0.98.39 with -O9 and NASM 0.99.06 with -O9 (but not NASM 2.13.02 with -O9): `add ax, 0xffd4' to be buggily emitted in the word form (no `goto mismatch;') rather than the byte for (`goto mismatch;').
-             *    What if the 0xffd4 is a result of an expression with forward references?
-             *    Please note that there is no bug with `add ax, -0x2c', which is emitted in the byte form in all NASM versions aboe.
+            /* The next pattern (of the same byte size, but with 16-bit immediate) will match. For NASM compatibility.
+             *
+             * Here we don't have to special-case forward references (assembler_pass == 1 && has_undefined), because they will eventually be resolved with opt_level >= 1.
+             *
              * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
              */
-            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 && !(((unsigned)instruction_value + 0x80) & 0xff00U)) goto mismatch;  /* The next pattern (of the same byte size) will match. For NASM compatibility. */
+            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 &&
+                GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39. */
+                /*!((GET_UVALUE(instruction_value) + 0x80U) & ~(uvalue_t)0xffU)*/   /* It matches NASM 0.98.39 with -O9. Same result as above, but 4 bytes longer for __DOSMC__. */
+                /*!(((unsigned)instruction_value + 0x80U) & 0xff00U)*/  /* It matches NASM 2.13.02 with -O9. It matches both `0xffffc' and `-4'. */
+               ) goto mismatch;
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
             p = avoid_strict(p);  /* STRICT doesn't matter for jumps, qualifiers are respected without it. */
             qualifier = 0;
