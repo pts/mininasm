@@ -40,6 +40,11 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
+ ** !! TODO(pts): Fix stabilization after a later `org', currently code size
+ **    may increase step-by-step. Maybe drop all labels after pass 1, or
+ **    autodetermine all immediates and displacements as 16-bit until `org'
+ **    is known. But the latter slows down if `org 0' never appears.
+ **
  */
 
 #ifndef CONFIG_SKIP_LIBC
@@ -3455,8 +3460,8 @@ int main(int argc, char **argv)
             if (have_labels_changed) {
                 if (opt_level <= 1) {
                     MESSAGE(1, "oops: labels changed");
-                } else if (current_address > prev_address) {  /* It's OK that the size increases because of overly optimistic optimizations. */
-                } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? What is the limit for NASM? */
+                } else if (current_address > prev_address) {  /* It's OK and we don't count that the size increases, converging to and eventually stabilizing at a fixed point. */
+                } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? NASM also counts increasing. */
                     MESSAGE(1, "Aborted: Couldn't stabilize moving label");
                 }
             }
