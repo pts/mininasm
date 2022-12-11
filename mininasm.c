@@ -3129,7 +3129,18 @@ static void do_assembly(const char *input_filename) {
                 if (instruction_value != default_start_address) {
                     default_start_address = instruction_value;
                     if (is_address_used) {
-                        /* change = 1; */  /* The start_address change will take effect in the next pass. Not needed, because we do `assembler_step > 1' anyway. */
+                        /* Currently we are at assembler_pass == 1 (because
+                         * we have !is_start_address_set, and before
+                         * assembler_pass == 2 we set is_start_address_set
+                         * to true), we set start_address after it has been
+                         * used (as indicated by is_address_used). Thus all
+                         * such previous uses are wrong, and we need to do
+                         * another assembler pass to fix it. Usually we set
+                         * change = 1 to ask for a next pass, but currently
+                         * it's not necessary, because we always,
+                         * unconditionally do assembler_pass == 2.
+                         */
+                        /*change = 1;*/
                     } else {
                         reset_address();
                     }
