@@ -40,11 +40,6 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
- ** !! TODO(pts): Fix stabilization after a later `org', currently code size
- **    may increase step-by-step. Maybe drop all labels after pass 1, or
- **    autodetermine all immediates and displacements as 16-bit until `org'
- **    is known. But the latter slows down if `org 0' never appears.
- **
  */
 
 #ifndef CONFIG_SKIP_LIBC
@@ -1538,7 +1533,7 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
 
 /* --- Recording of wide sources for -O0
  *
- * In assembler_pass == 1, add_wide_source_in_pass_1(...) for all jump
+ * In assembler_pass <= 1, add_wide_source_in_pass_1(...) for all jump
  * sources which were guessed as `jmp near', and for all effective address
  * offsets which were guessed as 16-bit, both
  *  because they had undefined labels,
@@ -1714,8 +1709,8 @@ static const char *match_addressing(const char *p, int width) {
             state = 0x06;
             instruction_offset_width = 2;
         } else {
-            if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
-               if (assembler_pass == 1) {
+            if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass <= 1. This is similar to NASM. */
+               if (assembler_pass <= 1) {
                    if (has_any_undefined) {
                        instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1(...) should be called later if this match is taken. */
                        goto set_16bit_offset;
@@ -1935,7 +1930,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
             /* The next pattern (of the same byte size, but with 16-bit immediate) will match. For NASM compatibility.
              *
-             * Here we don't have to special-case forward references (assembler_pass == 1 && has_undefined), because they will eventually be resolved with opt_level >= 1.
+             * Here we don't have to special-case forward references (assembler_pass <= 1 && has_undefined), because they will eventually be resolved with opt_level >= 1.
              *
              * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
              */
@@ -1954,8 +1949,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL) {
-                if (qualifier == 0 && opt_level <= 1 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass == 1. This is similar to NASM. */
-                    if (assembler_pass == 1) {
+                if (qualifier == 0 && opt_level <= 1 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass <= 1. This is similar to NASM. */
+                    if (assembler_pass <= 1) {
                         if (has_undefined) {
                             do_add_wide_imm8 = 1;
                             goto mismatch;
@@ -1998,7 +1993,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 /* Don't optimize this with -O0 (because NASM doesn't do it either). */
               do_nasm_o0_immediate_compat:  /* If there are undefined labels in the immediate, then don't optimize the effective address. */  /* !! What about the other way aroud? */
                 if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
-                    if (assembler_pass == 1) {
+                    if (assembler_pass <= 1) {
                         if (has_undefined) {
                             do_add_wide_imm8 = 1;
                         }
@@ -2017,7 +2012,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     }
                 }
             } else if (opt_level == 1) {
-                if (assembler_pass == 1) {
+                if (assembler_pass <= 1) {
                     if (!has_undefined) goto detect_si8_size;
                     do_add_wide_imm8 = 1;
                 } else {
@@ -2456,7 +2451,7 @@ static void reset_address(void) {
  */
 static void create_label(void) {
     struct label MY_FAR *last_label = find_label(global_label);
-    if (assembler_pass == 1) {
+    if (assembler_pass <= 1) {
         if (last_label == NULL) {
             last_label = define_label(global_label, instruction_value);
         } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %UNDEF-ined macro. */
@@ -2562,6 +2557,7 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
 #define MACRO_VALUE 3  /* Macro defined in the assembly source as `%DEFINE NAME INTVALUE' or `%assign NAME EXPR'. */
 
 static char has_macros;
+static char do_special_pass_1;
 
 static void reset_macros(void) {
     struct label MY_FAR *node = label_list;
@@ -2569,7 +2565,7 @@ static void reset_macros(void) {
     struct label MY_FAR *pre_right;
     char value;
     struct label MY_FAR *value_label;
-    if (!has_macros) return;
+    if (!has_macros && do_special_pass_1 != 1) return;
     /* Morris inorder traversal of binary tree: iterative (non-recursive,
      * so it uses O(1) stack), modifies the tree pointers temporarily, but
      * then restores them, runs in O(n) time.
@@ -2588,10 +2584,12 @@ static void reset_macros(void) {
                 if (value != MACRO_CMDLINE) {
                     RBL_SET_DELETED_1(node);
                     /* Delete the label corresponding to the macro defined with an INTVALUE. */
-                    if (value == MACRO_VALUE) {
+                    if (value == MACRO_VALUE && do_special_pass_1 != 1) {
                         if ((value_label = find_label(node->name + 1)) != NULL) RBL_SET_DELETED_1(value_label);
                     }
                 }
+            } else if (do_special_pass_1 == 1) {  /* Delete all non-macro labels. */
+                RBL_SET_DELETED_1(node);
             }
             node = RBL_GET_RIGHT(node);
         }
@@ -3129,7 +3127,7 @@ static void do_assembly(const char *input_filename) {
                 if (instruction_value != default_start_address) {
                     default_start_address = instruction_value;
                     if (is_address_used) {
-                        /* Currently we are at assembler_pass == 1 (because
+                        /* Currently we are at assembler_pass == 0 (because
                          * we have !is_start_address_set, and before
                          * assembler_pass == 2 we set is_start_address_set
                          * to true), we set start_address after it has been
@@ -3141,6 +3139,21 @@ static void do_assembly(const char *input_filename) {
                          * unconditionally do assembler_pass == 2.
                          */
                         /*change = 1;*/
+                        /* We want to delete all labels between
+                         * assembler_pass == 0 and == 2, to accelerate fixed
+                         * point convergence of optimization, and also to
+                         * make code size growing (rather than shrinking).
+                         * More specifically, pass 2 starts at a different
+                         * start_address, and jump target labels produced by
+                         * pass 1 are way to much off (by `start_address'),
+                         * thus pas 2 would generate 5-byte conditional
+                         * jumps everywhere, thus file size will shrink from
+                         * that (to 2 bytes for some conditional jumps) only
+                         * after pass 2. But we want growing rather than
+                         * shrinking, and we get this by discarding all labels
+                         * and doing pass 1.
+                         */
+                        do_special_pass_1 = 1;
                     } else {
                         reset_address();
                     }
@@ -3428,7 +3441,7 @@ int main(int argc, char **argv)
     /*
      ** Do first pass of assembly, calculating offsets and labels only.
      */
-    assembler_pass = 1;
+    assembler_pass = 0;
     /* if (opt_level <= 1) wide_instr_add_at = NULL; */  /* No need, this is the default. */
     reset_address();
     do_assembly(ifname);
@@ -3437,6 +3450,18 @@ int main(int argc, char **argv)
         remove(output_filename);
         /* if (listing_filename != NULL) remove(listing_filename); */  /* Don't remove listing_filename, it may contain useful error messages etc. */
     } else {
+        ++assembler_pass;  /* = 1. */
+        is_start_address_set = 1;
+        if (opt_level <= 1) {
+            /* wide_instr_add_at = NULL; */  /* Keep for reading. */
+            wide_instr_read_at = NULL;
+        }
+        if (do_special_pass_1) {  /* In this special pass 1, we recompute all labels (starting with the right, final start_address) from scratch, and we don't emit any bytes. */
+            reset_address();
+            reset_macros();  /* Delete all (non-macro) labels because since do_special_pass is true. */
+            do_assembly(ifname);
+            ++do_special_pass_1;  /* = 2. */
+        }
         /*
          ** Do second pass of assembly and generate final output
          */
@@ -3445,7 +3470,7 @@ int main(int argc, char **argv)
             return 1;
         }
         do {
-            if (GET_U16(++assembler_pass) == 0) --assembler_pass;  /* Cappped at 0xffff. */
+            if (GET_U16(++assembler_pass) == 0) { do_special_pass_1 = 2; --assembler_pass; }  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
                 if (HAS_OPEN_FAILED(listing_fd = creat(listing_filename, 0644))) {
                     MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
@@ -3458,11 +3483,6 @@ int main(int argc, char **argv)
                 return 1;
             }
             prev_address = current_address;
-            is_start_address_set = 1;
-            if (opt_level <= 1) {
-                /* wide_instr_add_at = NULL; */  /* Keep for reading. */
-                wide_instr_read_at = NULL;
-            }
             reset_address();
             reset_macros();
             do_assembly(ifname);
@@ -3486,7 +3506,7 @@ int main(int argc, char **argv)
 #endif
                         );
                 bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u PROGRAM BYTES\r\n", GET_UVALUE(bytes));
-                bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u ASSEMBLER PASSES\r\n\r\n", GET_UVALUE(assembler_pass));
+                bbprintf(&message_bbb /* listing_fd */, "%05" FMT_VALUE "u ASSEMBLER PASSES\r\n\r\n", GET_UVALUE(assembler_pass) + (do_special_pass_1 & 1));
                 bbprintf(&message_bbb /* listing_fd */, "%-20s VALUE/ADDRESS\r\n\r\n", "LABEL");
                 print_labels_sorted_to_listing();
                 bbprintf(&message_bbb /* listing_fd */, "\r\n");
