@@ -1865,7 +1865,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
-    /* Unused pattern characters: 'd', 'e', 'p', 'y', 'z'. */
+    /* Unused pattern characters: 'd', 'e', 'p', 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
@@ -2056,6 +2056,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             continue;
         } else if (dc == 'x') {  /* Minimum `cpu 186' is needed. */
             if (cpu_level == 0) goto mismatch;
+        } else if (dc == 'y') {  /* Minimum `cpu 286' is needed. */
+            if (cpu_level < 2) goto mismatch;
         } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else if (dc == ',') {
@@ -3057,6 +3059,8 @@ static void do_assembly(const char *input_filename) {
         } else if (casematch(instr_name, "CPU")) {
             if (casematch(p, "8086")) {
                 cpu_level = 0;
+            } else if (casematch(p, "186")) {
+                cpu_level = 1;
             } else {
                 cpu_level = 0xff;
                 if (SUB_U(*p, '3') <= '9' - '3' + 0U && casematch(p + 1, "86")) {  /* Disallow `cpu 386', ..., `cpu 986'. Actually, `cpu 786', `cpu 886' and `cpu 986' are not valid in NASM. */
@@ -3679,9 +3683,9 @@ UNALIGNED const char instruction_set2[] =
     "STOSW\0" " AB\0"
     "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "vAL,h 2Ci" ALSO "wAX,g 2Dj" ALSO "m,s sdozodj" ALSO "l,t 80dozodi\0"
     "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "vAL,h A8i" ALSO "wAX,i A9j" ALSO "m,u F7dzzzdj" ALSO "l,t F6dzzzdi\0"
-    "UD0\0" "x 0FFF\0"
-    "UD1\0" "x 0FB9\0"
-    "UD2\0" "x 0F0B\0"
+    "UD0\0" "y 0FFF\0"
+    "UD1\0" "y 0FB9\0"
+    "UD2\0" "y 0F0B\0"
     "WAIT\0" " 9B+\0"
     "XCHG\0" "wAX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
     "XLAT\0" " D7\0"
