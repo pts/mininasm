@@ -1865,7 +1865,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
-    /* Unused pattern characters: 'd', 'p', 'z'. */
+    /* Unused pattern characters: 'p', 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
@@ -1914,6 +1914,11 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             /* NASM allows with a warning, but we don't for dc == 'm': dec byte bx */
             if (casematch(p, "WORD!")) p += 4;
             p = match_register(p, 16, &instruction_register);
+        } else if (dc == 'e') {  /* 8-bit immediate, saved to instruction_offset. Used in the first argument of `enter'.   */
+            p = avoid_strict(p);
+            if (casematch(p, "WORD!")) p += 4;
+            p = match_expression(p);
+            instruction_offset = instruction_value;
         } else if (dc == 'h') {  /* 8-bit immediate. */
             p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
@@ -2213,6 +2218,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             c = instruction_value >> 8;
             instruction_offset = segment_value;
             dw = 2;
+        } else if (dc == 'e') {  /* 16-bit instruction_offset, for `enter'. */
+            emit_byte(instruction_offset);
+            c = instruction_offset >> 8;
         } else {  /* Binary. */
             c = 0;
             --pattern_and_encode;
@@ -3603,6 +3611,7 @@ UNALIGNED const char instruction_set[] =
     "DEC\0" "r zozzor" ALSO "l FEdzzod" ALSO "m FFdzzod\0"
     "DIV\0" "l F6doozd" ALSO "m F7doozd\0"
     "DS\0" " 3E+\0"
+    "ENTER\0" "xe,h C8ei\0"
     "ES\0" " 26+\0"
     "HLT\0" " F4\0"
     "IDIV\0" "l F6doood" ALSO "m F7doood\0"
