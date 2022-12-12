@@ -552,6 +552,7 @@ static uvalue_t warnings;
 #endif
 static uvalue_t bytes;
 static char have_labels_changed;
+static unsigned char cpu_level;
 
 STRUCT_PACKED_PREFIX struct label {
 #if CONFIG_DOSMC_PACKED
@@ -1864,6 +1865,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
+    /* Unused pattern characters: 'd', 'e', 'p', 'y', 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
@@ -2052,6 +2054,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == '!') {
             if (islabel(*p)) goto mismatch;
             continue;
+        } else if (dc == 'x') {  /* Minimum `cpu 186' is needed. */
+            if (cpu_level == 0) goto mismatch;
         } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else if (dc == ',') {
@@ -2754,6 +2758,7 @@ static void do_assembly(const char *input_filename) {
     struct label MY_FAR *label;
 
     have_labels_changed = 0;
+    cpu_level = 0xff;  /* Accept all supported instructions. */
     is_bss = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
 
@@ -3050,8 +3055,14 @@ static void do_assembly(const char *input_filename) {
         p = separate(p3 = p);
         if (casematch(instr_name, "USE16")) {
         } else if (casematch(instr_name, "CPU")) {
-            if (!casematch(p, "8086"))
-                MESSAGE(1, "Unsupported processor requested");
+            if (casematch(p, "8086")) {
+                cpu_level = 0;
+            } else {
+                cpu_level = 0xff;
+                if (SUB_U(*p, '3') <= '9' - '3' + 0U && casematch(p + 1, "86")) {  /* Disallow `cpu 386', ..., `cpu 986'. Actually, `cpu 786', `cpu 886' and `cpu 986' are not valid in NASM. */
+                    MESSAGE(1, "Unsupported processor requested");
+                }
+            }
         } else if (casematch(instr_name, "BITS")) {
             p = match_expression(p);
             if (p == NULL) {
@@ -3566,6 +3577,8 @@ UNALIGNED const char instruction_set[] =
     "IMUL\0" "l F6dozod" ALSO "m F7dozod\0"
     "IN\0" "vAL,wDX EC" ALSO "wAX,wDX ED" ALSO "vAL,h E4i" ALSO "wAX,i E5i\0"
     "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
+    "INSB\0" "x 6C\0"
+    "INSW\0" "x 6D\0"
     "INT\0" "i CDi\0"
     "INT3\0" " CC\0"
     "INTO\0" " CE\0"
@@ -3605,6 +3618,7 @@ UNALIGNED const char instruction_set[] =
     "LAHF\0" " 9F\0"
     "LDS\0" "r,n C5drd\0"
     "LEA\0" "r,o 8Ddrd\0"
+    "LEAVE\0" "x C9\0"
     "LES\0" "r,n C4drd\0"
     "LOCK\0" " F0+\0"
     "LODSB\0" " AC\0"
@@ -3628,10 +3642,16 @@ UNALIGNED const char instruction_set2[] =
     "NOT\0" "l F6dzozd" ALSO "m F7dzozd\0"
     "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "vAL,h 0Ci" ALSO "wAX,g 0Dj" ALSO "m,s sdzzodj" ALSO "l,t 80dzzodi\0"
     "OUT\0" "wDX,vAL EE" ALSO "wDX,AX EF" ALSO "h,vAL E6i" ALSO "i,AX E7i\0"
+    "OUTSB\0" "x 6E\0"
+    "OUTSW\0" "x 6F\0"
     "PAUSE\0" " F390\0"
     "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "CS 0F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
+    "POPA\0" "x 61\0"
+    "POPAW\0" "x 61\0"
     "POPF\0" " 9D\0"
     "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "k FFdoozd\0"
+    "PUSHA\0" "x 60\0"
+    "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
     "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd\0"
     "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood\0"
@@ -3659,6 +3679,9 @@ UNALIGNED const char instruction_set2[] =
     "STOSW\0" " AB\0"
     "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "vAL,h 2Ci" ALSO "wAX,g 2Dj" ALSO "m,s sdozodj" ALSO "l,t 80dozodi\0"
     "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "vAL,h A8i" ALSO "wAX,i A9j" ALSO "m,u F7dzzzdj" ALSO "l,t F6dzzzdi\0"
+    "UD0\0" "x 0FFF\0"
+    "UD1\0" "x 0FB9\0"
+    "UD2\0" "x 0F0B\0"
     "WAIT\0" " 9B+\0"
     "XCHG\0" "wAX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
     "XLAT\0" " D7\0"
