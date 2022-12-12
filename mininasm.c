@@ -3629,7 +3629,7 @@ UNALIGNED const char instruction_set2[] =
     "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "vAL,h 0Ci" ALSO "wAX,g 0Dj" ALSO "m,s sdzzodj" ALSO "l,t 80dzzodi\0"
     "OUT\0" "wDX,vAL EE" ALSO "wDX,AX EF" ALSO "h,vAL E6i" ALSO "i,AX E7i\0"
     "PAUSE\0" " F390\0"
-    "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
+    "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "CS 0F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
     "POPF\0" " 9D\0"
     "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "k FFdoozd\0"
     "PUSHF\0" " 9C\0"
