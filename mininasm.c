@@ -1865,7 +1865,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
-    /* Unused pattern characters: 'd', 'e', 'p', 'z'. */
+    /* Unused pattern characters: 'd', 'p', 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
@@ -1918,6 +1918,15 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
+        } else if (dc == 'd') {  /* 8-bit immediate, can also be prefixed by `word', but not `strict word'. Useful for `push word 4' with opt_level > 1. */
+            p = avoid_strict(p);
+            if (casematch(p, "BYTE!")) {
+                p += 4;
+            } else if (casematch(p, "WORD!")) {
+                if (was_strict) goto mismatch;
+                p += 4;
+            }
+            p = match_expression(p);
         } else if (dc == 'i') {  /* 16-bit immediate. */
             p = avoid_strict(p);
             if (casematch(p, "WORD!")) p += 4;
@@ -1930,11 +1939,27 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
+#if 0  /* !!! Add it and try `push 0xfffc' with -O1. */
+            if (p != NULL && qualifier == 0 && opt_level == 1) {
+                if (assembler_pass <= 1) {
+                    if (!has_undefined) goto detect_si8_size_g;
+                    do_add_wide_imm8 = 1;
+                } else if (!is_wide_instr_in_pass_2(1)) {
+                  detect_si8_size_g:
+                    if (!(((unsigned)instruction_value + 0x80U) & 0xff00U)) goto mismatch;
+                }
+            }
+#endif
             /* The next pattern (of the same byte size, but with 16-bit immediate) will match. For NASM compatibility.
              *
              * Here we don't have to special-case forward references (assembler_pass <= 1 && has_undefined), because they will eventually be resolved with opt_level >= 1.
              *
              * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
+             *
+             * Also it's a NASM 0.98.39 -O9 quirk (which we match) that
+             * `push 0xfffc' generates a `push word'. In NASM 2.13.02 -O9,
+             * it generates a `push byte'. In both NASM versions, `push -4'
+             * generates a `push byte'.
              */
             if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 &&
                 GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39. */
@@ -2002,7 +2027,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     } else {
                         if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
                     }
-                    if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
+                    if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39 and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
                         /* We assume that the pattern is "m,s" or "m,u". */
                         if (instruction_offset_width == 0) {
                             instruction_addressing |= 0x80;
@@ -3550,6 +3575,9 @@ int main(int argc, char **argv)
 #define ALSO "-"
 /* GCC 7.5 adds an alignment to 32 bytes without the UNALIGNED. We don't
  * want to waste program size because of such useless alignments.
+ *
+ * See x86 instructions at https://www.felixcloutier.com/x86/
+ * See x86 instructions at http://ref.x86asm.net/geek64-abc.html .
  */
 UNALIGNED const char instruction_set[] =
     "AAA\0" " 37\0"
@@ -3653,7 +3681,7 @@ UNALIGNED const char instruction_set2[] =
     "POPA\0" "x 61\0"
     "POPAW\0" "x 61\0"
     "POPF\0" " 9D\0"
-    "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "k FFdoozd\0"
+    "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "xg 68j" ALSO "xd 6Ai" ALSO "k FFdoozd\0"
     "PUSHA\0" "x 60\0"
     "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
