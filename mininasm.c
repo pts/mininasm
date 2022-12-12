@@ -3595,6 +3595,7 @@ UNALIGNED const char instruction_set[] =
     "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "vAL,h 14i" ALSO "wAX,g 15j" ALSO "m,s sdzozdj" ALSO "l,t 80dzozdi\0"
     "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "vAL,h 04i" ALSO "wAX,g 05j" ALSO "m,s sdzzzdj" ALSO "l,t 80dzzzdi\0"
     "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "vAL,h 24i" ALSO "wAX,g 25j" ALSO "m,s sdozzdj" ALSO "l,t 80dozzdi\0"
+    "BOUND\0" "xr,o 62drd\0"
     "CALL\0" "FAR!k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
     "CBW\0" " 98\0"
     "CLC\0" " F8\0"
