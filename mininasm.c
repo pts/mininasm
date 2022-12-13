@@ -1869,7 +1869,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     /* Unused pattern characters: 'p', 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
-        if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16, 'l': %db8, 'm': %dw16, 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
+        if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16 (reg/mem16), 'l': %db8, 'm': %dw16 (reg/mem16 with explicit size qualifier), 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
             if (dc == 'n') {
               do_n_or_o:
@@ -1982,7 +1982,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
             instruction_value -= current_address + 3;
-        } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the pattern "m,s" (m is a 16-bit register or 16-bit effective address) and push imm pattern "xs". */
+        } else if (dc == 's') {  /* Signed immediate, 16-bit or 8-bit. Used in the pattern "m,s" (m is a 16-bit register or 16-bit effective address) and push imm pattern "xs" and `imul' with imm pattern "xr,k,s". */
             p = avoid_strict(p);
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
@@ -2100,6 +2100,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         } else if (dc == '!') {
             if (islabel(*p)) goto mismatch;
             continue;
+        } else if (dc == '.') {
+            p = avoid_spaces(p);
+            if (*p == ',') goto mismatch;  /* Another pattern with ',' will match. Used in `imul'. */
         } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else if (dc == ',') {
@@ -2220,6 +2223,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             c = is_imm_8bit ? (char)0xc1 : (char)0xd1;
         } else if (dc == 'l') {  /* Used in `push imm'. */
             c = is_imm_8bit ? (char)0x6a : (char)0x68;
+        } else if (dc == 'm') {  /* Used in 3rd, immediate argument for 3-argument `imul'. */
+            c = is_imm_8bit ? (char)0x6b : (char)0x69;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
@@ -3641,7 +3646,7 @@ UNALIGNED const char instruction_set[] =
     "ES\0" " 26+\0"
     "HLT\0" " F4\0"
     "IDIV\0" "l F6doood" ALSO "m F7doood\0"
-    "IMUL\0" "l F6dozod" ALSO "m F7dozod\0"
+    "IMUL\0" "l. F6dozod" ALSO "m. F7dozod" ALSO "xr,k,s mdrdj\0"
     "IN\0" "vAL,wDX EC" ALSO "wAX,wDX ED" ALSO "vAL,h E4i" ALSO "wAX,i E5i\0"
     "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
     "INSB\0" "x 6C\0"
