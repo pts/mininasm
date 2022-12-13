@@ -1867,7 +1867,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
-    /* Unused pattern characters: 'p', 'z'. */
+    /* Unused pattern characters: 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16 (reg/mem16), 'l': %db8, 'm': %dw16 (reg/mem16 with explicit size qualifier), 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
             qualifier = 0;
@@ -1914,8 +1914,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_register(p, 0, &instruction_register);  /* 0: anything without the 16 bit set. */
         } else if (dc == 'r') {  /* Register, 16-bit. */
             /* NASM allows with a warning, but we don't for dc == 'm': dec byte bx */
+            qualifier = 0;
+          do_reg16:
             if (casematch(p, "WORD!")) p += 4;
             p = match_register(p, 16, &instruction_register);
+            if (qualifier) instruction_addressing = 0xc0 | instruction_register;
+        } else if (dc == 'p') {  /* Register, 16-bit, but also save it to instruction_addressing. Used in 2-argument `imul'. */
+            qualifier = 1;
+            goto do_reg16;
         } else if (dc == 'e') {  /* 8-bit immediate, saved to instruction_offset. Used in the first argument of `enter'.   */
             p = avoid_strict(p);
             if (casematch(p, "WORD!")) p += 4;
@@ -3646,7 +3652,7 @@ UNALIGNED const char instruction_set[] =
     "ES\0" " 26+\0"
     "HLT\0" " F4\0"
     "IDIV\0" "l F6doood" ALSO "m F7doood\0"
-    "IMUL\0" "l. F6dozod" ALSO "m. F7dozod" ALSO "xr,k,s mdrdj\0"
+    "IMUL\0" "l. F6dozod" ALSO "m. F7dozod" ALSO "xp,s. mdrdj" ALSO "xr,k,s mdrdj\0"
     "IN\0" "vAL,wDX EC" ALSO "wAX,wDX ED" ALSO "vAL,h E4i" ALSO "wAX,i E5i\0"
     "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
     "INSB\0" "x 6C\0"
