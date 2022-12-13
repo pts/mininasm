@@ -1,20 +1,21 @@
-mininasm: NASM-compatible mini assembler for 8086, able to run on DOS and on
-modern systems
-^^^^^^^^^^^^^^
+mininasm: NASM-compatible mini assembler for 8086, 186 and 286, able to run
+on DOS and on modern systems
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 mininasm is a minimalistic NASM-compatible assembler targeting the Intel
-8086 (and 8088). It's implemented in C, and it can be compiled to DOS
-(8086 instructions only) and to modern systems. It aims to be an extremely
-lightweight, compatible, drop-in replacement of NASM (for the subset of NASM
-syntax it supports), so that it runs on an 1983 IBM PC running PC DOS 2.0,
-enabling software development without cross-compilation.
+8086 (and 8088 and 186 and 286). It's implemented in C, and it can be
+compiled to DOS (8086 instructions only) and to modern systems. It aims to
+be an extremely lightweight, compatible, drop-in replacement of NASM (for
+the subset of NASM syntax it supports), so that it runs on an 1983 IBM PC
+running PC DOS 2.0, enabling software development without cross-compilation.
 
 mininasm is released as C (C89 or later) source (mininasm.c,
 bbprintf.c, bbprintf.h, see compilation instructions near the beginning of
-mininasm.c) on http:ss/github.com/pts/mininasm and there are also
+mininasm.c) on https://github.com/pts/mininasm and there are also
 binary releases for DOS 8086, Linux i386 (also runs on Linux amd64) and
 Win32, on https://github.com/pts/mininasm/releases . The minimalism of
 mininasm is reflected in the size of the released executable programs: about
-20 KiB each.
+20 KiB each, while the corresponding NASM 0.98.39 would be more than
+260 KiB.
 
 Similarities between mininasm and NASM:
 
@@ -22,12 +23,16 @@ Similarities between mininasm and NASM:
   to be compatible with NASM 0.98.39 (released on 2005-01-20, the last NASM
   with 32-bit integers, newer releases had 64-bit integers), rather than
   the most recent NASM. The goal is that the same assembly source code should
-  work identically (generating identical binary output) with mininasm and NASM,
-  provided that mininasm supports all the NASM features used.
+  work identically (generating identical binary output) with mininasm and
+  NASM, provided that mininasm supports all the NASM features used.
 
-* `bits 16', `cpu 8086', `use16' are supported.
+* `bits 16' and `use16' are supported.
 
-* All 8086 instructions (including prefixes) and opcodes are supported.
+* `cpu 8086', `cpu 186', `cpu 286' are supported.
+
+* All 8086 and 186 instructions (including prefixes) and opcodes are
+  supported, except for floating point. All 286 instructions and opcodes
+  are supported, except for protected mode and floating point.
   Instructions with multiple binary encodings are encoded identically as
   NASM 0.98.39 at the same optimization level.
 
@@ -43,9 +48,9 @@ Similarities between mininasm and NASM:
 * Optimization flags `-O0' (default, no optimization, as is for NASM
   0.98.39, but not in most newer versions) and `-Ox' (same as `-O999',
   all NASM optimizations enabled) are supported, and produce identical
-  binary output. Please note that NASM 0.98.39 doesn't support `-Ox' (but
-  NASM 0.99.06 already does), so for a compatible behavior of enabling all
-  NASM optimizations, specify `-O999', which works in mininasm and
+  binary output to NASM. Please note that NASM 0.98.39 doesn't support `-Ox'
+  (but NASM 0.99.06 already does), so for a compatible behavior of enabling
+  all NASM optimizations, specify `-O999', which works in mininasm and
   NASM >=0.98.39.
 
 * Command-line parsing is the same, as long as only `-f ...',
@@ -71,6 +76,8 @@ Similarities between mininasm and NASM:
         use16
         bits 16
         cpu 8086
+        cpu 186
+        cpu 286
         equ
         db
         dw
@@ -79,8 +86,8 @@ Similarities between mininasm and NASM:
         resb
         section .bss align=1
 
-* Size qualifiers `byte' and `word' are supported, and behave identically as
-  in NASM. (A lot of manual testing at multiple optimization levels has been
+* Size qualifiers `byte' and `word' are supported, and behave identically
+  to NASM. (A lot of manual testing at multiple optimization levels has been
   put into this.) The `strict' size qualifier prefix is also supported for
   immediates.
 
@@ -110,7 +117,7 @@ Similarities between mininasm and NASM:
         -	Unary negation
         +       Unary addition (no-op).
 
-* The following integer literal syntaxes are implemented:
+* The following integer literal syntaxes are supported:
 
         0b0000_0100	Binary, you can use underscore (it will be ignored)
         00000100b       Binary.
@@ -129,17 +136,17 @@ Similarities between mininasm and NASM:
 
 Differences between mininasm and NASM:
 
-* In mininasm,
-  there is only support for 8086/8088 processors (`bits 16', `cpu 8086'), no
-  later 16-bit instructions (`cpu 186'; `cpu 286'), no 8087 floating point
-  instructions, no 32-bit instructions (`bits 32', in protected mode), no
-  64-bit instructions (`bits 64', in long mode).
+* In mininasm, there is only support for 8086/8088 processors (`bits 16',
+  `cpu 8086', no floating point) and 186 (`cpu 186', no floating point)
+  and 286 (`cpu 286', no protected mode, no floating point) no 8087 etc.
+  floating point instructions, no 32-bit instructions (`bits 32', in
+  protected mode), no 64-bit instructions (`bits 64', in long mode).
 
 * Only the binary output format (`-f bin' command-line flag) is supported,
   others (e.g. `-f elf', `-f obj', `-f win32') aren't.
 
 * Only `db', `dw' and `dq' are the supported data instructions (so no `dq'
-  or or `dt').
+  or `dt').
 
 * Floating point literals are not supported.
 
@@ -147,7 +154,7 @@ Differences between mininasm and NASM:
   only for `equ', `times', `db', `dw' and `dd'.
 
 * `section' definitions are not supported, except for
-  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
+  `section .bss align=1'. Unlike in NASM, .bss is case insensitive.
   In mininasm it's not possible to switch back to `section .text', but
   in NASM it is.
 
@@ -191,11 +198,6 @@ Differences between mininasm and NASM:
 * mininasm reports an error for some register operations of the wrong size
   (e.g. `dec byte bx' and `dec word bh'), while NASM reports only a warning.
 
-* `section' definitions are not supported, except for
-  `section .bss align=1'. Just like in NASM, .bss is case sensitive.
-  In mininasm it's not possible to switch back to `section .text', but
-  in NASM it is.
-
 * If the input file is at least 2 GiB long, and it contains an `%include',
   then it may get processed incorrectly.
 
@@ -221,6 +223,9 @@ Improvements of mininasm over NASM (if in conflict, disabled by default):
 
 * Optimization of effective addresses with segment prefixes (enable with
   flag `-OG').
+
+* Optimization of integers in immediates and effective address displacements
+  (enable with flag `-OI').
 
 * Turning on all NASM optimizations (`-Ox') and non-NASM optimizations
   with flag `-OA'.
@@ -380,8 +385,8 @@ following changes:
 * (Otherwise, tinasm should behave identically to Tinyasm.)
 
 The mininasm repository also contains minnnasm (source code:
-https://github.com/pts/mininasm/blob/master/minnnasm.nasm),
-which is a full-featured self-hosting fork of mininasm for DOS 8086 only,
+https://github.com/pts/mininasm/blob/master/minnnasm.nasm), which is a
+full-featured self-hosting fork of mininasm for DOS 8086 host only,
 implemented in a subset of NASM assembly language, thus it's able to compile
 (assemble) itself on DOS: by doing so it produces a DOS .com executable
 binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and
