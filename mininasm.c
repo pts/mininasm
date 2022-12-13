@@ -1534,9 +1534,7 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
 
 /* --- Recording of wide sources for -O0
  *
- * !!! Do adds only for asembler_pass == 0 and reuse them for special_pass_1.
- *
- * In assembler_pass <= 1, add_wide_source_in_pass_1(...) for all jump
+ * In assembler_pass == 0, add_wide_source_in_pass_1(...) for all jump
  * sources which were guessed as `jmp near', and for all effective address
  * offsets which were guessed as 16-bit, both
  *  because they had undefined labels,
@@ -1569,6 +1567,7 @@ static void add_wide_instr_in_pass_1(char do_add_1) {
     uvalue_t fpos = current_address - start_address;  /* Output file offset. Valid even before `org'. */
     struct wide_instr_block MY_FAR *new_block;
     if (do_add_1) ++fpos;
+    if (0) DEBUG1("add_wide fpos=0x%x\n", (unsigned)fpos);
 #if DEBUG
     if (wide_instr_add_at != NULL && wide_instr_add_at[-1] >= fpos) {
         DEBUG1("oops: added non-strictly-increasing wide instruction at fpos=0x%x\r\n", (unsigned)fpos);
@@ -1668,6 +1667,7 @@ static const char *match_addressing(const char *p, int width) {
     unsigned char state, reg, has_any_undefined;
     const char *p2;
     char c;
+    char has_disp = 0;  /* !!! TODO(pts): Get rid of this hack. */
 
     instruction_offset = 0;
     instruction_offset_width = 0;
@@ -1695,6 +1695,7 @@ static const char *match_addressing(const char *p, int width) {
                 if ((p = match_expression(p)) == NULL) return NULL;  /* Displacemeny syntax error. */
                 instruction_offset += GET_U16(instruction_value);  /* Higher bits are ignored. */
                 has_any_undefined |= has_undefined;
+                has_disp = 1;
             }
             p = avoid_spaces(p);
             if (*p == ']') {
@@ -1712,14 +1713,14 @@ static const char *match_addressing(const char *p, int width) {
             state = 0x06;
             instruction_offset_width = 2;
         } else {
-            if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass <= 1. This is similar to NASM. */
-               if (assembler_pass <= 1) {
+            if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 0. This is similar to NASM. */
+               if (assembler_pass == 0) {
                    if (has_any_undefined) {
                        instruction_offset_width = 3;  /* Width is actually 2, but this indicates that add_wide_instr_in_pass_1(...) should be called later if this match is taken. */
                        goto set_16bit_offset;
                    }
                } else {
-                   if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
+                   if (has_disp && is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
                }
             }
             instruction_offset = GET_U16(instruction_offset);
@@ -1948,7 +1949,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
 #if 0  /* !!! Add it and try `push 0xfffc' with -O1. */
             if (p != NULL && qualifier == 0 && opt_level == 1) {
-                if (assembler_pass <= 1) {
+                if (assembler_pass == 0) {
                     if (!has_undefined) goto detect_si8_size_g;
                     do_add_wide_imm8 = 1;
                 } else if (!is_wide_instr_in_pass_2(1)) {
@@ -1959,7 +1960,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
 #endif
             /* The next pattern (of the same byte size, but with 16-bit immediate) will match. For NASM compatibility.
              *
-             * Here we don't have to special-case forward references (assembler_pass <= 1 && has_undefined), because they will eventually be resolved with opt_level >= 1.
+             * Here we don't have to special-case forward references (assembler_pass == 0 && has_undefined), because they will eventually be resolved with opt_level >= 1.
              *
              * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
              *
@@ -1983,8 +1984,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
             p = match_expression(p);
             if (p != NULL) {
-                if (qualifier == 0 && opt_level <= 1 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass <= 1. This is similar to NASM. */
-                    if (assembler_pass <= 1) {
+                if (qualifier == 0 && opt_level <= 1 && dc == 'c') {  /* With -O0, `jmp' is `jmp short' iff it fits to 8-bit signed in assembler_pass == 0. This is similar to NASM. */
+                    if (assembler_pass == 0) {
                         if (has_undefined) {
                             do_add_wide_imm8 = 1;
                             goto mismatch;
@@ -2025,9 +2026,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 if (opt_level == 0) goto do_nasm_o0_immediate_compat;
             } else if (opt_level == 0) {
                 /* Don't optimize this with -O0 (because NASM doesn't do it either). */
-              do_nasm_o0_immediate_compat:  /* If there are undefined labels in the immediate, then don't optimize the effective address. */  /* !! What about the other way aroud? */
+              do_nasm_o0_immediate_compat:  /* If there are undefined labels in the immediate, then don't optimize the effective address. */  /* !!! What about the other way round? */
                 if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
-                    if (assembler_pass <= 1) {
+                    if (assembler_pass == 0) {
                         if (has_undefined) {
                             do_add_wide_imm8 = 1;
                         }
@@ -2046,7 +2047,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     }
                 }
             } else if (opt_level == 1) {
-                if (assembler_pass <= 1) {
+                if (assembler_pass == 0) {
                     if (!has_undefined) goto detect_si8_size;
                     do_add_wide_imm8 = 1;
                 } else {
@@ -2089,8 +2090,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = match_expression(p);
             if (p == NULL) goto mismatch;
             if (opt_level <= 1) {
-                if (assembler_pass <= 1) {
-                    if (has_undefined) { do_add_wide_imm8 = 1; goto mismatch; }  /* Let the next pattern, with a real 8-bit immdiate, match. */
+                if (assembler_pass == 0) {
+                    if (has_undefined) goto mismatch;  /* Let the next pattern, with a real 8-bit immdiate, match. */
                 } else {
                     if (is_wide_instr_in_pass_2(1)) goto mismatch;  /* Let the next pattern, with a real 8-bit immdiate, match. */
                 }
@@ -3710,8 +3711,8 @@ UNALIGNED const char instruction_set2[] =
     "PUSHA\0" "x 60\0"
     "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
-    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd" ALSO "xj,h C0dzozdi" ALSO "xk,h C1dzozdi\0"
-    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood" ALSO "xj,h C0dzoodi" ALSO "xk,h C1dzoodi\0"
+    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd" ALSO "xj,t C0dzozdi" ALSO "xk,t C1dzozdi\0"
+    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood" ALSO "xj,t C0dzoodi" ALSO "xk,t C1dzoodi\0"
     "REP\0" " F3+\0"
     "REPE\0" " F3+\0"
     "REPNE\0" " F2+\0"
@@ -3719,16 +3720,16 @@ UNALIGNED const char instruction_set2[] =
     "REPZ\0" " F3+\0"
     "RET\0" "i C2j" ALSO " C3\0"
     "RETF\0" "i CAj" ALSO " CB\0"
-    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd" ALSO "xj,h C0dzzzdi" ALSO "xk,h C1dzzzdi\0"
-    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod" ALSO "xj,h C0dzzodi" ALSO "xk,h C1dzzodi\0"
+    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd" ALSO "xj,t C0dzzzdi" ALSO "xk,t C1dzzzdi\0"
+    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod" ALSO "xj,t C0dzzodi" ALSO "xk,t C1dzzodi\0"
     "SAHF\0" " 9E\0"
-    "SAL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,h C0dozzdi" ALSO "xk,h C1dozzdi\0"
-    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood" ALSO "xj,h C0dooodi" ALSO "xk,h C1dooodi\0"
+    "SAL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,t C0dozzdi" ALSO "xk,t C1dozzdi\0"
+    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood" ALSO "xj,t C0dooodi" ALSO "xk,t C1dooodi\0"
     "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
     "SCASB\0" " AE\0"
     "SCASW\0" " AF\0"
-    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,h C0dozzdi" ALSO "xk,h C1dozzdi\0"
-    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod" ALSO "xj,h C0dozodi" ALSO "xk,h C1dozodi\0"
+    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,t C0dozzdi" ALSO "xk,t C1dozzdi\0"
+    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod" ALSO "xj,t C0dozodi" ALSO "xk,t C1dozodi\0"
     "SS\0" " 36+\0"
     "STC\0" " F9\0"
     "STD\0" " FD\0"
