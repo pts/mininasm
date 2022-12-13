@@ -525,7 +525,7 @@ static value_t instruction_value;  /* Always all bits valid. */
 
 /*
  ** -O0: 2-pass, assume longest on undefined label, exactly the same as NASM 0.98.39 and 0.99.06 default and -O0. This is the default.
- ** -O1: 2-pass, assume longest on undefined label, make signed immediate arguments of arithmetic operations as short as possble without looking forward.
+ ** -O1: 2-pass, assume longest on undefined label, make immediates and effective address displacements as short as possble without looking forward.
  ** -Ox == -OX == -O3 == -O9: full, multipass optimization, make it as short as possible, same as NASM 0.98.39 -O9 and newer NASM 2.x default.
  */
 static unsigned char opt_level;
@@ -1924,20 +1924,11 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 'd') {  /* 8-bit immediate, can also be prefixed by `word', but not `strict word'. Useful for `push word 4' with opt_level > 1. */
-            p = avoid_strict(p);
-            if (casematch(p, "BYTE!")) {
-                p += 4;
-            } else if (casematch(p, "WORD!")) {
-                if (was_strict) goto mismatch;
-                p += 4;
-            }
-            p = match_expression(p);
         } else if (dc == 'i') {  /* 16-bit immediate. */
             p = avoid_strict(p);
             if (casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
-        } else if (dc == 'g') {  /* 16-bit immediate, but don't match if immediate is signed 8-bit. Useful for -O1 and above. Typically used in arithmetic pattern "AX,g". */
+        } else if (dc == 'g') {  /* 16-bit immediate, but don't match if immediate fits to signed 8-bit. Useful for -O1 and above. Used in arithmetic pattern "AX,g" (and not other registers). */
             p = avoid_strict(p);
             qualifier = 0;
             if (casematch(p, "WORD!")) {
@@ -1945,17 +1936,6 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 1;
             }
             p = match_expression(p);
-#if 0  /* !!! Add it and try `push 0xfffc' with -O1. */
-            if (p != NULL && qualifier == 0 && opt_level == 1) {
-                if (assembler_pass == 0) {
-                    if (!has_undefined) goto detect_si8_size_g;
-                    do_add_wide_imm8 = 1;
-                } else if (!is_wide_instr_in_pass_2(1)) {
-                  detect_si8_size_g:
-                    if (!(((unsigned)instruction_value + 0x80U) & 0xff00U)) goto mismatch;
-                }
-            }
-#endif
             /* The next pattern (of the same byte size, but with 16-bit immediate) will match. For NASM compatibility.
              *
              * Here we don't have to special-case forward references (assembler_pass == 0 && has_undefined), because they will eventually be resolved with opt_level >= 1.
@@ -2006,7 +1986,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (casematch(p, "NEAR!") || casematch(p, "WORD!")) p += 4;
             p = match_expression(p);
             instruction_value -= current_address + 3;
-        } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the pattern "m,s", m is a 16-bit register or 16-bit effective address.  */
+        } else if (dc == 's') {  /* Signed immediate, 8-bit. Used in the pattern "m,s" (m is a 16-bit register or 16-bit effective address) and push imm pattern "xs". */
             p = avoid_strict(p);
             qualifier = 0;
             if (casematch(p, "BYTE!")) {
@@ -2023,8 +2003,17 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 if (qualifier == 1) is_imm_8bit = 1;
                 if (opt_level == 0) goto do_nasm_o0_immediate_compat;
             } else if (opt_level == 0) {
-                /* Don't optimize this with -O0 (because NASM doesn't do it either). */
-              do_nasm_o0_immediate_compat:  /* If there are undefined labels in the immediate, then don't optimize the effective address. */  /* !!! What about the other way round? */
+                if (pattern_and_encode[-2] == ',') {  /* "m,s" rathern than "xs" (`push'). */
+              do_nasm_o0_immediate_compat:
+                /* With -O0, match NASM 0.98.39 (but not later NASM)
+                 * behavior: if there are undefined labels in the immediate,
+                 * then don't optimize the effective address.
+                 *
+                 * The opposite direction (with -O0, if there are undefined
+                 * labels in the effective address, then don't optimize the
+                 * immediate) is implemented by never optimizing the
+                 * immediate with -O0.
+                 */
                 if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
                     if (assembler_pass == 0) {
                         if (has_undefined) {
@@ -2044,6 +2033,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                         }
                     }
                 }
+                }
             } else if (opt_level == 1) {
                 if (assembler_pass == 0) {
                     if (!has_undefined) goto detect_si8_size;
@@ -2054,7 +2044,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             } else {
               detect_si8_size:
                 /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
-                is_imm_8bit = !(/* !has_undefined && */ (((unsigned)instruction_value + 0x80) & 0xff00U));
+                is_imm_8bit = !(/* !has_undefined && */
+                    opt_level != 1 && pattern_and_encode[-2] != ',' ?  GET_UVALUE(instruction_value) + 0x80U > 0xffU :  /* It matches NASM 0.98.39 with -O9. It matches `push -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39. !! TODO(pts): Add an -O... flag to generate smaller output, without quirk. */
+                    (((unsigned)instruction_value + 0x80) & 0xff00U));
             }
         } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "l,t", corresponding to an 8-bit addressing. */
             p = avoid_strict(p);
@@ -2230,6 +2222,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             c = is_imm_8bit ? (char)0xc0 : (char)0xd0;
         } else if (dc == 'h') {  /* Used in words shifts with immediate. */
             c = is_imm_8bit ? (char)0xc1 : (char)0xd1;
+        } else if (dc == 'l') {  /* Used in `push imm'. */
+            c = is_imm_8bit ? (char)0x6a : (char)0x68;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
@@ -3722,7 +3716,7 @@ UNALIGNED const char instruction_set2[] =
     "POPA\0" "x 61\0"
     "POPAW\0" "x 61\0"
     "POPF\0" " 9D\0"
-    "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "xg 68j" ALSO "xd 6Ai" ALSO "k FFdoozd\0"
+    "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "xs lj" ALSO "k FFdoozd\0"
     "PUSHA\0" "x 60\0"
     "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
