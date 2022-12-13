@@ -1667,7 +1667,6 @@ static const char *match_addressing(const char *p, int width) {
     unsigned char state, reg, has_any_undefined;
     const char *p2;
     char c;
-    char has_disp = 0;  /* !!! TODO(pts): Get rid of this hack. */
 
     instruction_offset = 0;
     instruction_offset_width = 0;
@@ -1695,7 +1694,6 @@ static const char *match_addressing(const char *p, int width) {
                 if ((p = match_expression(p)) == NULL) return NULL;  /* Displacemeny syntax error. */
                 instruction_offset += GET_U16(instruction_value);  /* Higher bits are ignored. */
                 has_any_undefined |= has_undefined;
-                has_disp = 1;
             }
             p = avoid_spaces(p);
             if (*p == ']') {
@@ -1720,7 +1718,7 @@ static const char *match_addressing(const char *p, int width) {
                        goto set_16bit_offset;
                    }
                } else {
-                   if (has_disp && is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
+                   if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
                }
             }
             instruction_offset = GET_U16(instruction_offset);
@@ -2062,6 +2060,8 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
+          force_imm_8bit:
+            is_imm_8bit = 1;
             if (p != NULL && opt_level == 0) goto do_nasm_o0_immediate_compat;
         } else if (dc == 'u') {  /* 16-bit immediate, with the NASM -O0 compatibility. Used with pattern "m.u". */
             p = avoid_strict(p);
@@ -2091,12 +2091,20 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (p == NULL) goto mismatch;
             if (opt_level <= 1) {
                 if (assembler_pass == 0) {
-                    if (has_undefined) goto mismatch;  /* Let the next pattern, with a real 8-bit immdiate, match. */
+                    if (has_undefined) {
+                        if (cpu_level == 0) goto mismatch;
+                        do_add_wide_imm8 = 1;
+                        goto force_imm_8bit_1;
+                    }
                 } else {
-                    if (is_wide_instr_in_pass_2(1)) goto mismatch;  /* Let the next pattern, with a real 8-bit immdiate, match. */
+                    if (is_wide_instr_in_pass_2(1)) goto force_imm_8bit_1;
                 }
             } 
-            if (!has_undefined && instruction_value != 1) goto mismatch;
+            if (!has_undefined && instruction_value != 1) {
+              force_imm_8bit_1:
+                if (cpu_level == 0 && assembler_pass > 1) goto mismatch;
+                goto force_imm_8bit;
+            }
         } else if (dc == 'x') {  /* Minimum `cpu 186' is needed. */
             if (cpu_level == 0) goto mismatch;
         } else if (dc == 'y') {  /* Minimum `cpu 286' is needed. */
@@ -2207,6 +2215,9 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
         } else if (dc == 'i') {  /* 8-bit immediate. */
             c = instruction_value;
+        } else if (dc == 'k') {  /* 8-bit immediate, but only if is_imm_8bit. */
+            if (!is_imm_8bit) continue;
+            c = instruction_value;
         } else if (dc == 'j') {  /* 16-bit immediate, maybe optimized to 8 bits. */
             c = instruction_value;
             if (!is_imm_8bit) {
@@ -2215,6 +2226,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             }
         } else if (dc == 's') {
             c = is_imm_8bit ? (char)0x83 : (char)0x81;
+        } else if (dc == 'g') {  /* Used in byte shifts with immediate. */
+            c = is_imm_8bit ? (char)0xc0 : (char)0xd0;
+        } else if (dc == 'h') {  /* Used in words shifts with immediate. */
+            c = is_imm_8bit ? (char)0xc1 : (char)0xd1;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
             if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
@@ -3711,8 +3726,8 @@ UNALIGNED const char instruction_set2[] =
     "PUSHA\0" "x 60\0"
     "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
-    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd" ALSO "xj,t C0dzozdi" ALSO "xk,t C1dzozdi\0"
-    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood" ALSO "xj,t C0dzoodi" ALSO "xk,t C1dzoodi\0"
+    "RCL\0" "j,1 gdzozdk" ALSO "k,1 hdzozdk" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd\0"
+    "RCR\0" "j,1 gdzoodk" ALSO "k,1 hdzoodk" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood\0"
     "REP\0" " F3+\0"
     "REPE\0" " F3+\0"
     "REPNE\0" " F2+\0"
@@ -3720,16 +3735,16 @@ UNALIGNED const char instruction_set2[] =
     "REPZ\0" " F3+\0"
     "RET\0" "i C2j" ALSO " C3\0"
     "RETF\0" "i CAj" ALSO " CB\0"
-    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd" ALSO "xj,t C0dzzzdi" ALSO "xk,t C1dzzzdi\0"
-    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod" ALSO "xj,t C0dzzodi" ALSO "xk,t C1dzzodi\0"
+    "ROL\0" "j,1 gdzzzdk" ALSO "k,1 hdzzzdk" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd\0"
+    "ROR\0" "j,1 gdzzodk" ALSO "k,1 hdzzodk" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
     "SAHF\0" " 9E\0"
-    "SAL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,t C0dozzdi" ALSO "xk,t C1dozzdi\0"
-    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood" ALSO "xj,t C0dooodi" ALSO "xk,t C1dooodi\0"
+    "SAL\0" "j,1 gdozzdk" ALSO "k,1 hdozzdk" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+    "SAR\0" "j,1 gdooodk" ALSO "k,1 hdooodk" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
     "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
     "SCASB\0" " AE\0"
     "SCASW\0" " AF\0"
-    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,t C0dozzdi" ALSO "xk,t C1dozzdi\0"
-    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod" ALSO "xj,t C0dozodi" ALSO "xk,t C1dozodi\0"
+    "SHL\0" "j,1 gdozzdk" ALSO "k,1 hdozzdk" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+    "SHR\0" "j,1 gdozodk" ALSO "k,1 hdozodk" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod\0"
     "SS\0" " 36+\0"
     "STC\0" " F9\0"
     "STD\0" " FD\0"
