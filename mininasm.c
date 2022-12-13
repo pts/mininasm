@@ -531,6 +531,7 @@ static value_t instruction_value;  /* Always all bits valid. */
 static unsigned char opt_level;
 static unsigned char do_opt_lea;  /* -OL. */
 static unsigned char do_opt_segreg;  /* -OG. */
+static unsigned char do_opt_int;  /* -OI. */
 
 #define MAX_SIZE        256
 
@@ -1940,15 +1941,10 @@ static const char *match(const char *p, const char *pattern_and_encode) {
              *
              * Here we don't have to special-case forward references (assembler_pass == 0 && has_undefined), because they will eventually be resolved with opt_level >= 1.
              *
-             * !! TODO(pts): Disable this matching with -OA and possibly a more specific -O... flag: -Oaxa=sane
-             *
-             * Also it's a NASM 0.98.39 -O9 quirk (which we match) that
-             * `push 0xfffc' generates a `push word'. In NASM 2.13.02 -O9,
-             * it generates a `push byte'. In both NASM versions, `push -4'
-             * generates a `push byte'.
+             * Specifying !do_opt_int below (`-O1' and `-OI') is just a cosmetic improvement: the output size remains the same. It also deviates from `-O9'.
              */
-            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 &&
-                GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39. */
+            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 && !do_opt_int &&
+                GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a harmless quirk (not affecting the output size) of NASM 0.98.39, but not NASM 2.13.02. */
                 /*!((GET_UVALUE(instruction_value) + 0x80U) & ~(uvalue_t)0xffU)*/   /* It matches NASM 0.98.39 with -O9. Same result as above, but 4 bytes longer for __DOSMC__. */
                 /*!(((unsigned)instruction_value + 0x80U) & 0xff00U)*/  /* It matches NASM 2.13.02 with -O9. It matches both `0xffffc' and `-4'. */
                ) goto mismatch;
@@ -2045,7 +2041,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
               detect_si8_size:
                 /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
                 is_imm_8bit = !(/* !has_undefined && */
-                    opt_level != 1 && pattern_and_encode[-2] != ',' ?  GET_UVALUE(instruction_value) + 0x80U > 0xffU :  /* It matches NASM 0.98.39 with -O9. It matches `push -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39. !! TODO(pts): Add an -O... flag to generate smaller output, without quirk. */
+                    !do_opt_int && pattern_and_encode[-2] != ',' ?  GET_UVALUE(instruction_value) + 0x80U > 0xffU :  /* It matches NASM 0.98.39 with -O9. It matches `push -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39 making the output file longer. */
                     (((unsigned)instruction_value + 0x80) & 0xff00U));
             }
         } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "l,t", corresponding to an 8-bit addressing. */
@@ -3437,6 +3433,7 @@ int main(int argc, char **argv)
                 d |= 32;
                 if (SUB_U(d, '0') <= 1U) {  /* -O0 is compatible with NASM, -O1 does some more. */
                     opt_level = d - '0';
+                    if (opt_level != 0) do_opt_int = 1;
                 } else if (d == 'x' || d == '3' || d == '9') {  /* -Ox, -O3, -O9, -O9... (compatible with NASM). We allow e.g. -O99999999 etc., for compatibility with NASM 0.98.39, where -09 can be too small, causing ``error: phase error detected at end of assembly''.. */
                   set_opt_level_9:
                     opt_level = 9;
@@ -3444,9 +3441,12 @@ int main(int argc, char **argv)
                     do_opt_lea = 1;
                 } else if (d == 'g') {  /* -OG (not compatible with NASM, `nasm -O9' doesn't do it) to optimize segment prefixes in effective addresses, e.g. ``mov ax, [ds:si]'. */
                     do_opt_segreg = 1;
-                } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equivalent to `-O9 -OL -OG'. */
+                } else if (d == 'i') {  /* -OI (not compatible with NASM, `nasm-0.98.39 -O9' doesn't do it) to optimize integers (immediates and effective address displacements) even where NASM 0.98.39 doesn't do it, e.g. ``push 0xfffd'. */
+                    do_opt_int = 1;
+                } else if (d == 'a') {  /* -OA to turn on all optimizations, even those which are not compatible with NASM. Equivalent to `-O9 -OL -OG -OI'. */
                     do_opt_lea = 1;
                     do_opt_segreg = 1;
+                    do_opt_int = 1;
                     goto set_opt_level_9;
                 } else {
                     goto bad_opt_level;
