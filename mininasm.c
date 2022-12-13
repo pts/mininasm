@@ -2083,7 +2083,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (*p != ':')
                 goto mismatch;
             p = match_expression(p + 1);
-        } else if (dc == '1') {  /* 8-bit immediate, shift amount, must be 1 on 8086. */
+        } else if (dc == '1') {  /* 8-bit immediate, shift amount (e.g. `shl' and `shr'), must be 1 on 8086. */
             p = avoid_strict(p);
             if (casematch(p, "BYTE!")) p += 4;
             p = match_expression(p);
@@ -3710,8 +3710,8 @@ UNALIGNED const char instruction_set2[] =
     "PUSHA\0" "x 60\0"
     "PUSHAW\0" "x 60\0"
     "PUSHF\0" " 9C\0"
-    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd\0"
-    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood\0"
+    "RCL\0" "j,1 D0dzozd" ALSO "k,1 D1dzozd" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd" ALSO "xj,h C0dzozdi" ALSO "xk,h C1dzozdi\0"
+    "RCR\0" "j,1 D0dzood" ALSO "k,1 D1dzood" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood" ALSO "xj,h C0dzoodi" ALSO "xk,h C1dzoodi\0"
     "REP\0" " F3+\0"
     "REPE\0" " F3+\0"
     "REPNE\0" " F2+\0"
@@ -3719,16 +3719,16 @@ UNALIGNED const char instruction_set2[] =
     "REPZ\0" " F3+\0"
     "RET\0" "i C2j" ALSO " C3\0"
     "RETF\0" "i CAj" ALSO " CB\0"
-    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd\0"
-    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
+    "ROL\0" "j,1 D0dzzzd" ALSO "k,1 D1dzzzd" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd" ALSO "xj,h C0dzzzdi" ALSO "xk,h C1dzzzdi\0"
+    "ROR\0" "j,1 D0dzzod" ALSO "k,1 D1dzzod" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod" ALSO "xj,h C0dzzodi" ALSO "xk,h C1dzzodi\0"
     "SAHF\0" " 9E\0"
-    "SAL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
-    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
+    "SAL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,h C0dozzdi" ALSO "xk,h C1dozzdi\0"
+    "SAR\0" "j,1 D0doood" ALSO "k,1 D1doood" ALSO "j,CL D2doood" ALSO "k,CL D3doood" ALSO "xj,h C0dooodi" ALSO "xk,h C1dooodi\0"
     "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
     "SCASB\0" " AE\0"
     "SCASW\0" " AF\0"
-    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
-    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod\0"
+    "SHL\0" "j,1 D0dozzd" ALSO "k,1 D1dozzd" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd" ALSO "xj,h C0dozzdi" ALSO "xk,h C1dozzdi\0"
+    "SHR\0" "j,1 D0dozod" ALSO "k,1 D1dozod" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod" ALSO "xj,h C0dozodi" ALSO "xk,h C1dozodi\0"
     "SS\0" " 36+\0"
     "STC\0" " F9\0"
     "STD\0" " FD\0"
