@@ -1534,6 +1534,8 @@ static const char *match_register(const char *p, int width, unsigned char *reg) 
 
 /* --- Recording of wide sources for -O0
  *
+ * !!! Do adds only for asembler_pass == 0 and reuse them for special_pass_1.
+ *
  * In assembler_pass <= 1, add_wide_source_in_pass_1(...) for all jump
  * sources which were guessed as `jmp near', and for all effective address
  * offsets which were guessed as 16-bit, both
@@ -2081,13 +2083,26 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             if (*p != ':')
                 goto mismatch;
             p = match_expression(p + 1);
-        } else if (dc == '!') {
-            if (islabel(*p)) goto mismatch;
-            continue;
+        } else if (dc == '1') {  /* 8-bit immediate, shift amount, must be 1 on 8086. */
+            p = avoid_strict(p);
+            if (casematch(p, "BYTE!")) p += 4;
+            p = match_expression(p);
+            if (p == NULL) goto mismatch;
+            if (opt_level <= 1) {
+                if (assembler_pass <= 1) {
+                    if (has_undefined) { do_add_wide_imm8 = 1; goto mismatch; }  /* Let the next pattern, with a real 8-bit immdiate, match. */
+                } else {
+                    if (is_wide_instr_in_pass_2(1)) goto mismatch;  /* Let the next pattern, with a real 8-bit immdiate, match. */
+                }
+            } 
+            if (!has_undefined && instruction_value != 1) goto mismatch;
         } else if (dc == 'x') {  /* Minimum `cpu 186' is needed. */
             if (cpu_level == 0) goto mismatch;
         } else if (dc == 'y') {  /* Minimum `cpu 286' is needed. */
             if (cpu_level < 2) goto mismatch;
+        } else if (dc == '!') {
+            if (islabel(*p)) goto mismatch;
+            continue;
         } else if (SUB_U(dc, 'a') <= 'z' - 'a' + 0U) {  /* Unexpected special (lowercase) character in pattern. */
             goto decode_internal_error;
         } else if (dc == ',') {
