@@ -136,6 +136,25 @@ Similarities between mininasm and NASM:
 
 Differences between mininasm and NASM:
 
+* ++ mininasm has deterministic behavior (same as NASM on i386) if some
+  arguments of division (`//') or modulo (`%%') are negative. NASM on other
+  host system architectures may behave differently.
+
+* ++ In general, mininasm does deterministic output no matter what the host
+  system architecture is, thus mininasm is more suited as a cross-compiler
+  than NASM.
+
+* ++ The memory usage of mininasm is not limited by the input or output file
+  sizes, thus files up to 2 GiB - 1 byte work flawlessly. (Larger files may
+  run into operating system or ABI limitations.)
+
+* In mininasm, there is an `%include' recursion limit (depending on the
+  length of the filenames), a source line size limit of 255 bytes (not
+  counting the trailing whitespace + optional comment + LF line terminator),
+  an expression depth limit of 100 (not counting unary operators and some
+  open parentheses), a label--macro combined limit (limited by available
+  memory, count depends on name length).
+
 * In mininasm, there is only support for 8086/8088 processors (`bits 16',
   `cpu 8086', no floating point) and 186 (`cpu 186', no floating point)
   and 286 (`cpu 286', no protected mode, no floating point) no 8087 etc.
@@ -233,14 +252,6 @@ Improvements of mininasm over NASM (if in conflict, disabled by default):
 * mininasm silently works correctly if the integer argument of `align' is
   not a power of 2.
 
-* mininasm has deterministic behavior (same as NASM on i386) if some
-  arguments of division (`//') or modulo (`%%') are negative. NASM on other
-  host system architectures may behave differently.
-
-* In general, mininasm does deterministic output no matter what the host
-  system architecture is, thus mininasm is more suited as a cross-compiler
-  than NASM.
-
 * `%ifidn' and `%ifnidn' in mininasm are useful only for checking 
   `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
   in NASM).
@@ -258,10 +269,11 @@ the following improvements:
   not even for integer overflow (e.g. number of bytes reported), this it's a
   true cross-assembler.
 * When compiled for DOS with dosmc, it needs only 64 KiB of memory (but it
-  can use more, up to 595 KiB), whereas Tinyasm needs 128 KiB (and cannot use
-  more than ~50 KiB of memory for labels).
+  can use more, up to 636 KiB, out of which labels get 595 KiB), whereas
+  Tinyasm needs 128 KiB (and cannot use more than ~50 KiB of memory for
+  labels).
 * When compiled for DOS with dosmc, it uses memory more efficiently, and thus
-  it is able to compile an assembly inpout file with >55000 labels (see file
+  it is able to compile an assembly input file with >55000 labels (see file
   most.asm). Most other 16-bit DOS assemblers support less than 8000 labels
   (e.g. A86 4.05 supports ~7200 labels, TASM 4.1 supports ~7400 labels,
   MASM 5.10a supports ~11800 labels, NASM 0.98.39 lite supports ~8000 labels).
@@ -275,9 +287,9 @@ the following improvements:
   mininasm.li3 is about 19.4 KiB, and tinasm.xstatic (similar to Tinyasm)
   is about 52.8 KiB.
 * Its behavior is adjusted for better compatibility with NASM 0.98.39.
-  The most important difference is that it supports 16-bit numbers, but
-  NASM 0.98.39 supports 32-bit numbers. See more differences between
-  mininasm and NASM below.
+  The most important difference is that it supports 16-bit integers, but
+  NASM 0.98.39 supports 32-bit integers. See more differences between
+  mininasm and NASM above.
 * Its stack use has a constant upper bound (e.g. no recursive function
   calls), it never crashes because of large input.
 * It has some new (NASM-compatible) features such as 'multicharacter' string
@@ -300,10 +312,9 @@ the following improvements:
 
 Possible future mininasm features:
 
-* `cpu 186' and `cpu 286' also work. (For the 286, it supports all
-  instructions except for those related to protected mode.)
+* It will support 286 protected mode instructions.
   This hasn't been implemented yet.
-* It supports 287 floating point instructions.
+* It will support 287 floating point instructions.
   This hasn't been implemented yet.
 
 Host system compatibiliy of mininasm:
