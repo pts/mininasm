@@ -8,6 +8,27 @@ be an extremely lightweight, compatible, drop-in replacement of NASM (for
 the subset of NASM syntax it supports), so that it runs on an 1983 IBM PC
 running PC DOS 2.0, enabling software development without cross-compilation.
 
+Most modern assembly developers targeting the 8086, 186 or 286 should choose
+NASM rather than mininasm, as long as NASM works for them and it runs on their
+host system. That's because NASM provides more abstractions (e.g. macros and
+more preprocessor), output file formats and assembly instructions, and it's
+faster. The reasons why mininasm may be chosen instead of NASM:
+
+* mininasm uses much less memory in all categories: constant, per-label,
+  per-macro. mininasm memory usage doesn't depend on the size of the
+  output file. If there is >= 2 MiB memory free, then NASM is good enough
+  for most uses. mininasm can already work with 64 KiB of free conventional
+  memory on DOS (the size of mininasm.com included).
+* mininasm behavior is documented and deterministic even when NASM isn't,
+  e.g. signed integer division, `align' if the alignment is not a power of 2.
+* mininasm is easier to compile than NASM: any standard C compiler (C89 or
+  later) can compile it, and it works even with 16-bit ints.
+* mininasm aims generates binary output files identical to NASM 0.98.39
+  (released on 2005-01-20) with the default settings (`-O0', also `-O999').
+  Thus there will be no surprises when compiling the same source file
+  decades later. Upgrading NASM instead may change the output file, and it
+  happened many times in the past.
+
 mininasm is released as C (C89 or later) source (mininasm.c,
 bbprintf.c, bbprintf.h, see compilation instructions near the beginning of
 mininasm.c) on https://github.com/pts/mininasm and there are also
@@ -428,6 +449,11 @@ binary bit-by-bit identical to what is produced by NASM (>= 0.98.39) and
 mininasm (https://github.com/pts/mininasm). One of the development goals of
 minnnasm is to improve the compatibility of mininasm with NASM: it's source
 code is relatively complex NASM-compatible assembly code.
+
+mininasm uses so little memory that it can compile minnnasm.nasm to
+minnnasm.com (i.e. almost itself) by using only 64 KiB of DOS conventional
+memory (including mininasm.com, the PSP and all mininasm data, excluding the
+memory used by DOS itself and DOS file buffers).
 
 Showing that the mininasm optimization algorithm converges:
 
