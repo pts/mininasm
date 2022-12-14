@@ -310,6 +310,30 @@ the following improvements:
   that it converges). Tinyasm fails to generate any output file after 5
   passes, unsure if it would converge.
 
+Output file size limits of various assemblers:
+
+* mininasm doesn't have a output file size limit. (This means is that the
+  file size can be up to 2 GiB - 1 byte, and available memory is not a
+  limiting factor.) See demo/fat12/floppy.nasm for a demo.
+* Tinyasm doesn't have an output file size limit, like mininasm.
+* Watcom Assembler (WASM) doesn't have an output file size limit.
+* NASM stores each output byte in memory.
+* JWasm for OMF .obj output doesn't have an output file size limit, but
+  for -bin output it stores all output bytes in memory, and it silently
+  overflows to video memory (0xa0000) on DOS.
+* A72 doesn't have an output file size limit, but it can't easily repeat:
+  it doesn't have `dup' or `times', and it's also very slow.
+* A86 can co about 32256 output bytes correctly, doesn't report error on
+  more, but output file incorrect and/or truncated.
+* Wolfware Assembler can do 10799 bytes, fails for more.
+* Turbo Assembler (TASM) 4.1 stores each output byte in memory, limit is
+  about 450 KiB. But it has efficient encoding of `db ... dup (value)'
+  in the .obj file, and it stores those bytes in memory RLE-compressed.
+* Microsoft Assembler (MASM) 6.00B stores each output byte in memory.
+  It has the /VM switch to use virtual memory (more than 640 KiB) on DOS.
+* FASM stores output bytes in memory quite inefficiently (about 41.874
+  bytes of memory usage per output byte, tested with `nop' instructions).
+
 Possible future mininasm features:
 
 * It will support 286 protected mode instructions.

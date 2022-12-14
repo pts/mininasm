@@ -1,0 +1,70 @@
+; by pts@fazekas.hu at Tue Dec 13 21:59:42 CET 2022
+;
+; Compile: kvikdos a86.com floppy.8   # Creates floppy.com.
+;
+; This source code demonstrates an inherent limitation of the A86 assembler:
+; maximum output file size 32768 bytes (and it starts getting incorrect
+; values at offset 32256). The correct output file size would be 1474560 bytes.
+;
+
+@0x00:
+jump:		jmp short boot_code
+		nop
+@0x03:		db 'mkfs.fat'
+@0x0b:		db 00h, 02h, 01h, 01h, 00h
+@0x10:		db 02h, 0e0h, 00h, 40h, 0bh, 0f0h, 09h, 00h, 12h, 00h, 02h, 00h, 00h, 00h, 00h, 00h
+@0x20:		db 00h, 00h, 00h, 00h, 00h, 00h, 29h, 0c7h, 0e6h, 63h, 5bh
+		db 'NO NAME    '
+		db 'FAT12   '
+@0x3e:
+boot_code:
+.@0x3e:		push cs
+.@0x3f:		pop ds
+.@0x40:		mov si, 7c00h+(message-jump)
+.@0x43:		lodsb
+.@0x44:		db 22h, 0c0h  ; and al, al
+.@0x46:		jz short .@0x53
+.@0x48:		push si
+.@0x49:		mov ah, 0eh
+.@0x4b:		mov bx, 7
+.@0x4e:		int 10h
+.@0x50:		pop si
+.@0x51:		jmp short .@0x43
+.@0x53:		db 32h, 0e4h  ; xor ah, ah
+.@0x55:		int 16h
+.@0x57:		int 19h
+.@0x59:		jmp short .@0x59
+.@0x5b:
+message:	db 'This is not a bootable disk.  Please insert a bootable floppy and', 13, 10
+		db 'press any key to try again ... ', 13, 10
+boot_padding:	db jump+1feh-$ dup (0)
+		db 55h, 0aah
+		db jump+200h-$ dup (0)
+@0x200:
+fat1:		db 0f0h, 0ffh, 0ffh
+		db fat1+10b0h-$ dup (0)
+		db 0ffh, 0fh
+		db fat1+1200h-$ dup (0)
+@0x1400:
+fat2:		db 0f0h, 0ffh, 0ffh
+		db fat2+10b0h-$ dup (0)
+		db 0ffh, 0fh
+		db fat2+1200h-$ dup (0)
+@0x2600:
+dir:
+dirent1:	db 0e5h, '       ', 'BIN'  ; Deleted.
+		db 20h, 00h, 00h, 0cbh, 0aeh, 8dh, 55h, 8dh, 55h, 00h, 00h, 0cbh, 0aeh, 8dh, 55h, 02h, 00h, 00h, 3ch, 16h, 00h
+dirent2:	db 'HI      ', 'TXT'
+		db 20h, 00h, 00h, 0d6h, 0aeh, 8dh, 55h, 8dh, 55h, 00h, 00h, 0d6h, 0aeh, 8dh, 55h, 20h, 0bh, 0fh, 00h, 00h, 00h
+dir_padding:	db dir+1c00h-$ dup (0)
+@0x4200:
+clusters:
+empty_clusters:	db jump+167e00h-$ dup ('B')
+@0x167e00:
+file_data:	db 'Hello, World!', 13, 10
+file_padding:	db file_data+200h-$ dup (0)
+@0x168000:
+empty_clusters_end: db jump+168000h-$ dup ('C')
+@0x168000_:
+
+; __END__
