@@ -554,6 +554,7 @@ static uvalue_t warnings;
 #endif
 static uvalue_t bytes;
 static char have_labels_changed;
+static unsigned char jump_range_bits;
 static unsigned char cpu_level;
 
 STRUCT_PACKED_PREFIX struct label {
@@ -2000,6 +2001,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                     }
                 }
                 if (has_undefined) instruction_value = current_address;  /* Hide the extra "short jump too long" error. */
+                if (0 && assembler_pass > 1 && opt_level > 1) DEBUG3("short_jump value=0x%x relative=0x%x @0x%x\r\n", (unsigned)instruction_value, (unsigned)(instruction_value - (current_address + 2)), (unsigned)current_address);
                 instruction_value -= current_address + 2;
                 if (qualifier == 0 && dc == 'c') {
                     is_address_used = 1;
@@ -2258,8 +2260,13 @@ static const char *match(const char *p, const char *pattern_and_encode) {
             c = is_imm_8bit ? (char)0x6b : (char)0x69;
         } else if (dc == 'a') {  /* Address for jump, 8-bit. */
             is_address_used = 1;
-            if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU))
-                MESSAGE(1, "short jump too long");
+            if (assembler_pass > 1 && (((uvalue_t)instruction_value + 0x80) & ~0xffU)) {
+                jump_range_bits |= 1;
+                if (jump_range_bits & 2) {  /* Only report it in the last pass. See xtest/jmpopt.nasm for an example when it's not an error. */
+                    MESSAGE(1, "short jump is out of range");  /* Same error message as NASM 0.98.39. */
+                }
+                if (0) DEBUG3("short_jump by=0x%x value=%d @0x%x\n", instruction_value, instruction_value, current_address);
+            }
             c = instruction_value;
         } else if (dc == 'b') {  /* Address for jump, 16-bit. */
             is_address_used = 1;
@@ -2547,6 +2554,11 @@ static void reset_address(void) {
  */
 static void create_label(const char *name) {
     struct label MY_FAR *last_label = find_label(name);
+#if 0 && DEBUG
+    if (name[0] == '.' && name[1] == '.' && name[2] == '@' && name[3] == '@') {
+        DEBUG3("create_label name=(%s) value=0x%x pass=%u\r\n", name, (unsigned)instruction_value, (unsigned)assembler_pass);
+    }
+#endif
     if (assembler_pass <= 1) {
         if (last_label == NULL) {
             last_label = define_label(name, instruction_value);
@@ -2852,6 +2864,8 @@ static void do_assembly(const char *input_filename) {
     struct label MY_FAR *label;
 
     have_labels_changed = 0;
+    jump_range_bits &= ~1;
+    if (opt_level <= 1) jump_range_bits |= 2;  /* Report ``short jump is out of range'' errors early. */
     cpu_level = 0xff;  /* Accept all supported instructions. */
     is_bss = 0;
     assembly_p = (struct assembly_info*)assembly_stack;  /* Clear the stack. */
@@ -3606,6 +3620,7 @@ int main(int argc, char **argv)
             do_assembly(ifname);
             ++do_special_pass_1;  /* = 2. */
         }
+        if (0) DEBUG2("current_address after pass %d: 0x%x\n", (unsigned)assembler_pass, (unsigned)current_address);
         /*
          ** Do second pass of assembly and generate final output
          */
@@ -3632,6 +3647,11 @@ int main(int argc, char **argv)
             do_assembly(ifname);
             emit_flush(0);
             close(output_fd);
+            if (0) DEBUG3("current_address after pass %d: current_address=0x%x jrb=0x%x\n", (unsigned)assembler_pass, (unsigned)current_address, (unsigned)jump_range_bits);
+            if (!have_labels_changed && jump_range_bits == 1) {
+                ++jump_range_bits;  /* = 2. Report ``short jump out of range'' errors in the next pass. */
+                ++have_labels_changed;  /* = 1. Do another pass. */
+            }
             if (have_labels_changed) {
                 if (opt_level <= 1) {
                     MESSAGE(1, "oops: labels changed");
