@@ -1308,7 +1308,7 @@ static const char *match_expression(const char *match_p) {
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
             p2 = global_label_end;
-            p3 = (c == '.') ? global_label : p2;  /* If label starts with '.', then prepend global_label. */
+            p3 = (c == '.' && !(match_p[1] == '.' && match_p[2] == '@')) ? global_label : p2;  /* If label starts with `.', but not with `..@', then prepend global_label. */
             for (; islabel(match_p[0]); *p2++ = *match_p++) {}
             *p2 = '\0';
             if (0) DEBUG1("use_label=(%s)\r\n", p3);
@@ -2530,23 +2530,23 @@ static void reset_address(void) {
 }
 
 /*
- ** Creates label named `global_label' with value `instruction_value'.
+ ** Creates label named `name' with value `instruction_value'.
  */
-static void create_label(void) {
-    struct label MY_FAR *last_label = find_label(global_label);
+static void create_label(const char *name) {
+    struct label MY_FAR *last_label = find_label(name);
     if (assembler_pass <= 1) {
         if (last_label == NULL) {
-            last_label = define_label(global_label, instruction_value);
+            last_label = define_label(name, instruction_value);
         } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %UNDEF-ined macro. */
           do_undelete:
             RBL_SET_DELETED_0(last_label);
             last_label->value = instruction_value;
         } else {
-            MESSAGE1STR(1, "Redefined label '%s'", global_label);
+            MESSAGE1STR(1, "Redefined label '%s'", name);
         }
     } else {
         if (last_label == NULL) {
-            MESSAGE1STR(1, "oops: label '%s' not found", global_label);
+            MESSAGE1STR(1, "oops: label '%s' not found", name);
         } else if (RBL_IS_DELETED(last_label)) {  /* This is possible if it is an %undef-ined macro. */
             goto do_undelete;
         } else {
@@ -2832,6 +2832,7 @@ static void do_assembly(const char *input_filename) {
     int input_fd;
     int incbin_fd;
     char pc;
+    char rc;  /* Restore character: save a byte of a string to here, change in the string, and restore it later from here. */
     char is_if_not;
     char is_bss;
     struct label MY_FAR *label;
@@ -3096,32 +3097,42 @@ static void do_assembly(const char *input_filename) {
         /* Parse and process label, if any. */
         if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(avoid_spaces(p3 + 1))
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
+            /*pc = casematch(avoid_spaces(p3 + 1), "EQU!");*/
             if (p[0] == '$') ++p;
-            liner = (p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
+            rc = p3[0];
+            if (/*pc ||*/ (p[0] == '.' && p[1] == '.' && p[2] == '@')) {
+                liner = (char*)p;
+                ((char*)p3)[0] = '\0';
+            } else {
+                liner = (/*pc ||*/ p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
 #if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
-            /* Calling memcpy_newdest_inline(...) or memcpy_void_inline(...) instead here would add 127 bytes to the program, so we are not doing it. OpenWatcom optimization is weird. */
-            memcpy_void_my(liner, p, p3 - p);
+                /* Calling memcpy_newdest_inline(...) or memcpy_void_inline(...) instead here would add 127 bytes to the program, so we are not doing it. OpenWatcom optimization is weird. */
+                memcpy_void_my(liner, p, p3 - p);
 #else
-            memcpy(liner, p, p3 - p);
+                memcpy(liner, p, p3 - p);
 #endif
-            liner += p3 - p;
-            *liner = '\0';
-            if (p[0] != '.') global_label_end = liner;
+                liner += p3 - p;
+                *liner = '\0';
+                if (p[0] != '.') global_label_end = liner;
+                liner = global_label;
+            }
             p = avoid_spaces(p3 + 1);
-            if (casematch(p, "EQU!")) {
+            if (/*pc*/ casematch(p, "EQU!")) {  /* EQU. */
                 p = match_expression(p + 3);
                 if (p == NULL) {
                     MESSAGE(1, "bad expression");
                 } else {
-                    create_label();
+                    create_label(liner);
                     check_end(p);
+                    p = NULL;
                 }
-                *global_label_end = '\0';  /* Undo the concat to global_label. */
-                goto after_line;
+            } else {
+                instruction_value = current_address;
+                create_label(liner);
             }
-            instruction_value = current_address;
-            create_label();
             *global_label_end = '\0';  /* Undo the concat to global_label. */
+            ((char*)p3)[0] = rc;  /* Undo the change. */
+            if (p == NULL) goto after_line;
         }
 
         /* Process command (non-preprocessor, non-label). */

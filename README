@@ -59,9 +59,11 @@ Similarities between mininasm and NASM:
 
 * Binary output (`-f bin' command-line flag) is supported.
 
-* Local labels (starting with a period) are supported. The local label's
+* Local labels (starting with a period `.') are supported. The local label's
   final name is derived from concatenation of the last global label (not
-  starting with period) and the local label.
+  starting with period `.') and the local label. If the label starts with
+  `..@', then it is a global label, but defining it keeps the ``last global
+  label'' intact.
 
 * Generating a listing file (`-l ...' command-line flag) is supported, but
   the listing file is different from what NASM generates.
@@ -267,7 +269,13 @@ Differences between mininasm and NASM:
 * Shifts larger than 31 are not allowed (to avoid unspecified NASM
   behavior).
 
-Improvements of mininasm over NASM (if in conflict, disabled by default):
+* It's OK to define local labels without defining a global label first.
+
+* `%ifidn' and `%ifnidn' in mininasm are useful only for checking 
+  `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
+  in NASM).
+
+Optional improvements in mininasm over NASM (disabled by default):
 
 * Optimization of the `lea' instruction (enable with flag `-OL').
 
@@ -279,13 +287,6 @@ Improvements of mininasm over NASM (if in conflict, disabled by default):
 
 * Turning on all NASM optimizations (`-Ox') and non-NASM optimizations
   with flag `-OA'.
-
-* mininasm silently works correctly if the integer argument of `align' is
-  not a power of 2.
-
-* `%ifidn' and `%ifnidn' in mininasm are useful only for checking 
-  `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
-  in NASM).
 
 mininasm is based on Tinyasm (https://github.com/nanochess/tinyasm), with
 the following improvements:
