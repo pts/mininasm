@@ -20,10 +20,13 @@
 ;   $ mininasm -O9 -f bin -o minnnasm.com minnnasm.nasm
 ;   $ kvikdos minnnasm.com -O9 -f bin -o minnnas2.com minnnasm.nas
 ;
-; These NASM versions (as welll as mininasm at the link above) were tested
+; These NASM versions (as well as mininasm at the link above) were tested
 ; and found to produce minnnasm.com bit-by-bit identical to mininasm.com
 ; above): NASM 0.98.39, NASM 0.99.06, NASM 2.13.02. Only the `-O9'
 ; optimization level produces the bit-by-bit identical output.
+;
+; mininasm (mininasm.com on DOS) can compile this source with 64 KiB of memory
+; + DOS buffers (e.g. file read buffers and filesystem metadata caches).
 ;
 ; `yasm' also works instead of `nasm', but it doesn't generate an identical
 ; executable program, because YASM generates different machine code for
@@ -1913,11 +1916,11 @@ define_label_:
 ;         path->label = label_list;
 		mov ax, word [_label_list]
 		mov dx, word [_label_list+2]
-		mov word [@$1067], ax
-		mov word [@$1068], dx
+		mov word [@$tree_path], ax
+		mov word [@$tree_path+2], dx
 
 ;         for (pathp = path; !RBL_IS_NULL(pathp->label); pathp++) {
-		mov si, @$1067
+		mov si, @$tree_path
 @$55:
 		mov bx, word [si]
 		mov cx, word [si+2]
@@ -1969,7 +1972,7 @@ define_label_:
 ;         while (pathp-- != path) {
 		mov ax, si
 		sub si, 6
-		cmp ax, @$1067
+		cmp ax, @$tree_path
 		jne @$62
 		jmp near @$69
 
@@ -2159,8 +2162,8 @@ define_label_:
 
 ;         label_list = path->label;
 @$69:
-		mov bx, word [@$1067]
-		mov ax, word [@$1068]
+		mov bx, word [@$tree_path]
+		mov ax, word [@$tree_path+2]
 		mov word [_label_list], bx
 		mov word [_label_list+2], ax
 
@@ -3039,7 +3042,7 @@ match_expression_:
 		mov byte [_has_undefined], al
 
 ;     msp = match_stack;
-		mov di, @$1069
+		mov di, @$match_stack
 
 ;     goto do_match;
 @$121:
@@ -3148,7 +3151,7 @@ match_expression_:
 
 ;             if (++msp == match_stack + sizeof(match_stack) / sizeof(match_stack[0])) goto too_deep;
 		add di, 6
-		cmp di, @$1070
+		cmp di, @$segment_value
 		je @$133
 @$130:
 		jmp near @$198
@@ -3200,7 +3203,7 @@ match_expression_:
 @$133:
 		jmp near @$205
 @$134:
-		cmp di, @$1069
+		cmp di, @$match_stack
 		je @$135
 		jmp near @$125
 @$135:
@@ -3937,7 +3940,7 @@ match_expression_:
 		mov ax, word [bp-0x12]
 		mov word [di+4], ax
 		add di, 6
-		cmp di, @$1070
+		cmp di, @$segment_value
 		je @$205
 		jmp near @$121
 @$205:
@@ -6796,7 +6799,7 @@ match_:
 ;                 goto mismatch;
 ;             segment_value = instruction_value;
 		mov ax, word [_instruction_value]
-		mov word [@$1070], ax
+		mov word [@$segment_value], ax
 
 ;             if (*p != ':')
 		cmp byte [si], 0x3a
@@ -7553,7 +7556,7 @@ match_:
 		mov word [bp-0xc], ax
 
 ;             instruction_offset = segment_value;
-		mov ax, word [@$1070]
+		mov ax, word [@$segment_value]
 		mov word [_instruction_offset], ax
 
 ;             dw = 2;
@@ -11869,7 +11872,7 @@ main_:
 ;         static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
 ;         (void)!write(2, (char*)msg, STRING_SIZE_WITHOUT_NUL(msg));  /* Without the (char*), Borland C++ 2.0 reports warning: Suspicious pointer conversion in function main */
 		mov bx, 0x38
-		mov dx, @$1066
+		mov dx, @$usage
 		mov ax, 2
 		call near write_
 		jmp near @$926
@@ -11902,10 +11905,10 @@ main_:
 		add ax, word [es:3]
 		mov word [___malloc_struct__], ax
 
-;     set_macro(mininasm_macro_name, mininasm_macro_name + STRING_SIZE_WITHOUT_NUL(mininasm_macro_name), "6", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
+;     set_macro(mininasm_macro_name, mininasm_macro_name + STRING_SIZE_WITHOUT_NUL(mininasm_macro_name), "5", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
 		mov cx, 1
 		mov bx, @$1043
-		mov dx, _mininasm_macro_name+0xd
+		mov dx, _mininasm_macro_name.end
 		mov ax, _mininasm_macro_name
 		call near set_macro_
 
@@ -13076,46 +13079,328 @@ ___section_mininasm_c_const:
 
 ___section_mininasm_c_const2:
 
-_register_names		db 'CSDSESSSALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI'
-_reg_add_to_addressing		db 0, 1, 9, 9, 7, 9, 9, 9, 9, 9, 2, 3, 9, 9, 6, 9, 9, 2, 0, 4, 9, 9, 3, 1, 5
-@$1066		db 'Typical usage:', 13, 10, 'mininasm -f bin input.asm -o input.bin', 13, 10
-_instruction_set		db 'AAA', 0, ' 37', 0, 'AAD', 0, 'i D5i- D50A', 0, 'AAM', 0, 'i D4i- D40A', 0, 'AAS', 0, ' 3F', 0, 'ADC', 0, 'j,q 10drd-k,r 11drd-q,j 12drd-r,k 13drd-vAL,h 14i-wAX,g 15j-m,s sdzozdj-l,t 80dzozdi', 0, 'ADD', 0
-		db 'j,q 00drd-k,r 01drd-q,j 02drd-r,k 03drd-vAL,h 04i-wAX,g 05j-m,s sdzzzdj-l,t 80dzzzdi', 0, 'AND', 0, 'j,q 20drd-k,r 21drd-q,j 22drd-r,k 23drd-vAL,h 24i-wAX,g 25j-m,s sdozzdj-l,t 80dozzdi', 0, 'BOUND', 0, 'xr,o 62drd', 0, 'CALL', 0
-		db 'FAR!k FFdzood-f 9Af-k FFdzozd-b E8b', 0, 'CBW', 0, ' 98', 0, 'CLC', 0, ' F8', 0, 'CLD', 0, ' FC', 0, 'CLI', 0, ' FA', 0, 'CMC', 0, ' F5', 0, 'CMP', 0, 'j,q 38drd-k,r 39drd-q,j 3Adrd-r,k 3Bdrd-vAL,h 3Ci-wAX,g 3Dj-m,s sdooodj-l,t 80dooodi', 0
-		db 'CMPSB', 0, ' A6', 0, 'CMPSW', 0, ' A7', 0, 'CS', 0, ' 2E+', 0, 'CWD', 0, ' 99', 0, 'DAA', 0, ' 27', 0, 'DAS', 0, ' 2F', 0, 'DEC', 0, 'r zozzor-l FEdzzod-m FFdzzod', 0, 'DIV', 0, 'l F6doozd-m F7doozd', 0, 'DS', 0, ' 3E+', 0, 'ENTER', 0, 'xe,h C8ei'
-		db 0, 'ES', 0, ' 26+', 0, 'HLT', 0, ' F4', 0, 'IDIV', 0, 'l F6doood-m F7doood', 0, 'IMUL', 0, 'l. F6dozod-m. F7dozod-xp,s. mdrdj-xr,k,s mdrdj', 0, 'IN', 0, 'vAL,wDX EC-wAX,wDX ED-vAL,h E4i-wAX,i E5i', 0, 'INC', 0, 'r zozzzr-l FEdzzzd-m FFdzzzd', 0
-		db 'INSB', 0, 'x 6C', 0, 'INSW', 0, 'x 6D', 0, 'INT', 0, 'i CDi', 0, 'INT3', 0, ' CC', 0, 'INTO', 0, ' CE', 0, 'IRET', 0, ' CF', 0, 'JA', 0, 'a 77a', 0, 'JAE', 0, 'a 73a', 0, 'JB', 0, 'a 72a', 0, 'JBE', 0, 'a 76a', 0, 'JC', 0, 'a 72a', 0, 'JCXZ', 0
-		db 'a E3a', 0, 'JE', 0, 'a 74a', 0, 'JG', 0, 'a 7Fa', 0, 'JGE', 0, 'a 7Da', 0, 'JL', 0, 'a 7Ca', 0, 'JLE', 0, 'a 7Ea', 0, 'JMP', 0, 'FAR!k FFdozod-f EAf-k FFdozzd-c EBa-b E9b', 0, 'JNA', 0, 'a 76a', 0, 'JNAE', 0, 'a 72a', 0, 'JNB', 0, 'a 73a', 0
-		db 'JNBE', 0, 'a 77a', 0, 'JNC', 0, 'a 73a', 0, 'JNE', 0, 'a 75a', 0, 'JNG', 0, 'a 7Ea', 0, 'JNGE', 0, 'a 7Ca', 0, 'JNL', 0, 'a 7Da', 0, 'JNLE', 0, 'a 7Fa', 0, 'JNO', 0, 'a 71a', 0, 'JNP', 0, 'a 7Ba', 0, 'JNS', 0, 'a 79a', 0, 'JNZ', 0, 'a 75a', 0, 'JO'
-		db 0, 'a 70a', 0, 'JP', 0, 'a 7Aa', 0, 'JPE', 0, 'a 7Aa', 0, 'JPO', 0, 'a 7Ba', 0, 'JS', 0, 'a 78a', 0, 'JZ', 0, 'a 74a', 0, 'LAHF', 0, ' 9F', 0, 'LDS', 0, 'r,n C5drd', 0, 'LEA', 0, 'r,o 8Ddrd', 0, 'LEAVE', 0, 'x C9', 0, 'LES', 0, 'r,n C4drd', 0
-		db 'LOCK', 0, ' F0+', 0, 'LODSB', 0, ' AC', 0, 'LODSW', 0, ' AD', 0, 'LOOP', 0, 'a E2a', 0, 'LOOPE', 0, 'a E1a', 0, 'LOOPNE', 0, 'a E0a', 0, 'LOOPNZ', 0, 'a E0a', 0, 'LOOPZ', 0, 'a E1a', 0, 'MOV', 0
-		db 'j,q 88drd-k,r 89drd-q,j 8Adrd-r,k 8Bdrd-k,ES 8Cdzzzd-k,CS 8Cdzzod-k,SS 8Cdzozd-k,DS 8Cdzood-ES,k 8Edzzzd-CS,k 8Edzzod-SS,k 8Edzozd-DS,k 8Edzood-q,h ozoozri-r,i ozooorj-m,u C7dzzzdj-l,t C6dzzzdi', 0, 'MOVSB', 0, ' A4', 0, 'MOVSW', 0, ' A5', 0, 'MUL'
-		db 0, 'l F6dozzd-m F7dozzd', 0, 'NEG', 0, 'l F6dzood-m F7dzood', 0, 'NOP', 0, ' 90', 0, 'NOT', 0, 'l F6dzozd-m F7dzozd', 0, 'OR', 0, 'j,q 08drd-k,r 09drd-q,j 0Adrd-r,k 0Bdrd-vAL,h 0Ci-wAX,g 0Dj-m,s sdzzodj-l,t 80dzzodi', 0, 'OUT', 0
-		db 'wDX,vAL EE-wDX,AX EF-h,vAL E6i-i,AX E7i', 0, 'OUTSB', 0, 'x 6E', 0, 'OUTSW', 0, 'x 6F', 0, 'PAUSE', 0, ' F390', 0, 'POP', 0, 'ES 07-SS 17-DS 1F-CS 0F-r zozoor-k 8Fdzzzd', 0, 'POPA', 0, 'x 61', 0, 'POPAW', 0, 'x 61', 0, 'POPF', 0, ' 9D', 0, 'PUSH'
-		db 0, 'ES 06-CS 0E-SS 16-DS 1E-r zozozr-xs lj-k FFdoozd', 0, 'PUSHA', 0, 'x 60', 0, 'PUSHAW', 0, 'x 60', 0, 'PUSHF', 0, ' 9C', 0, 'RCL', 0, 'j,1 gdzozdk-k,1 hdzozdk-j,CL D2dzozd-k,CL D3dzozd', 0, 'RCR', 0
-		db 'j,1 gdzoodk-k,1 hdzoodk-j,CL D2dzood-k,CL D3dzood', 0, 'REP', 0, ' F3+', 0, 'REPE', 0, ' F3+', 0, 'REPNE', 0, ' F2+', 0, 'REPNZ', 0, ' F2+', 0, 'REPZ', 0, ' F3+', 0, 'RET', 0, 'i C2j- C3', 0, 'RETF', 0, 'i CAj- CB', 0, 'ROL', 0
-		db 'j,1 gdzzzdk-k,1 hdzzzdk-j,CL D2dzzzd-k,CL D3dzzzd', 0, 'ROR', 0, 'j,1 gdzzodk-k,1 hdzzodk-j,CL D2dzzod-k,CL D3dzzod', 0, 'SAHF', 0, ' 9E', 0, 'SAL', 0, 'j,1 gdozzdk-k,1 hdozzdk-j,CL D2dozzd-k,CL D3dozzd', 0, 'SAR', 0
-		db 'j,1 gdooodk-k,1 hdooodk-j,CL D2doood-k,CL D3doood', 0, 'SBB', 0, 'j,q 18drd-k,r 19drd-q,j 1Adrd-r,k 1Bdrd-vAL,h 1Ci-wAX,g 1Dj-m,s sdzoodj-l,t 80dzoodi', 0, 'SCASB', 0, ' AE', 0, 'SCASW', 0, ' AF', 0, 'SHL', 0
-		db 'j,1 gdozzdk-k,1 hdozzdk-j,CL D2dozzd-k,CL D3dozzd', 0, 'SHR', 0, 'j,1 gdozodk-k,1 hdozodk-j,CL D2dozod-k,CL D3dozod', 0, 'SS', 0, ' 36+', 0, 'STC', 0, ' F9', 0, 'STD', 0, ' FD', 0, 'STI', 0, ' FB', 0, 'STOSB', 0, ' AA', 0, 'STOSW', 0, ' AB', 0
-		db 'SUB', 0, 'j,q 28drd-k,r 29drd-q,j 2Adrd-r,k 2Bdrd-vAL,h 2Ci-wAX,g 2Dj-m,s sdozodj-l,t 80dozodi', 0, 'TEST', 0, 'j,q 84drd-q,j 84drd-k,r 85drd-r,k 85drd-vAL,h A8i-wAX,i A9j-m,u F7dzzzdj-l,t F6dzzzdi', 0, 'UD0', 0, 'y 0FFF', 0, 'UD1', 0, 'y 0FB9', 0
-		db 'UD2', 0, 'y 0F0B', 0, 'WAIT', 0, ' 9B+', 0, 'XCHG', 0, 'wAX,r ozzozr-r,AX ozzozr-q,j 86drd-j,q 86drd-r,k 87drd-k,r 87drd', 0, 'XLAT', 0, ' D7', 0, 'XOR', 0, 'j,q 30drd-k,r 31drd-q,j 32drd-r,k 33drd-vAL,h 34i-wAX,g 35j-m,s sdoozdj-l,t 80doozdi', 0
-		db 0
+_register_names	db 'CSDSESSSALCLDLBLAHCHDHBHAXCXDXBXSPBPSIDI'
+; Table for describing a single register addition (+..) to an effective address.
+;
+;         [bx+si]=0 [bx+di]=1 [bp+si]=2 [bp+di]=3   [si]=4    [di]=5    [bp]=6    [bx]=7    []=8     [bad]=9
+; +BX=3:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bx+si]=0 [bx+di]=1 [bad]=9   [bad]=9   [bx]=7   [bad]=9
+; +SP=4:  [bad]=9...
+; +BP=5:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bp+si]=2 [bp+di]=3 [bad]=9   [bad]=9   [bp]=6   [bad]=9
+; +SI=6:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bad]=9   [bad]=9   [bp+si]=2 [bx+si]=0 [si]=4   [bad]=9
+; +DI=7:  [bad]=9   [bad]=9   [bad]=9   [bad]=9     [bad]=9   [bad]=9   [bp+di]=3 [bx+di]=1 [di]=5   [bad]=9
+_reg_add_to_addressing db 0, 1, 9, 9, 7, 9, 9, 9, 9, 9, 2, 3, 9, 9, 6, 9, 9, 2, 0, 4, 9, 9, 3, 1, 5
+@$usage		db 'Typical usage:', 13, 10, 'mininasm -f bin input.asm -o input.bin', 13, 10
 
+; /*
+;  ** Instruction set.
+;  ** Notice some instructions are sorted by less byte usage first.
+;  */
+; #define ALSO "-"
+; /* GCC 7.5 adds an alignment to 32 bytes without the UNALIGNED. We don't
+;  * want to waste program size because of such useless alignments.
+;  *
+;  * See x86 instructions at https://www.felixcloutier.com/x86/
+;  * See x86 instructions at http://ref.x86asm.net/geek64-abc.html .
+;  */
+; UNALIGNED const char instruction_set[] =
+;     "AAA\0" " 37\0"
+;     "AAD\0" "i D5i" ALSO " D50A\0"
+;     "AAM\0" "i D4i" ALSO " D40A\0"
+;     "AAS\0" " 3F\0"
+;     "ADC\0" "j,q 10drd" ALSO "k,r 11drd" ALSO "q,j 12drd" ALSO "r,k 13drd" ALSO "vAL,h 14i" ALSO "wAX,g 15j" ALSO "m,s sdzozdj" ALSO "l,t 80dzozdi\0"
+;     "ADD\0" "j,q 00drd" ALSO "k,r 01drd" ALSO "q,j 02drd" ALSO "r,k 03drd" ALSO "vAL,h 04i" ALSO "wAX,g 05j" ALSO "m,s sdzzzdj" ALSO "l,t 80dzzzdi\0"
+;     "AND\0" "j,q 20drd" ALSO "k,r 21drd" ALSO "q,j 22drd" ALSO "r,k 23drd" ALSO "vAL,h 24i" ALSO "wAX,g 25j" ALSO "m,s sdozzdj" ALSO "l,t 80dozzdi\0"
+;     "BOUND\0" "xr,o 62drd\0"
+;     "CALL\0" "FAR!k FFdzood" ALSO "f 9Af" ALSO "k FFdzozd" ALSO "b E8b\0"
+;     "CBW\0" " 98\0"
+;     "CLC\0" " F8\0"
+;     "CLD\0" " FC\0"
+;     "CLI\0" " FA\0"
+;     "CMC\0" " F5\0"
+;     "CMP\0" "j,q 38drd" ALSO "k,r 39drd" ALSO "q,j 3Adrd" ALSO "r,k 3Bdrd" ALSO "vAL,h 3Ci" ALSO "wAX,g 3Dj" ALSO "m,s sdooodj" ALSO "l,t 80dooodi\0"
+;     "CMPSB\0" " A6\0"
+;     "CMPSW\0" " A7\0"
+;     "CS\0" " 2E+\0"
+;     "CWD\0" " 99\0"
+;     "DAA\0" " 27\0"
+;     "DAS\0" " 2F\0"
+;     "DEC\0" "r zozzor" ALSO "l FEdzzod" ALSO "m FFdzzod\0"
+;     "DIV\0" "l F6doozd" ALSO "m F7doozd\0"
+;     "DS\0" " 3E+\0"
+;     "ENTER\0" "xe,h C8ei\0"
+;     "ES\0" " 26+\0"
+;     "HLT\0" " F4\0"
+;     "IDIV\0" "l F6doood" ALSO "m F7doood\0"
+;     "IMUL\0" "l. F6dozod" ALSO "m. F7dozod" ALSO "xp,s. mdrdj" ALSO "xr,k,s mdrdj\0"
+;     "IN\0" "vAL,wDX EC" ALSO "wAX,wDX ED" ALSO "vAL,h E4i" ALSO "wAX,i E5i\0"
+;     "INC\0" "r zozzzr" ALSO "l FEdzzzd" ALSO "m FFdzzzd\0"
+;     "INSB\0" "x 6C\0"
+;     "INSW\0" "x 6D\0"
+;     "INT\0" "i CDi\0"
+;     "INT3\0" " CC\0"
+;     "INTO\0" " CE\0"
+;     "IRET\0" " CF\0"
+;     "JA\0" "a 77a\0"
+;     "JAE\0" "a 73a\0"
+;     "JB\0" "a 72a\0"
+;     "JBE\0" "a 76a\0"
+;     "JC\0" "a 72a\0"
+;     "JCXZ\0" "a E3a\0"
+;     "JE\0" "a 74a\0"
+;     "JG\0" "a 7Fa\0"
+;     "JGE\0" "a 7Da\0"
+;     "JL\0" "a 7Ca\0"
+;     "JLE\0" "a 7Ea\0"
+;     "JMP\0" "FAR!k FFdozod" ALSO "f EAf" ALSO "k FFdozzd" ALSO "c EBa" ALSO "b E9b\0"
+;     "JNA\0" "a 76a\0"
+;     "JNAE\0" "a 72a\0"
+;     "JNB\0" "a 73a\0"
+;     "JNBE\0" "a 77a\0"
+;     "JNC\0" "a 73a\0"
+;     "JNE\0" "a 75a\0"
+;     "JNG\0" "a 7Ea\0"
+;     "JNGE\0" "a 7Ca\0"
+;     "JNL\0" "a 7Da\0"
+;     "JNLE\0" "a 7Fa\0"
+;     "JNO\0" "a 71a\0"
+;     "JNP\0" "a 7Ba\0"
+;     "JNS\0" "a 79a\0"
+;     "JNZ\0" "a 75a\0"
+;     "JO\0" "a 70a\0"
+;     "JP\0" "a 7Aa\0"
+;     "JPE\0" "a 7Aa\0"
+;     "JPO\0" "a 7Ba\0"
+;     "JS\0" "a 78a\0"
+;     "JZ\0" "a 74a\0"
+;     "LAHF\0" " 9F\0"
+;     "LDS\0" "r,n C5drd\0"
+;     "LEA\0" "r,o 8Ddrd\0"
+;     "LEAVE\0" "x C9\0"
+;     "LES\0" "r,n C4drd\0"
+;     "LOCK\0" " F0+\0"
+;     "LODSB\0" " AC\0"
+;     "LODSW\0" " AD\0"
+;     "LOOP\0" "a E2a\0"
+;     "LOOPE\0" "a E1a\0"
+;     "LOOPNE\0" "a E0a\0"
+;     "LOOPNZ\0" "a E0a\0"
+;     "LOOPZ\0" "a E1a\0"
+;     "MOV\0" "j,q 88drd" ALSO "k,r 89drd" ALSO "q,j 8Adrd" ALSO "r,k 8Bdrd" ALSO "k,ES 8Cdzzzd" ALSO "k,CS 8Cdzzod" ALSO "k,SS 8Cdzozd" ALSO "k,DS 8Cdzood" ALSO "ES,k 8Edzzzd" ALSO "CS,k 8Edzzod" ALSO "SS,k 8Edzozd" ALSO "DS,k 8Edzood" ALSO "q,h ozoozri" ALSO "r,i ozooorj" ALSO "m,u C7dzzzdj" ALSO "l,t C6dzzzdi\0"
+;     "MOVSB\0" " A4\0"
+;     "MOVSW\0" " A5\0"
+;     "MUL\0" "l F6dozzd" ALSO "m F7dozzd\0"
+;     "NEG\0" "l F6dzood" ALSO "m F7dzood\0"
+;     "NOP\0" " 90\0"
+;     "NOT\0" "l F6dzozd" ALSO "m F7dzozd\0"
+;     "OR\0" "j,q 08drd" ALSO "k,r 09drd" ALSO "q,j 0Adrd" ALSO "r,k 0Bdrd" ALSO "vAL,h 0Ci" ALSO "wAX,g 0Dj" ALSO "m,s sdzzodj" ALSO "l,t 80dzzodi\0"
+;     "OUT\0" "wDX,vAL EE" ALSO "wDX,AX EF" ALSO "h,vAL E6i" ALSO "i,AX E7i\0"
+;     "OUTSB\0" "x 6E\0"
+;     "OUTSW\0" "x 6F\0"
+;     "PAUSE\0" " F390\0"
+;     "POP\0" "ES 07" ALSO "SS 17" ALSO "DS 1F" ALSO "CS 0F" ALSO "r zozoor" ALSO "k 8Fdzzzd\0"
+;     "POPA\0" "x 61\0"
+;     "POPAW\0" "x 61\0"
+;     "POPF\0" " 9D\0"
+;     "PUSH\0" "ES 06" ALSO "CS 0E" ALSO "SS 16" ALSO "DS 1E" ALSO "r zozozr" ALSO "xs lj" ALSO "k FFdoozd\0"
+;     "PUSHA\0" "x 60\0"
+;     "PUSHAW\0" "x 60\0"
+;     "PUSHF\0" " 9C\0"
+;     "RCL\0" "j,1 gdzozdk" ALSO "k,1 hdzozdk" ALSO "j,CL D2dzozd" ALSO "k,CL D3dzozd\0"
+;     "RCR\0" "j,1 gdzoodk" ALSO "k,1 hdzoodk" ALSO "j,CL D2dzood" ALSO "k,CL D3dzood\0"
+;     "REP\0" " F3+\0"
+;     "REPE\0" " F3+\0"
+;     "REPNE\0" " F2+\0"
+;     "REPNZ\0" " F2+\0"
+;     "REPZ\0" " F3+\0"
+;     "RET\0" "i C2j" ALSO " C3\0"
+;     "RETF\0" "i CAj" ALSO " CB\0"
+;     "ROL\0" "j,1 gdzzzdk" ALSO "k,1 hdzzzdk" ALSO "j,CL D2dzzzd" ALSO "k,CL D3dzzzd\0"
+;     "ROR\0" "j,1 gdzzodk" ALSO "k,1 hdzzodk" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
+;     "SAHF\0" " 9E\0"
+;     "SAL\0" "j,1 gdozzdk" ALSO "k,1 hdozzdk" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+;     "SAR\0" "j,1 gdooodk" ALSO "k,1 hdooodk" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
+;     "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
+;     "SCASB\0" " AE\0"
+;     "SCASW\0" " AF\0"
+;     "SHL\0" "j,1 gdozzdk" ALSO "k,1 hdozzdk" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+;     "SHR\0" "j,1 gdozodk" ALSO "k,1 hdozodk" ALSO "j,CL D2dozod" ALSO "k,CL D3dozod\0"
+;     "SS\0" " 36+\0"
+;     "STC\0" " F9\0"
+;     "STD\0" " FD\0"
+;     "STI\0" " FB\0"
+;     "STOSB\0" " AA\0"
+;     "STOSW\0" " AB\0"
+;     "SUB\0" "j,q 28drd" ALSO "k,r 29drd" ALSO "q,j 2Adrd" ALSO "r,k 2Bdrd" ALSO "vAL,h 2Ci" ALSO "wAX,g 2Dj" ALSO "m,s sdozodj" ALSO "l,t 80dozodi\0"
+;     "TEST\0" "j,q 84drd" ALSO "q,j 84drd" ALSO "k,r 85drd" ALSO "r,k 85drd" ALSO "vAL,h A8i" ALSO "wAX,i A9j" ALSO "m,u F7dzzzdj" ALSO "l,t F6dzzzdi\0"
+;     "UD0\0" "y 0FFF\0"
+;     "UD1\0" "y 0FB9\0"
+;     "UD2\0" "y 0F0B\0"
+;     "WAIT\0" " 9B+\0"
+;     "XCHG\0" "wAX,r ozzozr" ALSO "r,AX ozzozr" ALSO "q,j 86drd" ALSO "j,q 86drd" ALSO "r,k 87drd" ALSO "k,r 87drd\0"
+;     "XLAT\0" " D7\0"
+;     "XOR\0" "j,q 30drd" ALSO "k,r 31drd" ALSO "q,j 32drd" ALSO "r,k 33drd" ALSO "vAL,h 34i" ALSO "wAX,g 35j" ALSO "m,s sdoozdj" ALSO "l,t 80doozdi\0"
+; ;
+_instruction_set:
+ALSO		equ '-'
+		db 'AAA', 0, ' 37', 0
+		db 'AAD', 0, 'i D5i', ALSO, ' D50A', 0
+		db 'AAM', 0, 'i D4i', ALSO, ' D40A', 0
+		db 'AAS', 0, ' 3F', 0
+		db 'ADC', 0, 'j,q 10drd', ALSO, 'k,r 11drd', ALSO, 'q,j 12drd', ALSO, 'r,k 13drd', ALSO, 'vAL,h 14i', ALSO, 'wAX,g 15j', ALSO, 'm,s sdzozdj', ALSO, 'l,t 80dzozdi', 0
+		db 'ADD', 0, 'j,q 00drd', ALSO, 'k,r 01drd', ALSO, 'q,j 02drd', ALSO, 'r,k 03drd', ALSO, 'vAL,h 04i', ALSO, 'wAX,g 05j', ALSO, 'm,s sdzzzdj', ALSO, 'l,t 80dzzzdi', 0
+		db 'AND', 0, 'j,q 20drd', ALSO, 'k,r 21drd', ALSO, 'q,j 22drd', ALSO, 'r,k 23drd', ALSO, 'vAL,h 24i', ALSO, 'wAX,g 25j', ALSO, 'm,s sdozzdj', ALSO, 'l,t 80dozzdi', 0
+		db 'BOUND', 0, 'xr,o 62drd', 0
+		db 'CALL', 0, 'FAR!k FFdzood', ALSO, 'f 9Af', ALSO, 'k FFdzozd', ALSO, 'b E8b', 0
+		db 'CBW', 0, ' 98', 0
+		db 'CLC', 0, ' F8', 0
+		db 'CLD', 0, ' FC', 0
+		db 'CLI', 0, ' FA', 0
+		db 'CMC', 0, ' F5', 0
+		db 'CMP', 0, 'j,q 38drd', ALSO, 'k,r 39drd', ALSO, 'q,j 3Adrd', ALSO, 'r,k 3Bdrd', ALSO, 'vAL,h 3Ci', ALSO, 'wAX,g 3Dj', ALSO, 'm,s sdooodj', ALSO, 'l,t 80dooodi', 0
+		db 'CMPSB', 0, ' A6', 0
+		db 'CMPSW', 0, ' A7', 0
+		db 'CS', 0, ' 2E+', 0
+		db 'CWD', 0, ' 99', 0
+		db 'DAA', 0, ' 27', 0
+		db 'DAS', 0, ' 2F', 0
+		db 'DEC', 0, 'r zozzor', ALSO, 'l FEdzzod', ALSO, 'm FFdzzod', 0
+		db 'DIV', 0, 'l F6doozd', ALSO, 'm F7doozd', 0
+		db 'DS', 0, ' 3E+', 0
+		db 'ENTER', 0, 'xe,h C8ei', 0
+		db 'ES', 0, ' 26+', 0
+		db 'HLT', 0, ' F4', 0
+		db 'IDIV', 0, 'l F6doood', ALSO, 'm F7doood', 0
+		db 'IMUL', 0, 'l. F6dozod', ALSO, 'm. F7dozod', ALSO, 'xp,s. mdrdj', ALSO, 'xr,k,s mdrdj', 0
+		db 'IN', 0, 'vAL,wDX EC', ALSO, 'wAX,wDX ED', ALSO, 'vAL,h E4i', ALSO, 'wAX,i E5i', 0
+		db 'INC', 0, 'r zozzzr', ALSO, 'l FEdzzzd', ALSO, 'm FFdzzzd', 0
+		db 'INSB', 0, 'x 6C', 0
+		db 'INSW', 0, 'x 6D', 0
+		db 'INT', 0, 'i CDi', 0
+		db 'INT3', 0, ' CC', 0
+		db 'INTO', 0, ' CE', 0
+		db 'IRET', 0, ' CF', 0
+		db 'JA', 0, 'a 77a', 0
+		db 'JAE', 0, 'a 73a', 0
+		db 'JB', 0, 'a 72a', 0
+		db 'JBE', 0, 'a 76a', 0
+		db 'JC', 0, 'a 72a', 0
+		db 'JCXZ', 0, 'a E3a', 0
+		db 'JE', 0, 'a 74a', 0
+		db 'JG', 0, 'a 7Fa', 0
+		db 'JGE', 0, 'a 7Da', 0
+		db 'JL', 0, 'a 7Ca', 0
+		db 'JLE', 0, 'a 7Ea', 0
+		db 'JMP', 0, 'FAR!k FFdozod', ALSO, 'f EAf', ALSO, 'k FFdozzd', ALSO, 'c EBa', ALSO, 'b E9b', 0
+		db 'JNA', 0, 'a 76a', 0
+		db 'JNAE', 0, 'a 72a', 0
+		db 'JNB', 0, 'a 73a', 0
+		db 'JNBE', 0, 'a 77a', 0
+		db 'JNC', 0, 'a 73a', 0
+		db 'JNE', 0, 'a 75a', 0
+		db 'JNG', 0, 'a 7Ea', 0
+		db 'JNGE', 0, 'a 7Ca', 0
+		db 'JNL', 0, 'a 7Da', 0
+		db 'JNLE', 0, 'a 7Fa', 0
+		db 'JNO', 0, 'a 71a', 0
+		db 'JNP', 0, 'a 7Ba', 0
+		db 'JNS', 0, 'a 79a', 0
+		db 'JNZ', 0, 'a 75a', 0
+		db 'JO', 0, 'a 70a', 0
+		db 'JP', 0, 'a 7Aa', 0
+		db 'JPE', 0, 'a 7Aa', 0
+		db 'JPO', 0, 'a 7Ba', 0
+		db 'JS', 0, 'a 78a', 0
+		db 'JZ', 0, 'a 74a', 0
+		db 'LAHF', 0, ' 9F', 0
+		db 'LDS', 0, 'r,n C5drd', 0
+		db 'LEA', 0, 'r,o 8Ddrd', 0
+		db 'LEAVE', 0, 'x C9', 0
+		db 'LES', 0, 'r,n C4drd', 0
+		db 'LOCK', 0, ' F0+', 0
+		db 'LODSB', 0, ' AC', 0
+		db 'LODSW', 0, ' AD', 0
+		db 'LOOP', 0, 'a E2a', 0
+		db 'LOOPE', 0, 'a E1a', 0
+		db 'LOOPNE', 0, 'a E0a', 0
+		db 'LOOPNZ', 0, 'a E0a', 0
+		db 'LOOPZ', 0, 'a E1a', 0
+		db 'MOV', 0, 'j,q 88drd', ALSO, 'k,r 89drd', ALSO, 'q,j 8Adrd', ALSO, 'r,k 8Bdrd', ALSO, 'k,ES 8Cdzzzd', ALSO, 'k,CS 8Cdzzod', ALSO, 'k,SS 8Cdzozd', ALSO, 'k,DS 8Cdzood', ALSO, 'ES,k 8Edzzzd', ALSO, 'CS,k 8Edzzod', ALSO, 'SS,k 8Edzozd', ALSO
+		    db 'DS,k 8Edzood', ALSO, 'q,h ozoozri', ALSO, 'r,i ozooorj', ALSO, 'm,u C7dzzzdj', ALSO, 'l,t C6dzzzdi', 0
+		db 'MOVSB', 0, ' A4', 0
+		db 'MOVSW', 0, ' A5', 0
+		db 'MUL', 0, 'l F6dozzd', ALSO, 'm F7dozzd', 0
+		db 'NEG', 0, 'l F6dzood', ALSO, 'm F7dzood', 0
+		db 'NOP', 0, ' 90', 0
+		db 'NOT', 0, 'l F6dzozd', ALSO, 'm F7dzozd', 0
+		db 'OR', 0, 'j,q 08drd', ALSO, 'k,r 09drd', ALSO, 'q,j 0Adrd', ALSO, 'r,k 0Bdrd', ALSO, 'vAL,h 0Ci', ALSO, 'wAX,g 0Dj', ALSO, 'm,s sdzzodj', ALSO, 'l,t 80dzzodi', 0
+		db 'OUT', 0, 'wDX,vAL EE', ALSO, 'wDX,AX EF', ALSO, 'h,vAL E6i', ALSO, 'i,AX E7i', 0
+		db 'OUTSB', 0, 'x 6E', 0
+		db 'OUTSW', 0, 'x 6F', 0
+		db 'PAUSE', 0, ' F390', 0
+		db 'POP', 0, 'ES 07', ALSO, 'SS 17', ALSO, 'DS 1F', ALSO, 'CS 0F', ALSO, 'r zozoor', ALSO, 'k 8Fdzzzd', 0
+		db 'POPA', 0, 'x 61', 0
+		db 'POPAW', 0, 'x 61', 0
+		db 'POPF', 0, ' 9D', 0
+		db 'PUSH', 0, 'ES 06', ALSO, 'CS 0E', ALSO, 'SS 16', ALSO, 'DS 1E', ALSO, 'r zozozr', ALSO, 'xs lj', ALSO, 'k FFdoozd', 0
+		db 'PUSHA', 0, 'x 60', 0
+		db 'PUSHAW', 0, 'x 60', 0
+		db 'PUSHF', 0, ' 9C', 0
+		db 'RCL', 0, 'j,1 gdzozdk', ALSO, 'k,1 hdzozdk', ALSO, 'j,CL D2dzozd', ALSO, 'k,CL D3dzozd', 0
+		db 'RCR', 0, 'j,1 gdzoodk', ALSO, 'k,1 hdzoodk', ALSO, 'j,CL D2dzood', ALSO, 'k,CL D3dzood', 0
+		db 'REP', 0, ' F3+', 0
+		db 'REPE', 0, ' F3+', 0
+		db 'REPNE', 0, ' F2+', 0
+		db 'REPNZ', 0, ' F2+', 0
+		db 'REPZ', 0, ' F3+', 0
+		db 'RET', 0, 'i C2j', ALSO, ' C3', 0
+		db 'RETF', 0, 'i CAj', ALSO, ' CB', 0
+		db 'ROL', 0, 'j,1 gdzzzdk', ALSO, 'k,1 hdzzzdk', ALSO, 'j,CL D2dzzzd', ALSO, 'k,CL D3dzzzd', 0
+		db 'ROR', 0, 'j,1 gdzzodk', ALSO, 'k,1 hdzzodk', ALSO, 'j,CL D2dzzod', ALSO, 'k,CL D3dzzod', 0
+		db 'SAHF', 0, ' 9E', 0
+		db 'SAL', 0, 'j,1 gdozzdk', ALSO, 'k,1 hdozzdk', ALSO, 'j,CL D2dozzd', ALSO, 'k,CL D3dozzd', 0
+		db 'SAR', 0, 'j,1 gdooodk', ALSO, 'k,1 hdooodk', ALSO, 'j,CL D2doood', ALSO, 'k,CL D3doood', 0
+		db 'SBB', 0, 'j,q 18drd', ALSO, 'k,r 19drd', ALSO, 'q,j 1Adrd', ALSO, 'r,k 1Bdrd', ALSO, 'vAL,h 1Ci', ALSO, 'wAX,g 1Dj', ALSO, 'm,s sdzoodj', ALSO, 'l,t 80dzoodi', 0
+		db 'SCASB', 0, ' AE', 0
+		db 'SCASW', 0, ' AF', 0
+		db 'SHL', 0, 'j,1 gdozzdk', ALSO, 'k,1 hdozzdk', ALSO, 'j,CL D2dozzd', ALSO, 'k,CL D3dozzd', 0
+		db 'SHR', 0, 'j,1 gdozodk', ALSO, 'k,1 hdozodk', ALSO, 'j,CL D2dozod', ALSO, 'k,CL D3dozod', 0
+		db 'SS', 0, ' 36+', 0
+		db 'STC', 0, ' F9', 0
+		db 'STD', 0, ' FD', 0
+		db 'STI', 0, ' FB', 0
+		db 'STOSB', 0, ' AA', 0
+		db 'STOSW', 0, ' AB', 0
+		db 'SUB', 0, 'j,q 28drd', ALSO, 'k,r 29drd', ALSO, 'q,j 2Adrd', ALSO, 'r,k 2Bdrd', ALSO, 'vAL,h 2Ci', ALSO, 'wAX,g 2Dj', ALSO, 'm,s sdozodj', ALSO, 'l,t 80dozodi', 0
+		db 'TEST', 0, 'j,q 84drd', ALSO, 'q,j 84drd', ALSO, 'k,r 85drd', ALSO, 'r,k 85drd', ALSO, 'vAL,h A8i', ALSO, 'wAX,i A9j', ALSO, 'm,u F7dzzzdj', ALSO, 'l,t F6dzzzdi', 0
+		db 'UD0', 0, 'y 0FFF', 0
+		db 'UD1', 0, 'y 0FB9', 0
+		db 'UD2', 0, 'y 0F0B', 0
+		db 'WAIT', 0, ' 9B+', 0
+		db 'XCHG', 0, 'wAX,r ozzozr', ALSO, 'r,AX ozzozr', ALSO, 'q,j 86drd', ALSO, 'j,q 86drd', ALSO, 'r,k 87drd', ALSO, 'k,r 87drd', 0
+		db 'XLAT', 0, ' D7', 0
+		db 'XOR', 0, 'j,q 30drd', ALSO, 'k,r 31drd', ALSO, 'q,j 32drd', ALSO, 'r,k 33drd', ALSO, 'vAL,h 34i', ALSO, 'wAX,g 35j', ALSO, 'm,s sdoozdj', ALSO, 'l,t 80doozdi', 0
+		db 0
 
 ___section_mininasm_c_data:
 
-_listing_fd		db 255, 255
-_emit_bbb		dw _emit_buf
-		dw _emit_buf+512
+_listing_fd	dw -1
+; struct bbprintf_buf emit_bbb = { emit_buf, emit_buf + sizeof(emit_buf), emit_buf, 0, emit_flush };
+_emit_bbb:
 		dw _emit_buf
-		db 0, 0
+		dw _emit_buf+0x200
+		dw _emit_buf
+		dw 0
 		dw emit_flush_
-_message_bbb		dw _message_buf
-		dw _message_buf+512
+; /* data = 0 means write to listing_fd only, = 1 means write to stderr + listing_fd. */
+; struct bbprintf_buf message_bbb = { message_buf, message_buf + sizeof(message_buf), message_buf, 0, message_flush };
+_message_bbb:
 		dw _message_buf
-		db 0, 0
+		dw _message_buf+0x200
+		dw _message_buf
+		dw 0
 		dw message_flush_
-_mininasm_macro_name		db ' __MININASM__'
+_mininasm_macro_name db ' __MININASM__'
+.end:
 
 ; --- Variables initialized to 0 by _start.
 ___section_nobss_end:
@@ -13173,10 +13458,9 @@ _opt_level		resb 1
 _do_opt_segreg		resb 1
 _instruction_addressing		resb 1
 _size_decrease_count		resb 1
-@$1067		resb 2
-@$1068		resb 202
-@$1069		resb 600
-@$1070		resb 2
+@$tree_path		resb 204  ; static struct tree_path_entry path[RB_LOG2_MAX_NODES << 1];
+@$match_stack		resb 600  ; static struct match_stack_item { ... } match_stack[CONFIG_MATCH_STACK_DEPTH];
+@$segment_value		resb 2
 
 ; --- Uninitialized .bss used by _start.    ___section_startup_ubss:
 ___section_startup_ubss:
