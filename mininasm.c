@@ -539,8 +539,8 @@ static UNALIGNED char instr_name[10];  /* Assembly instruction mnemonic name or 
 static UNALIGNED char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
 
-static char *g;  /* !! TODO(pts): Rename this variable, make it longer for easier searching. */
-static char generated[8];
+static char *generated_cur;
+static char generated_buf[8];
 static char *generated_ptr;
 
 #ifndef CONFIG_SUPPORT_WARNINGS
@@ -1843,8 +1843,8 @@ static void emit_bytes(const char *s, int size)  {
     if (assembler_pass > 1) {
         emit_write(s, size);
         bytes += size;
-        if (g != NULL) {
-            for (; size > 0 && g != generated + sizeof(generated); *g++ = *s++, --size) {}
+        if (generated_cur != NULL) {
+            for (; size > 0 && generated_cur != generated_buf + sizeof(generated_buf); *generated_cur++ = *s++, --size) {}
         }
     }
 }
@@ -3012,7 +3012,7 @@ static void do_assembly(const char *input_filename) {
         }
 
         line_address = current_address;
-        g = generated_ptr;
+        generated_cur = generated_ptr;
         include = 0;
 
         p = avoid_spaces(line);
@@ -3407,7 +3407,7 @@ static void do_assembly(const char *input_filename) {
             p = p3;
           do_instruction_with_times:
             line_address = current_address;
-            g = generated_ptr;
+            generated_cur = generated_ptr;
             for (; (uvalue_t)times != 0; --times) {
                 process_instruction(p);
             }
@@ -3416,10 +3416,10 @@ static void do_assembly(const char *input_filename) {
         if (assembler_pass > 1 && listing_fd >= 0) {
             bbprintf(&message_bbb /* listing_fd */, "%04" FMT_VALUE "X  ", GET_UVALUE(line_address));
             p = generated_ptr;
-            while (p < g) {
+            while (p < generated_cur) {
                 bbprintf(&message_bbb /* listing_fd */, "%02X", *p++ & 255);
             }
-            while (p < generated + sizeof(generated)) {
+            while (p < generated_buf + sizeof(generated_buf)) {
                 bbprintf(&message_bbb /* listing_fd */, "  ");
                 p++;
             }
@@ -3448,7 +3448,7 @@ static void do_assembly(const char *input_filename) {
                     MESSAGE1STR(1, "Cannot seek in INCBIN file: ", p3);
                 } else {
                     message_flush(NULL);  /* Because we reuse message_buf below. */
-                    g = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
+                    generated_cur = NULL;  /* Doesn't make an actual difference, incbin is called too late to append to incbin anyway. */
                     /* Condition below is good even if incbin_size == -1 (unlimited). */
                     while (incbin_size != 0) {
                         if ((got = read(incbin_fd, message_buf, (uvalue_t)incbin_size < sizeof(message_buf) ? (unsigned)incbin_size : sizeof(message_buf))) <= 0) {
@@ -3661,7 +3661,7 @@ int main(int argc, char **argv)
                     MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
                     return 1;
                 }
-                generated_ptr = generated;  /* Start saving bytes to the `generated' array, for the listing. */
+                generated_ptr = generated_buf;  /* Start saving bytes to the `generated_buf' array, for the listing. */
             }
             if (HAS_OPEN_FAILED(output_fd = creat(output_filename, 0644))) {
                 MESSAGE1STR(1, "couldn't open '%s' as output file", output_filename);
