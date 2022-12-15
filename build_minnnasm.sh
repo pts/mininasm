@@ -35,9 +35,8 @@ fi
 "$DOSMC" -mt -cpn -fm=minnnasm.map minnnasm.c  # Linking to minnnasm.com succeeds.
 rm -f minnnasm.com
 "$DOSMC" -mt -c -d1 minnnasm.c  # Creates minnnasm.obj, linking won't succeed because of debug symbols.
-rm -f minnnasm.c
 wdis -s -a -fi '-i=@' minnnasm.obj >minnnasm.wasm
-rm -f minnnasm.obj
+rm -f minnnasm.c minnnasm.obj
 
 # Convert from .wasm to .nasm assembly syntax.
 # !! Convert db hex to db 'literal': perl -pe 's@([0-9a-f]+)H@ my $o = hex($1); ($o >= 32 and $o <= 126 and $o != 0x27) ? "\x27" . chr($o) . "\x27" : $o @ge; s@\x27, \x27@@g'
@@ -637,7 +636,7 @@ ___section_mininasm_c_bss:
         s@:\n    (D[BWD])[ \t]+@\t\t\L$1 @g;
         s@^    (D[BWD])[ \t]+@\t\t\L$1 @mg;
         s@\s+\Z(?!\n)@\n@;
-        s@^((?:\S+[ \t]+)?)(d[bwd])[ \t]+(.{255,})@ $split_long_line->($1, $2, $3) @mge;
+        s@^((?:\S+[ \t]+)?)(d[bwd])[ \t]+(.{255,})\n@ $split_long_line->($1, $2, $3) @mge;
         # TODO(pts): Split string literals if needed.
         die "fatal: line too long for mininasm: $_\n" if m@^(.{255,})@;
         print;
