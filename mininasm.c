@@ -1201,6 +1201,7 @@ static const char *match_expression(const char *match_p) {
             }
           parse_hex1:  /* Maybe hexadecimal. */
             if ((c | 32) == 'h' || isxdigit(c)) {  /* Hexadecimal, start again. */
+              parse_hex2:
                 match_p = p2;
                 value1 = 0;
                 shift = 1;
@@ -1252,7 +1253,7 @@ static const char *match_expression(const char *match_p) {
             } else {
                 ++match_p;
             }
-        } else if (isdigit(c)) {  /* Decimal or hexadecimal, even if it starts with '0'. */
+        } else if (isdigit(c)) {  /* Decimal, binary, octal or hexadecimal, even if it starts with '0'. */
             /*value1 = 0;*/
             for (p2 = (char*)match_p; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 9U; ++match_p) {
                 value1 = value1 * 10 + c;
@@ -1263,13 +1264,16 @@ static const char *match_expression(const char *match_p) {
                 value1 = 0;
                 shift = 1;
                 goto parse_octal;
-            } else if (c == 'b') {
+            } else if (c == 'b') {  /* Binary or hexadecimal. */
                 value1 = 0;
                 for (match_p = p2; (unsigned char)(c = SUB_U(match_p[0], '0')) <= 2U; ++match_p) {
                     value1 <<= 1;
                     value1 |= c;
                 }
-                ++match_p;  /* Skip over the 'b' or 'B'. */
+                c = *++match_p;  /* Skip over the 'b' or 'B'. */
+                if ((c | 32) == 'h' || isxdigit(c)) {  /* Hexadecimal, start again. */
+                    goto parse_hex2;
+                }
             } else {
                 goto parse_hex1;
             }
