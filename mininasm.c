@@ -309,6 +309,16 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #  define ALIGN_MAYBE_4
 #endif
 
+#ifndef CONFIG_DOSMC_LIMIT_MEMORY_64K  /* 64 KiB of limit applied to total program usage (including code, global variables, stack and labels, excluding buffers managed by DOS). */
+#  define CONFIG_DOSMC_LIMIT_MEMORY_64K 0
+#endif
+
+#if CONFIG_DOSMC_LIMIT_MEMORY_64K
+#  define DOSMC_ADD_AX_AVAILABLE_PARAS "add ax, 1000h"  /* 64 KiB is 0x1000 paragraphs. */
+#else
+#  define DOSMC_ADD_AX_AVAILABLE_PARAS "add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */
+#endif
+
 #ifdef __DOSMC__
 __LINKER_FLAG(stack_size__0x140)  /* Specify -sc to dosmc, and run it to get the `max st:HHHH' value printed, and round up 0xHHHH to here. Typical value: 0x134. */
 /* Below is a simple malloc implementation using an arena which is never
@@ -329,7 +339,7 @@ static void malloc_init(void);
 __MOV_AX_PSP_MCB__ \
 "mov es, ax"  /* Memory Control Block (MCB). */ \
 "inc ax"  /* Program Segment Prefix (PSP). */ \
-"add ax, [es:3]"  /* Size of block in paragraphs. DOS has preallocated it to maximum size when loading the .com program. */ \
+DOSMC_ADD_AX_AVAILABLE_PARAS \
 "mov word ptr [offset __malloc_struct__], ax"  /* Set malloc_end_para. */ \
 ;
 /* Allocates `size' bytes unaligned. Returns the beginning of the allocated
