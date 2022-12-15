@@ -105,6 +105,8 @@ Similarities between mininasm and NASM:
         dd
         align
         resb
+        resw
+        resd
         section .bss align=1
 	absolute $
 
@@ -192,7 +194,7 @@ Differences between mininasm and NASM:
 * Floating point literals are not supported.
 
 * Label definitions without (a leading `$' or a trailing `:') are supported
-  only for `equ', `times', `db', `dw' and `dd'.
+  only for `equ', `times', `db', `dw', `dd', `resb', `resw', `resd'.
 
 * `section' definitions are not supported, except for `absolute $' and
   `section .bss align=1', both of which can be used to start the .bss, i.e.

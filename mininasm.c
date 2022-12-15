@@ -1001,13 +1001,19 @@ static int islabel1(int c) {
  * NUL-terminated string p matches the NUL-terminated pattern.
  *
  * The match is performed from left to right, one byte at a time.
+ *
  * A '!' in the pattern matches the end-of-string or a non-islabel(...)
  * character and anything afterwards.
+ *
  * A '*' in the pattern matches anything afterwards. An uppercase
  * letter in the pattern matches itself and the lowercase equivalent.
+ *
  * A '\0' in the pattern matches the '\0', and the matching stops
  * with true. Every other byte in the pattern matches itself, and the
  * matching continues.
+ *
+ * A '#" in the pattern matches a single letter 'B', 'W' or 'D', or
+ * the lowercase equivalent.
  */
 static char casematch(const char *p, const char *pattern) {
     char c;
@@ -1017,6 +1023,13 @@ static char casematch(const char *p, const char *pattern) {
         } else if (c == '!') {
             if (islabel(*p)) return 0;  /* Doesn't return 0 for end-of-string. */
             break;
+        } else if (c == '#') {
+            c = *p & ~32;
+            if (c != 'B' && c != 'W'
+#if CONFIG_VALUE_BITS == 32
+                && c != 'D'
+#endif
+               ) return 0;
         } else {
             if (*p != c) return 0;
             if (c == '\0') break;
@@ -1032,15 +1045,10 @@ static int is_colonless_instruction(const char *p) {
     char c = p[0] & ~32;
     if (c == 'E') {
         return casematch(p, "EQU!");
-    } else if (c == 'D') {
-        c = p[1] & ~32;
-        return (c == 'B' || c == 'W'
-#if CONFIG_VALUE_BITS == 32
-            || c == 'D'  /* "DD". */
-#endif
-            ) && !islabel(p[2]);
+    } else if (c == 'D') {  /* DB, DW or DD. */
+        return casematch(p, "D#!");
     } else if (c == 'R') {
-        return casematch(p, "RESB!");
+        return casematch(p, "RES#!");  /* RESB, RESW or RESD. */
     } else if (c == 'T') {
         return casematch(p, "TIMES!");
     } else {
@@ -3262,7 +3270,7 @@ static void do_assembly(const char *input_filename) {
                 is_bss = 1;
             }
         } else if (is_bss) {
-            if (casematch(instr_name, "RESB")) {
+            if (casematch(instr_name, "RES#")) {
                 /* We also could add RESW, RESD, ALIGNB, but the user can implement them in terms of RESB. */
                 p = match_expression(p);
                 if (p == NULL) {
@@ -3273,6 +3281,17 @@ static void do_assembly(const char *input_filename) {
                     MESSAGE(1, "RESB value is negative");
                 } else if (!check_end(p)) {
                 } else {
+                    pc = instr_name[3] & ~32;
+                    if (pc == 'W'
+#if CONFIG_VALUE_BITS == 32
+                        || pc == 'D'
+#endif
+                       ) {
+                        instruction_value <<= 1;
+                    }
+#if CONFIG_VALUE_BITS == 32
+                    if (pc == 'D') instruction_value <<= 1;
+#endif
                     current_address += instruction_value;
                 }
             } else {
