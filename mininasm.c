@@ -538,6 +538,7 @@ static unsigned char do_opt_int;  /* -OI. */
 static UNALIGNED char instr_name[10];  /* Assembly instruction mnemonic name or preprocessor directive name. Always ends with '\0', maybe truncated. */
 static UNALIGNED char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
+static char is_global_label_in_use;
 
 static char *g;  /* !! TODO(pts): Rename this variable, make it longer for easier searching. */
 static char generated[8];
@@ -1307,10 +1308,22 @@ static const char *match_expression(const char *match_p) {
             }
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
-            p2 = global_label_end;
-            p3 = (c == '.' && !(match_p[1] == '.' && match_p[2] == '@')) ? global_label : p2;  /* If label starts with `.', but not with `..@', then prepend global_label. */
-            for (; islabel(match_p[0]); *p2++ = *match_p++) {}
-            *p2 = '\0';
+            if (c == '.' && !(match_p[1] == '.' && match_p[2] == '@')) {
+                if (is_global_label_in_use) goto find_global_label;  /* At least detect the error. Example source code to trigger it: `.foo equ .bar'. Change it to `.foo equ top.bar'. */
+                p2 = global_label_end;
+                p3 = global_label;  /* If label starts with `.', but not with `..@', then prepend global_label. */
+                for (; islabel(match_p[0]); *p2++ = *match_p++) {}
+                *p2 = '\0';
+                c = 0;
+                p2 = global_label_end;
+            } else {
+              find_global_label:
+                p3 = (char*)match_p;
+                for (; islabel(match_p[0]); ++match_p) {}
+                c = match_p[0];
+                ((char*)match_p)[0] = '\0';
+                p2 = (char*)match_p;
+            }
             if (0) DEBUG1("use_label=(%s)\r\n", p3);
             label = find_label(p3);
             if (label == NULL || RBL_IS_DELETED(label)) {
@@ -1322,7 +1335,7 @@ static const char *match_expression(const char *match_p) {
             } else {
                 value1 = label->value;
             }
-            *global_label_end = '\0';  /* Undo the concat to global_label. */
+            ((char*)p2)[0] = c;  /* Undo. */
         } else {
             /* TODO(pts): Make this match syntax error nonsilent? What about when trying instructions? */
             goto match_error;
@@ -3117,6 +3130,7 @@ static void do_assembly(const char *input_filename) {
                 *liner = '\0';
                 if (p[0] != '.') global_label_end = liner;
                 liner = global_label;
+                is_global_label_in_use = 1;  /* For match_expression(...) below. */
             }
             p = psave;
             if (pc) {  /* EQU. */
@@ -3132,6 +3146,7 @@ static void do_assembly(const char *input_filename) {
                 instruction_value = current_address;
                 create_label(liner);
             }
+            is_global_label_in_use = 0;  /* Undo. */
             *global_label_end = '\0';  /* Undo the concat to global_label. */
             ((char*)p3)[0] = rc;  /* Undo the change. */
             if (p == NULL) goto after_line;

@@ -275,6 +275,12 @@ Differences between mininasm and NASM:
   `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
   in NASM).
 
+* For implementation details (to save ~460 bytes of memory), when defining a
+  local label via `equ', the expression of the `equ' is not allowed to
+  reference local labels. mininasm will fail with an undefined label.
+  The workaround is referencing those labels using their full name (not
+  starting with a period `.').
+
 Optional improvements in mininasm over NASM (disabled by default):
 
 * Optimization of the `lea' instruction (enable with flag `-OL').
