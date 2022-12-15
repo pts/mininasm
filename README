@@ -201,7 +201,7 @@ Differences between mininasm and NASM:
   In both NASM and mininasm, `absolute $' doesn't change `$', while
   `section .bss align=1' resets it to `$$' (because it enters a new section).
 
-  Unlike in NASM, in mininasm the string `.bss' is case insensitive.
+  In both NASM and mininasm, the string `.bss' is case sensitive.
   
   Unlike in NASM, in mininasm it's not possible to switch back to
   `section .text'.

@@ -3244,9 +3244,12 @@ static void do_assembly(const char *input_filename) {
                 }
             }
         } else if (casematch(instr_name, "SECTION")) {
-            /* In NASM, .bss is case sensitive. */
-            if (!casematch(p, ".bss *") || !casematch(avoid_spaces(p + 5), "ALIGN=1")) {
-                MESSAGE1STR(1, "Unsupported SECTION: %s", p);
+            for (p3 = ".bss ", liner = (char*)p; p3[0] != '\0'; ++p, ++p3) {
+              if (p[0] != p3[0]) goto unsupported_section;  /* Case sensitive match of section name, like in NASM. */
+            }
+            if (!casematch(avoid_spaces(p), "ALIGN=1")) {
+              unsupported_section:
+                MESSAGE1STR(1, "Unsupported SECTION: %s", liner);
             } else if (!is_bss) {
                 is_bss = 1;
                 is_address_used = 1;
