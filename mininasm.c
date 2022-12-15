@@ -2816,6 +2816,7 @@ static void do_assembly(const char *input_filename) {
     struct assembly_info *aip;
     const char *p3;
     const char *p;
+    const char *psave;
     char *line;
     char *linep;
     char *liner;
@@ -3095,14 +3096,15 @@ static void do_assembly(const char *input_filename) {
       not_preproc:
 
         /* Parse and process label, if any. */
-        if ((p3 = match_label_prefix(p)) != NULL && (p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(avoid_spaces(p3 + 1))
+        if ((p3 = match_label_prefix(p)) != NULL && p3[0] != '\0' && (psave = avoid_spaces(p3 + 1), p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(psave)
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
-            /*pc = casematch(avoid_spaces(p3 + 1), "EQU!");*/
             if (p[0] == '$') ++p;
             rc = p3[0];
-            if (/*pc ||*/ (p[0] == '.' && p[1] == '.' && p[2] == '@')) {
+            if (((pc = casematch(psave, "EQU!")) != 0 && p[0] != '.') ||  /* If it's an `EQU' for a non-local label, then use the specified label as a global label, and don't change global_label. */
+                (p[0] == '.' && p[1] == '.' && p[2] == '@')  /* If the label name starts with a `:', then use the specified label as a global label, and don't change global_label. */
+               ) {
                 liner = (char*)p;
-                ((char*)p3)[0] = '\0';
+                ((char*)p3)[0] = '\0';  /* ASCIIZ string terminator after tha label. We'll restore the original byte from rc later. */
             } else {
                 liner = (/*pc ||*/ p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
 #if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
@@ -3116,8 +3118,8 @@ static void do_assembly(const char *input_filename) {
                 if (p[0] != '.') global_label_end = liner;
                 liner = global_label;
             }
-            p = avoid_spaces(p3 + 1);
-            if (/*pc*/ casematch(p, "EQU!")) {  /* EQU. */
+            p = psave;
+            if (pc) {  /* EQU. */
                 p = match_expression(p + 3);
                 if (p == NULL) {
                     MESSAGE(1, "bad expression");
