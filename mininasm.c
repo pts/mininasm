@@ -538,7 +538,6 @@ static unsigned char do_opt_int;  /* -OI. */
 static UNALIGNED char instr_name[10];  /* Assembly instruction mnemonic name or preprocessor directive name. Always ends with '\0', maybe truncated. */
 static UNALIGNED char global_label[(MAX_SIZE - 2) * 2 + 1];  /* MAX_SIZE is the maximum allowed line size including the terminating '\n'. Thus 2 in `- 2' is the size of the shortest trailing ":\n". */
 static char *global_label_end;
-static char is_global_label_in_use;
 
 static char *g;  /* !! TODO(pts): Rename this variable, make it longer for easier searching. */
 static char generated[8];
@@ -894,20 +893,52 @@ static struct label MY_FAR *define_label(const char *name, value_t value) {
     return label;
 }
 
+#ifdef __DOSMC__
+typedef signed char my_strcatcmp_far_result_t;
+static my_strcatcmp_far_result_t my_strcatcmp_far(const char *s1a, const char MY_FAR *s1b, const char MY_FAR *s2);
+/* strcmp_far: DX:AX == s1, CX:BX == s2, result in AX, but always -1, or -1 (for strcmp_far), so low byte can be used. */
+#pragma aux my_strcatcmp_far = \
+    "xchg ax, cx" \
+    "dec bx" \
+    "L2:" \
+    "inc bx" \
+    "lodsb" \
+    "cmp al, 0" \
+    "jne L3" \
+    "xchg ax, cx" \
+    "mov cx, es" \
+    "call strcmp_far" \
+    "jmp L5" \
+    "L3:" \
+    "sub al, es:[bx]" \
+    "jz L2" \
+    "L5:" \
+    value [ al ] parm [ si ] [ ax dx ] [ bx es ] modify [ si ax bx cx dx es ];
+#else
+typedef int my_strcatcmp_far_result_t;  /* Because of strcmp_far(...). */
+/* Compares strings s1a+s1b (concatenation) and s2 lexicographically like strcmp: returning -1 if the s2 is larger, 0 if equal, 1 if s2 is smaller. */
+static my_strcatcmp_far_result_t my_strcatcmp_far(const char *s1a, const char MY_FAR *s1b, const char MY_FAR *s2) {
+    for (;; ++s1a, ++s2) {
+        if (*s1a == '\0') return strcmp_far(s1b, s2);
+        if (*s1a != *s2) return *(const unsigned char*)s1a - *(const unsigned char MY_FAR*)s2;
+    }
+}
+#endif
+
 /*
- ** Find a label.
+ ** Find a label named prefix+name.
  **
  ** `name' as passed as a far pointer because reset_macros() needs it.
  */
-static struct label MY_FAR *find_label(const char MY_FAR *name) {
+static struct label MY_FAR *find_cat_label(const char *prefix, const char MY_FAR *name) {
     struct label MY_FAR *explore;
     struct label MY_FAR *milestone = NULL;
-    int c;
+    my_strcatcmp_far_result_t c;
 
     /* Follows a binary tree */
     explore = label_list;
     while (!RBL_IS_NULL(explore)) {
-        c = strcmp_far(name, explore->name);
+        c = my_strcatcmp_far(prefix, name, explore->name);
         if (c == 0) {
             return explore;
         } else if (c < 0) {
@@ -920,6 +951,15 @@ static struct label MY_FAR *find_label(const char MY_FAR *name) {
         }
     }
     return NULL;
+}
+
+/*
+ ** Find a label named `name'.
+ **
+ ** `name' as passed as a far pointer because reset_macros() needs it.
+ */
+static struct label MY_FAR *find_label(const char MY_FAR *name) {
+    return find_cat_label("", name);
 }
 
 /*
@@ -1134,7 +1174,6 @@ static const char *match_expression(const char *match_p) {
     /*union {*/  /* Using union to save stack memory would make __DOSMC__ program larger. */
         unsigned shift;
         char *p2;
-        char *p3;
         struct label MY_FAR *label;
     /*} u;*/
     char c;
@@ -1309,34 +1348,23 @@ static const char *match_expression(const char *match_p) {
             }
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
-            if (c == '.' && !(match_p[1] == '.' && match_p[2] == '@')) {
-                if (is_global_label_in_use) goto find_global_label;  /* At least detect the error. Example source code to trigger it: `.foo equ .bar'. Change it to `.foo equ top.bar'. */
-                p2 = global_label_end;
-                p3 = global_label;  /* If label starts with `.', but not with `..@', then prepend global_label. */
-                for (; islabel(match_p[0]); *p2++ = *match_p++) {}
-                *p2 = '\0';
-                c = 0;
-                p2 = global_label_end;
-            } else {
-              find_global_label:
-                p3 = (char*)match_p;
-                for (; islabel(match_p[0]); ++match_p) {}
-                c = match_p[0];
-                ((char*)match_p)[0] = '\0';
-                p2 = (char*)match_p;
-            }
-            if (0) DEBUG1("use_label=(%s)\r\n", p3);
-            label = find_label(p3);
+            p2 = (char*)match_p;
+            for (; islabel(match_p[0]); ++match_p) {}
+            c = match_p[0];
+            ((char*)match_p)[0] = '\0';
+            /* If label starts with `.', but not with `..@', then prepend global_label. */
+            label = find_cat_label(p2[0] == '.' && !(p2[1] == '.' && p2[2] == '@') ? global_label : "", p2);
+            if (0) DEBUG1("use_label=(%s)\r\n", p2);
             if (label == NULL || RBL_IS_DELETED(label)) {
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
-                    MESSAGE1STR(1, "Undefined label '%s'", p3);
+                    MESSAGE1STR(1, "Undefined label '%s'", p2);  /* Doesn't contain the global label prefix. */
                 }
             } else {
                 value1 = label->value;
             }
-            ((char*)p2)[0] = c;  /* Undo. */
+            ((char*)match_p)[0] = c;  /* Undo. */
         } else {
             /* TODO(pts): Make this match syntax error nonsilent? What about when trying instructions? */
             goto match_error;
@@ -3127,7 +3155,8 @@ static void do_assembly(const char *input_filename) {
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
             rc = p3[0];
-            if (((pc = casematch(psave, "EQU!")) != 0 && p[0] != '.') ||  /* If it's an `EQU' for a non-local label, then use the specified label as a global label, and don't change global_label. */
+            if ((pc = casematch(psave, "EQU!")) != 0) psave = match_expression(psave + 3);  /* EQU. */
+            if ((pc && p[0] != '.') ||  /* If it's an `EQU' for a non-local label, then use the specified label as a global label, and don't change global_label. */
                 (p[0] == '.' && p[1] == '.' && p[2] == '@')  /* If the label name starts with a `:', then use the specified label as a global label, and don't change global_label. */
                ) {
                 liner = (char*)p;
@@ -3144,25 +3173,22 @@ static void do_assembly(const char *input_filename) {
                 *liner = '\0';
                 if (p[0] != '.') global_label_end = liner;
                 liner = global_label;
-                is_global_label_in_use = 1;  /* For match_expression(...) below. */
             }
             p = psave;
             if (pc) {  /* EQU. */
-                p = match_expression(p + 3);
                 if (p == NULL) {
                     MESSAGE(1, "bad expression");
                 } else {
-                    create_label(liner);
                     check_end(p);
                     p = NULL;
                 }
+                /* Create the label even if p was NULL (bad expression or check_end(p) has failed. It doesn't matter. */
             } else {
                 instruction_value = current_address;
-                create_label(liner);
             }
-            is_global_label_in_use = 0;  /* Undo. */
+            create_label(liner);
             *global_label_end = '\0';  /* Undo the concat to global_label. */
-            ((char*)p3)[0] = rc;  /* Undo the change. */
+            ((char*)p3)[0] = rc;  /* Undo the change: back from ASCII string terminator '\0' to the original character in the source line. */
             if (p == NULL) goto after_line;
         }
 

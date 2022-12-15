@@ -254,8 +254,8 @@ jfoo:
 junrelated1 	equ 41  ; An `equ' doesn't change the global label, it remains `jfoo'.
 junrelated2:	equ 42  ; An `equ' doesn't change the global label, it remains `jfoo'.
 ;junrelated3	dd 0x90  ; This would change the global label to `junrelated3'.
-;.sub1		equ .1-jfoo  ; Referencing a local label while defining a local label with `equ' is not allowed in mininasm, for implementation reasons. It works in NASM.
-;.sub2		equ .1-jfoo  ; Referencing a local label while defining a local label with `equ' is not allowed in mininasm, for implementation reasons. It works in NASM.
+.sub1		equ .1-jfoo  ; OK.
+.sub2		equ .1-jfoo  ; OK.
 .sub3		equ jfoo.1-jfoo  ; OK.
 .sub4		equ jfoo.1-jfoo  ; OK.
 .2:		jc .1
