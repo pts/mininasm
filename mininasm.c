@@ -3124,7 +3124,7 @@ static void do_assembly(const char *input_filename) {
         } else if (casematch(instr_name, "%IF*") || casematch(instr_name, "%ELIF*")) {
             /* We report this even if skipped. */
             MESSAGE1STR(1, "Unknown preprocessor condition: %s", instr_name);
-            goto close_return;  /* There is no meaningful way to continue. */
+            goto close_return;  /* There is no meaningful way to continue in this file. */
         } else if (avoid_level != 0 && level >= avoid_level) {
         } else if (casematch(instr_name, "%INCLUDE")) {
             pc = *p++;
@@ -3280,7 +3280,8 @@ static void do_assembly(const char *input_filename) {
             } else if (is_start_address_set) {
                 if (instruction_value != default_start_address) {
                     MESSAGE(1, "program origin redefined");  /* Same error as in NASM. */
-                    goto close_return;  /* TODO(pts): Abort %includers as well. */
+                    aip = (struct assembly_info*)assembly_stack;  /* Also abort %includers. */
+                    goto close_return;
                 }
             } else {
                 is_start_address_set = 1;
