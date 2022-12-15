@@ -35,7 +35,7 @@ mininasm.c) on https://github.com/pts/mininasm and there are also
 binary releases for DOS 8086, Linux i386 (also runs on Linux amd64) and
 Win32, on https://github.com/pts/mininasm/releases . The minimalism of
 mininasm is reflected in the size of the released executable programs: about
-20 KiB each, while the corresponding NASM 0.98.39 would be more than
+21 KiB each, while the corresponding NASM 0.98.39 would be more than
 260 KiB.
 
 Similarities between mininasm and NASM:
