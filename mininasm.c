@@ -3252,6 +3252,12 @@ static void do_assembly(const char *input_filename) {
                 is_address_used = 1;
                 start_address = current_address;
             }
+        } else if (casematch(instr_name, "ABSOLUTE")) {
+            if (!casematch(p, "$")) {
+                MESSAGE1STR(1, "Unsupported ABSOLUTE: %s", p);
+            } else {
+                is_bss = 1;
+            }
         } else if (is_bss) {
             if (casematch(instr_name, "RESB")) {
                 /* We also could add RESW, RESD, ALIGNB, but the user can implement them in terms of RESB. */

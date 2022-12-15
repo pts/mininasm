@@ -106,6 +106,7 @@ Similarities between mininasm and NASM:
         align
         resb
         section .bss align=1
+	absolute $
 
 * Size qualifiers `byte' and `word' are supported, and behave identically
   to NASM. (A lot of manual testing at multiple optimization levels has been
@@ -193,10 +194,17 @@ Differences between mininasm and NASM:
 * Label definitions without (a leading `$' or a trailing `:') are supported
   only for `equ', `times', `db', `dw' and `dd'.
 
-* `section' definitions are not supported, except for
-  `section .bss align=1'. Unlike in NASM, .bss is case insensitive.
-  In mininasm it's not possible to switch back to `section .text', but
-  in NASM it is.
+* `section' definitions are not supported, except for `absolute $' and
+  `section .bss align=1', both of which can be used to start the .bss, i.e.
+  the uninitialized data part after the end of the output file.
+
+  In both NASM and mininasm, `absolute $' doesn't change `$', while
+  `section .bss align=1' resets it to `$$' (because it enters a new section).
+
+  Unlike in NASM, in mininasm the string `.bss' is case insensitive.
+  
+  Unlike in NASM, in mininasm it's not possible to switch back to
+  `section .text'.
 
 * All label values are integers, there are no section-relative values. This
   makes mininasm more permissive, e.g. `db $ * 3' works in mininasm, but
