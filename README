@@ -38,6 +38,13 @@ mininasm is reflected in the size of the released executable programs: about
 21 KiB each, while the corresponding NASM 0.98.39 would be more than
 260 KiB.
 
+For a case study and step-by-step examples of converting NASM source code to
+mininasm, see the commit history of https://github.com/pts/insight-mininasm .
+It converts the NASM source code of Insight real-mode DOS 16-bit debugger,
+version 1.24 so that it works with both NASM 0.98.39 and mininasm, and the
+output program file insight.com (32935 bytes) of both is identical to the
+one in the official Insight binary release, achieving full reporoducibility.
+
 Similarities between mininasm and NASM:
 
 * mininasm implements a small subset of NASM (with a few extras), trying
