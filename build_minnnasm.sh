@@ -186,6 +186,7 @@ ___section_mininasm_c_text:
         s@^\t([a-z]+)\t+@\t\t$1 @;
         s@^\t([a-z]+)@\t\t$1@;
         s@,(?! )@, @ if m@^\t@;
+        s@^[ \t]*(d[bwd])[ \t]+@\t\t\L$1 @i;
         print "$_$comment\n";
       } else {
         $is_text_segment = 1 if m@^_TEXT\t+SEGMENT\s@;
@@ -662,4 +663,4 @@ perl -we 'eval($ENV{PERL_CODE});die$@if$@' <minnnasm.wasm >minnnasm2.nasm
 unset PERL_CODE
 rm -f minnnasm.wasm
 
-: "$0" OK.
+: "$0" OK, created minnnasm2.nasm.

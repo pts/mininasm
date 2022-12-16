@@ -2955,26 +2955,26 @@ match_label_prefix_:
 		pop bx
 		ret
 @$120:
-    DW	@$143
-    DW	@$146
-    DW	@$134
-    DW	@$134
-    DW	@$134
-    DW	@$134
-    DW	@$134
-    DW	@$134
-    DW	@$199
-    DW	@$209
-    DW	@$211
-    DW	@$217
-    DW	@$219
-    DW	@$229
-    DW	@$231
-    DW	@$237
-    DW	@$240
-    DW	@$251
-    DW	@$254
-    DW	@$258
+		dw @$143
+		dw @$146
+		dw @$134
+		dw @$134
+		dw @$134
+		dw @$134
+		dw @$134
+		dw @$134
+		dw @$199
+		dw @$209
+		dw @$211
+		dw @$217
+		dw @$219
+		dw @$229
+		dw @$231
+		dw @$237
+		dw @$240
+		dw @$251
+		dw @$254
+		dw @$258
 
 ; 
 ; #if CONFIG_CPU_IDIV_TO_ZERO
