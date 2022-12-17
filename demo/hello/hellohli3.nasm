@@ -35,11 +35,11 @@ ehdr:					; Elf32_Ehdr
 		db 0x7f, 'ELF'		;   e_ident[EI_MAG...]
 entry:		; We have 10 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
-		xor ebx, ebx		; 31DB
-		inc ebx			; 43
-		lea eax, [ebx-1+4]	; 8D4303
-		push ebx		; 53
-		lea edx, [ebx-1+message.end-message]  ; 8D530D
+		xor ebx, ebx
+		inc ebx			; EBX := 1 == STDOUT_FILENO.
+		lea eax, [ebx-1+4]	; EAX := __NR_write == 4.
+		push ebx
+		lea edx, [ebx-1+message.end-message]  ; EDX := Size of message to write.
 %else
 		xor bx, bx		; 31DB  xor ebx, ebx
 		inc bx			; 43  inc ebx
@@ -63,9 +63,9 @@ entry:		; We have 10 bytes + the 2 bytes for the `jmp strict short' here.
 		dd phdr-$$		;   e_phoff
 code2:		; We have 8 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
-		mov ecx, message	; B9????0800
-		int 0x80		; CD80
-		pop eax			; 58
+		mov ecx, message	; Pointer to message string.
+		int 0x80		; Linux i386 syscall.
+		pop eax			; EAX := 1 == __NR_exit.
 %else
 		db 0xb9
 		dd message		; B9????0800  mov ecx, message
@@ -93,12 +93,12 @@ phdr:					; Elf32_Phdr
 		dd $$			;   p_vaddr
 code3:		; We have 4 bytes here.
 %ifndef __MININASM__
-		dec ebx			; 4B
+		dec ebx			; EBX := 0 == EXIT_SUCCESS.
 %else
 		dec bx			; 4B  dec ebx
 %endif
-		int 0x80		; CD80
-		nop			; 90
+		int 0x80		; Linux i386 syscall.
+		nop			; Not reached.
 %if 0  ; The code at `code3' above overlaps with this.
 		dd $$			;   p_paddr
 %endif
