@@ -8,6 +8,13 @@
 ;
 ; Disassemble: ndisasm -b 32 -e 0x54 helloli3
 ;
+; Compatibility:
+;
+; * Linux 2.6.20 i386 executes it happily.
+; * Linux 5.4.0 amd64 executes it happily.
+; * Works with `objdump -x'.
+; * Runs in qemu-i386 ./helloli3
+;
 ; Copied from https://github.com/pts/minilibc32/blob/650159f22961744bd6a4f59a6aea149cd18f5d00/hello_min.nasm
 ;
 ; ELF32 header based on
