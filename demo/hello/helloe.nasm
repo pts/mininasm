@@ -27,6 +27,8 @@
 ; also need the code to print and exit. This solution works because it
 ; overlaps the code (and also the message) with the DOS .exe header.
 ;
+; See a longer analysis of this code at https://stackoverflow.com/a/74831674
+;
 ; Uses 0x3b80+0x200+0x100 bytes (<16 KiB) of conventional memory on DOS
 ; (including the PSP, excluding DOS buffers).
 ;
