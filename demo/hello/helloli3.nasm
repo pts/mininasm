@@ -43,8 +43,8 @@ ehdr:					; Elf32_Ehdr
 		dw .size		;   e_ehsize
 		dw phdr.size		;   e_phentsize
 		dw 1			;   e_phnum
-		dw 0			;   e_shentsize
-		dw 40			;   e_shnum
+		dw 40			;   e_shentsize
+		dw 0			;   e_shnum
 		dw 0			;   e_shstrndx
 .size		equ $-ehdr
 
