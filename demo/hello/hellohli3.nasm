@@ -36,31 +36,25 @@ ehdr:					; Elf32_Ehdr
 		db 1			;   e_ident[EI_CLASS]: 32-bit
 		db 1			;   e_ident[EI_DATA]: little endian
 		db 1			;   e_ident[EI_VERSION]
-entry:		; We have 7 bytes + the 2 bytes for the `jmp strict short' here.
+		db 3			;   e_ident[EI_OSABI]: Linux
+		db 0			;   e_ident[EI_ABIVERSION]
+entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
+		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 %ifndef __MININASM__
-		mov ecx, message	; Pointer to message string.
-		xor ebx, ebx
+		xor ebx, ebx		; EBX := 0. This isn't necessary since Linux 2.2: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
+		inc ebx			; EBX := 1 == STDOUT_FILENO.
 %else
-		db 0xb9
-		dd message		; B9????0800  mov ecx, message
 		xor bx, bx		; 31DB  xor ebx, ebx
+		inc bx			; 43  inc ebx
 %endif
 		jmp strict short code2
 %if 0  ; The code at `entry' above overlaps with this.
-		db 3			;   e_ident[EI_OSABI]: Linux
-		db 0			;   e_ident[EI_ABIVERSION]
 		db 0, 0, 0, 0, 0, 0, 0	;   e_ident[EI_PAD]
 %endif
 		dw 2			;   e_type
 		dw 3			;   e_machine
 code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
-%ifndef __MININASM__
-		inc ebx			; EBX := 1 == STDOUT_FILENO.
-		push ebx
-%else
-		inc bx			; 43  inc ebx
-		push bx			; 53  push ebx
-%endif
+		mov dl, message.end-message  ; EDX := Size of message to write. EDX happes to be 0 since Linux 2.0: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		jmp strict short code3
 %if 0  ; The code at `code2' above overlaps with this.
 		dd 1			;   e_version.
@@ -69,14 +63,14 @@ code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 		dd phdr-$$		;   e_phoff
 code3:		; We have 8 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
-		lea eax, [ebx-1+4]	; EAX := __NR_write == 4.
-		lea edx, [ebx-1+message.end-message]  ; EDX := Size of message to write.
-		int 0x80		; Linux i386 syscall.
+		push ebx
+		mov ecx, message	; Pointer to message string.
 %else
-		lea ax, [bp+di-1+4]	; 8D4303  lea eax, [ebx-1+4]
-		lea dx, [bp+di-1+message.end-message]  ; 8D530D  lea edx, [ebx-1+messag.end-message]
-		int 0x80		; CD80  int 0x80
+		push bx			; 53  push ebx
+		db 0xb9
+		dd message		; B9????0800  mov ecx, message
 %endif
+		int 0x80		; Linux i386 syscall.
 		jmp strict short code4
 %if 0  ; The code at `code3' above overlaps with this.
 		dd 0			;   e_shoff
