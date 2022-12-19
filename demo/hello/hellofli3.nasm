@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Mon Dec 19 22:09:09 CET 2022
 ;
 ; Compile: nasm -O9 -f bin -o hellofli3 hellofli3.nasm && chmod +x hellofli3
-; The created executable program is 112 bytes.
+; The created executable program is 104 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
 ; Disassemble: ndisasm -b 32 -e 0x54 hellofli3
@@ -57,17 +57,21 @@ entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 		dd phdr-$$		;   e_phoff
 		dd 0			;   e_shoff
 		dd 0			;   e_flags
-		dw .size		;   e_ehsize
-		dw phdr.size		;   e_phentsize
+		dw 0x34  ; ehdr.size	;   e_ehsize; qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x34.
+		dw 0x20  ; phdr.size	;   e_phentsize; Linux fails with `Exec format error' if it isn't 0x20. qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x20.
+%if 0  ; `phdr' below overlaps with this.
 		dw 1			;   e_phnum
-		dw 40			;   e_shentsize
+		dw 0			;   e_shentsize
 		dw 0			;   e_shnum
 		dw 0			;   e_shstrndx
 .size		equ $-ehdr
+%endif
 
-phdr:					; Elf32_Phdr
-		dd 1			;   p_type == PT_LOAD.
-		dd 0			;   p_offset
+phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
+		dw 1			;   p_type == PT_LOAD.      e_phum
+		dw 0			;   High word of p_type.    e_shentsize
+		dw 0			;   p_offset                e_shnum
+		dw 0			;   High word of p_offset.  e_shnum
 		dd $$			;   p_vaddr
 		dd $$			;   p_paddr
 		dd filesize		;   p_filesz
