@@ -17,7 +17,7 @@
 ;
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
-; * Doesn't work with `objdump -x'.
+; * Doesn't work with `objdump -x'. It says: File truncated
 ; * Doesn't run in qemu-i386 ./hellohli3
 ;
 
@@ -33,47 +33,52 @@
 
 ehdr:					; Elf32_Ehdr
 		db 0x7f, 'ELF'		;   e_ident[EI_MAG...]
-entry:		; We have 10 bytes + the 2 bytes for the `jmp strict short' here.
-%ifndef __MININASM__
-		xor ebx, ebx
-		inc ebx			; EBX := 1 == STDOUT_FILENO.
-		lea eax, [ebx-1+4]	; EAX := __NR_write == 4.
-		push ebx
-		lea edx, [ebx-1+message.end-message]  ; EDX := Size of message to write.
-%else
-		xor bx, bx		; 31DB  xor ebx, ebx
-		inc bx			; 43  inc ebx
-		lea ax, [bp+di-1+4]	; 8D4303  lea eax, [ebx-1+4]
-		push bx			; 53  push ebx
-		lea dx, [bp+di-1+message.end-message]  ; 8D530D  lea edx, [ebx-1+messag.end-message]
-%endif
-		jmp strict short code2
-%if 0  ; The code at `entry' above overlaps with this.
 		db 1			;   e_ident[EI_CLASS]: 32-bit
 		db 1			;   e_ident[EI_DATA]: little endian
 		db 1			;   e_ident[EI_VERSION]
+entry:		; We have 7 bytes + the 2 bytes for the `jmp strict short' here.
+%ifndef __MININASM__
+		mov ecx, message	; Pointer to message string.
+		xor ebx, ebx
+%else
+		db 0xb9
+		dd message		; B9????0800  mov ecx, message
+		xor bx, bx		; 31DB  xor ebx, ebx
+%endif
+		jmp strict short code2
+%if 0  ; The code at `entry' above overlaps with this.
 		db 3			;   e_ident[EI_OSABI]: Linux
 		db 0			;   e_ident[EI_ABIVERSION]
 		db 0, 0, 0, 0, 0, 0, 0	;   e_ident[EI_PAD]
 %endif
 		dw 2			;   e_type
 		dw 3			;   e_machine
-		dd 1			;   e_version. Linux doesn't care.
-		dd entry		;   e_entry
-		dd phdr-$$		;   e_phoff
-code2:		; We have 8 bytes + the 2 bytes for the `jmp strict short' here.
+code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
-		mov ecx, message	; Pointer to message string.
-		int 0x80		; Linux i386 syscall.
-		pop eax			; EAX := 1 == __NR_exit.
+		inc ebx			; EBX := 1 == STDOUT_FILENO.
+		push ebx
 %else
-		db 0xb9
-		dd message		; B9????0800  mov ecx, message
-		int 0x80		; CD80  int 0x80
-		pop ax			; 58  pop eax
+		inc bx			; 43  inc ebx
+		push bx			; 53  push ebx
 %endif
 		jmp strict short code3
 %if 0  ; The code at `code2' above overlaps with this.
+		dd 1			;   e_version.
+%endif
+		dd entry		;   e_entry
+		dd phdr-$$		;   e_phoff
+code3:		; We have 8 bytes + the 2 bytes for the `jmp strict short' here.
+%ifndef __MININASM__
+		lea eax, [ebx-1+4]	; EAX := __NR_write == 4.
+		lea edx, [ebx-1+message.end-message]  ; EDX := Size of message to write.
+		int 0x80		; Linux i386 syscall.
+%else
+		lea ax, [bp+di-1+4]	; 8D4303  lea eax, [ebx-1+4]
+		lea dx, [bp+di-1+message.end-message]  ; 8D530D  lea edx, [ebx-1+messag.end-message]
+		int 0x80		; CD80  int 0x80
+%endif
+		jmp strict short code4
+%if 0  ; The code at `code3' above overlaps with this.
 		dd 0			;   e_shoff
 		dd 0			;   e_flags
 		dw .size		;   e_ehsize
@@ -91,15 +96,16 @@ phdr:					; Elf32_Phdr
 		dd 1			;   p_type
 		dd 0			;   p_offset
 		dd $$			;   p_vaddr
-code3:		; We have 4 bytes here.
+code4:		; We have 4 bytes here.
 %ifndef __MININASM__
+		pop eax			; EAX := 1 == __NR_exit.
 		dec ebx			; EBX := 0 == EXIT_SUCCESS.
 %else
+		pop ax			; 58  pop eax
 		dec bx			; 4B  dec ebx
 %endif
 		int 0x80		; Linux i386 syscall.
-		nop			; Not reached.
-%if 0  ; The code at `code3' above overlaps with this.
+%if 0  ; The code at `code4' above overlaps with this.
 		dd $$			;   p_paddr
 %endif
 		dd filesize		;   p_filesz
