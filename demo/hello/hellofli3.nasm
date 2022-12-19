@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Mon Dec 19 22:09:09 CET 2022
 ;
 ; Compile: nasm -O9 -f bin -o hellofli3 hellofli3.nasm && chmod +x hellofli3
-; The created executable program is 104 bytes.
+; The created executable program is 97 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
 ; Disassemble: ndisasm -b 32 -e 0x54 hellofli3
@@ -76,9 +76,12 @@ phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
 		dd $$			;   p_paddr
 		dd filesize		;   p_filesz
 		dd filesize		;   p_memsz
-		dd 5			;   p_flags: r-x: read and execute, no write
+		db 5			;   p_flags: r-x: read and execute, no write; TODO(pts): Maybe overlap this with 1 byte of the code (mov ecx?) if FreeBSD allows it.
+%if 0  ; The code at `code2' below overlaps with this.
+		db 0, 0, 0		;   p_flags, remaining 3 bytes
 		dd 0x1000		;   p_align
 .size		equ $-phdr
+%endif
 
 code2:
 %ifndef __MININASM__
