@@ -16,11 +16,15 @@
 ; Compatibility:
 ;
 ; * Linux 2.0 i386 (1996-06-06): It works, tested in Debian 1.1 running in QEMU. Also tested that it doesn't print the message without the `xor ebx, ebx'.
-; * Linux 2.2.0 i386 (1999-01-26): Should be OK, untested.
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
-; * Works with qemu-i386 (on Linux, any architecture).
+; * qemu-i386 (on Linux, any architecture) executes it happily.
+; * FreeBSD 9.3 and 12.04 fail with ``./hellohli3: Exec format error. Binary file not executable.'', while the 119-byte ./helloli3 works on it.
 ; * `objdump -x' fails with ``File truncated'' to dump the headers (see below why).
+;
+; More discussion here (with 95-byte solution): https://www.reddit.com/r/programming/comments/t32i0/smallest_x86_elf_hello_world/
+;
+; More discussion here (with 92-byte solution): https://www.reddit.com/r/programming/comments/t32i0/comment/c4jkpxj/
 ;
 
 		org 0x80000
@@ -54,7 +58,7 @@ entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 		dw 2			;   e_type == ET_EXEC.
 		dw 3			;   e_machine == x86.
 code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
-		mov dl, message.end-message  ; EDX := Size of message to write. EDX happes to be 0 since Linux 2.0: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
+		mov dl, message.end-message  ; EDX := size of message to write. EDX is 0 since Linux 2.0 (or earlier): ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		jmp strict short code3
 %if 0  ; The code at `code2' above overlaps with this.
 		dd 1			;   e_version.
@@ -87,9 +91,11 @@ code3:		; We have 6 bytes + the 2 bytes for the `jmp strict short' here.
 ehdr.size	equ $-ehdr
 %endif
 
-phdr:					; Elf32_Phdr
-		dd 1			;   p_type == PT_LOAD.
-		dd 0			;   p_offset
+phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
+		dw 1			;   p_type == PT_LOAD.      e_phum
+		dw 0			;   High word of p_type.    e_shentsize
+		dw 0			;   p_offset                e_shnum
+		dw 0			;   High word of p_offset.  e_shnum
 		dd $$			;   p_vaddr
 code4:		; We have 6 bytes here.
 		int 0x80		; Linux i386 syscall.

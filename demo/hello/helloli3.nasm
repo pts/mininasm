@@ -10,10 +10,12 @@
 ;
 ; Compatibility:
 ;
+; * Linux 2.0 i386 (1996-06-06): It works, tested in Debian 1.1 running in QEMU. Also tested that it doesn't print the message without the `xor ebx, ebx'.
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
-; * Works with `objdump -x'.
-; * Runs in qemu-i386 ./helloli3
+; * qemu-i386 (on Linux, any architecture) executes it happily.
+; * FreeBSD 9.3 and 12.04 execute it happily when Linux emulation is active.
+; * `objdump -x' can dump the ELF-32 headers.
 ;
 ; Copied from https://github.com/pts/minilibc32/blob/650159f22961744bd6a4f59a6aea149cd18f5d00/hello_min.nasm
 ;
@@ -40,8 +42,8 @@ ehdr:					; Elf32_Ehdr
 		db 3			;   e_ident[EI_OSABI]: Linux
 		db 0			;   e_ident[EI_ABIVERSION]
 		db 0, 0, 0, 0, 0, 0, 0	;   e_ident[EI_PAD]
-		dw 2			;   e_type
-		dw 3			;   e_machine
+		dw 2			;   e_type == ET_EXEC.
+		dw 3			;   e_machine == x86.
 		dd 1			;   e_version
 		dd _start		;   e_entry
 		dd phdr-$$		;   e_phoff
@@ -56,7 +58,7 @@ ehdr:					; Elf32_Ehdr
 .size		equ $-ehdr
 
 phdr:					; Elf32_Phdr
-		dd 1			;   p_type
+		dd 1			;   p_type == PT_LOAD.
 		dd 0			;   p_offset
 		dd $$			;   p_vaddr
 		dd $$			;   p_paddr
