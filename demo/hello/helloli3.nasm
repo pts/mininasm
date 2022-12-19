@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Wed Dec  7 04:13:28 CET 2022
 ;
 ; Compile: nasm -O9 -f bin -o helloli3 helloli3.nasm && chmod +x helloli3
-; The created executable program is 119 bytes.
+; The created executable program is 117 bytes.
 ; Run on Linux i386 or amd64: ./helloli3
 ;
 ; Disassemble: ndisasm -b 32 -e 0x54 helloli3
@@ -71,12 +71,12 @@ _start:
 		bits 32
 		cpu 386
 		;mov ebx, 1		; STDOUT_FILENO.
-		xor ebx, ebx
+		xor ebx, ebx		; EBX := 0. This isn't necessary since Linux 2.2, but it is in Linux 2.0: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		inc ebx			; EBX := 1 == STDOUT_FILENO.
-		lea eax, [ebx-1+4]	; EAX := __NR_write == 4.
+		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 		push ebx
 		mov ecx, message	; Pointer to message string.
-		lea edx, [ebx-1+message.end-message]  ; EDX := Size of message to write.
+		mov dl, message.end-message  ; EDX := size of message to write. EDX is 0 since Linux 2.0 (or earlier): ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		int 0x80		; Linux i386 syscall.
 		;mov eax, 1		; __NR_exit.
 		pop eax			; EAX := 1 == __NR_exit.
@@ -88,11 +88,11 @@ _start:
 		cpu 8086
 		xor bx, bx		; xor ebx, ebx
 		inc bx			; inc ebx
-		lea ax, [bp+di-1+4]	; lea eax, [ebx-1+4]
+		mov al, 4		; mov al, 4
 		push bx			; push ebx
 		db 0xb9
 		dd message		; mov ecx, message
-		lea dx, [bp+di-1+message.end-message]  ; lea edx, [ebx-1+messag.end-message]
+		mov dl, message.end-message  ; mov dl, message.end-message
 		int 0x80		; int 0x80
 		pop ax			; pop eax
 		dec bx			; dec ebx
