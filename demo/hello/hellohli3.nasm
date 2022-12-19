@@ -15,7 +15,8 @@
 ;
 ; Compatibility:
 ;
-; * Linux 2.2.0 (1999-01-26): OK (earlier Linux versions such as 2.0.x and 2.1.x don't work, because they don't guarantee EBX == 0 at startup)
+; * Linux 2.0 i386 (1996-06-06): It works, tested in Debian 1.1 running in QEMU. Also tested that it doesn't print the message without the `xor ebx, ebx'.
+; * Linux 2.2.0 i386 (1999-01-26): Should be OK, untested.
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
 ; * Works with qemu-i386 (on Linux, any architecture).
@@ -63,13 +64,14 @@ code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 code3:		; We have 6 bytes + the 2 bytes for the `jmp strict short' here.
 		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 %ifndef __MININASM__
+		xor ebx, ebx		; EBX := 0. This isn't necessary since Linux 2.2: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		inc ebx			; EBX := 1 == STDOUT_FILENO.
 		push ebx
 %else
+		xor bx, bx		; 31DB  xor ebx, ebx
 		inc bx			; 43  inc ebx
 		push bx			; 53  push ebx
 %endif
-		int 0x80		; Linux i386 syscall.
 		jmp strict short code4
 %if 0  ; The code at `code3' above overlaps with this.
 		dd 0			;   e_shoff; `objdump -x' needs this quite small
@@ -89,7 +91,8 @@ phdr:					; Elf32_Phdr
 		dd 1			;   p_type == PT_LOAD.
 		dd 0			;   p_offset
 		dd $$			;   p_vaddr
-code4:		; We have 4 bytes here.
+code4:		; We have 6 bytes here.
+		int 0x80		; Linux i386 syscall.
 %ifndef __MININASM__
 		pop eax			; EAX := 1 == __NR_exit.
 		dec ebx			; EBX := 0 == EXIT_SUCCESS.
@@ -97,12 +100,15 @@ code4:		; We have 4 bytes here.
 		pop ax			; 58  pop eax
 		dec bx			; 4B  dec ebx
 %endif
-		int 0x80		; Linux i386 syscall.
+		int 0x80		; CD80  Linux i386 syscall. Also low word of p_filesz.
+		dw 0			; High word of p_filesz.
+		int 0x80		; Low word of p_memsz. Must not be smaller than p_memsz. 
+		dw 0			; High word of p_memsz.
 %if 0  ; The code at `code4' above overlaps with this.
 		dd $$			;   p_paddr
-%endif
 		dd filesize		;   p_filesz
 		dd filesize		;   p_memsz
+%endif
 		db 5			;   p_flags: r-x: read and execute, no write
 %if 0  ; The message below overlaps with this.
 		db 0, 0, 0		;   p_flags, remaining 3 bytes
@@ -110,6 +116,9 @@ code4:		; We have 4 bytes here.
 .size		equ $-phdr
 %endif
 
+; Feel free to change the message within the size limits.
+; Minimum message size: 7 bytes (to get a complete Elf32_Phdr).
+; Maximum message size: 255 byes (for the `mov dl, ...' to fit).
 message:	db 'Hello, World!', 10
 .end:
 
