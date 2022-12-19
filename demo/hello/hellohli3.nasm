@@ -15,10 +15,11 @@
 ;
 ; Compatibility:
 ;
+; * Linux 2.2.0 (1999-01-26): OK (earlier Linux versions such as 2.0.x and 2.1.x don't work, because they don't guarantee EBX == 0 at startup)
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
-; * Doesn't work with `objdump -x'. It says: File truncated
-; * Doesn't run in qemu-i386 ./hellohli3
+; * Works with qemu-i386 (on Linux, any architecture).
+; * `objdump -x' fails with ``File truncated'' to dump the headers (see below why).
 ;
 
 		org 0x80000
@@ -39,20 +40,18 @@ ehdr:					; Elf32_Ehdr
 		db 3			;   e_ident[EI_OSABI]: Linux
 		db 0			;   e_ident[EI_ABIVERSION]
 entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
-		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 %ifndef __MININASM__
-		xor ebx, ebx		; EBX := 0. This isn't necessary since Linux 2.2: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
-		inc ebx			; EBX := 1 == STDOUT_FILENO.
+		mov ecx, message	; Pointer to message string.
 %else
-		xor bx, bx		; 31DB  xor ebx, ebx
-		inc bx			; 43  inc ebx
+		db 0xb9
+		dd message		; B9????0800  mov ecx, message
 %endif
 		jmp strict short code2
 %if 0  ; The code at `entry' above overlaps with this.
 		db 0, 0, 0, 0, 0, 0, 0	;   e_ident[EI_PAD]
 %endif
-		dw 2			;   e_type
-		dw 3			;   e_machine
+		dw 2			;   e_type == ET_EXEC.
+		dw 3			;   e_machine == x86.
 code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 		mov dl, message.end-message  ; EDX := Size of message to write. EDX happes to be 0 since Linux 2.0: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		jmp strict short code3
@@ -61,33 +60,33 @@ code2:		; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 %endif
 		dd entry		;   e_entry
 		dd phdr-$$		;   e_phoff
-code3:		; We have 8 bytes + the 2 bytes for the `jmp strict short' here.
+code3:		; We have 6 bytes + the 2 bytes for the `jmp strict short' here.
+		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 %ifndef __MININASM__
+		inc ebx			; EBX := 1 == STDOUT_FILENO.
 		push ebx
-		mov ecx, message	; Pointer to message string.
 %else
+		inc bx			; 43  inc ebx
 		push bx			; 53  push ebx
-		db 0xb9
-		dd message		; B9????0800  mov ecx, message
 %endif
 		int 0x80		; Linux i386 syscall.
 		jmp strict short code4
 %if 0  ; The code at `code3' above overlaps with this.
-		dd 0			;   e_shoff
-		dd 0			;   e_flags
-		dw .size		;   e_ehsize
+		dd 0			;   e_shoff; `objdump -x' needs this quite small
+		dd -1			;   e_flags; Linux, `objdump -x' and qemu-i386 all ignore it.
 %endif
-		dw 0x20  ; phdr.size	;   e_phentsize  ; Linux checks this.
+		dw 0x34  ; ehdr.size	;   e_ehsize; qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x34.
+		dw 0x20  ; phdr.size	;   e_phentsize; Linux fails with `Exec format error' if it isn't 0x20. qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x20.
 %if 0  ; `phdr' below overlaps with this.
 		dw 1			;   e_phnum
-		dw 40			;   e_shentsize
+		dw 0			;   e_shentsize
 		dw 0			;   e_shnum
 		dw 0			;   e_shstrndx
-.size		equ $-ehdr
+ehdr.size	equ $-ehdr
 %endif
 
 phdr:					; Elf32_Phdr
-		dd 1			;   p_type
+		dd 1			;   p_type == PT_LOAD.
 		dd 0			;   p_offset
 		dd $$			;   p_vaddr
 code4:		; We have 4 bytes here.
