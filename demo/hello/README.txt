@@ -6,7 +6,8 @@ Small hello-world programs for various systems:
   code and data with ELF headers
 * hellofli3.nasm: Linux i386 ELF-32: compatible with Linux >=2.0, qemu-i386,
   Linux emulation layer in FreeBSD, `objdump -x'
-* hellohli3.nasm: Linux i386 ELF-32: compatible with Linux >=2.0, qemu-i386.
+* hellohli3.nasm: Linux i386 ELF-32: compatible with Linux >=2.0, qemu-i386
+* hellos32.nasm: Win32 PE .exe stub in 60 bytes
 
 Corresponding precompiled *.golden files are provided. Remove the .golden
 suffix from the filename for running.
