@@ -51,13 +51,13 @@
 
 exe:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 .signature	db 'MZ'
-.lastsize	dw end-exe  ; Number of bytes in the last 0x200-byte block in the .exe file. For us, total file size.
-.nblocks	dw 1  ; Number of 0x200-byte blocks in .exe file (rounded up).
+.lastsize:      dw (end - .signature) & 0x1ff  ; The value 0 and 0x200 are equivalent here. Microsoft Linker 3.05 generates 0, so do we. Number of bytes in the last 0x200-byte block in the .exe file.
+.nblocks:       dw (end - .signature  + 0x1ff) >> 9  ; Number of 0x200-byte blocks in .exe file (rounded up).
 .nreloc		dw 0  ; No relocations.
 .hdrsize	dw 0  ; Load .exe file to memory from the beginning.
 ..@code:
 %if 1  ; Produces identical .exe output even if we change it to 0.
-.minalloc:	mov ax, 0x903  ; AH := 9, AL := junk. The number 3 matters for minalloc, see below.
+.minalloc:	mov ax, 0x903  ; AH := 9, AL := junk. The number 3 matters for minalloc, see below. TODO(pts): Decrease 3 to 1 if nblocks == 2, decrease it to 0 if nblocks >= 3.
 .ss_minus_1:	mov dx, message+(0x100-$$)  ; (0x100-$$) to make it work with any `org'.
 .sp:		int 0x21  ; Print the message to stdout. https://stanislavs.org/helppc/int_21-9.html
 .checksum:	int 0x20  ; Exit. Requires CS == PSP. https://stanislavs.org/helppc/int_20.html
@@ -78,7 +78,7 @@ exe:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 
 ; Feel free to change the message within the size limits.
 ; Minimum message size: 4 bytes (to get a complete DOS .exe header).
-; Maximum message size: 488 bytes (to keep .nblocks valid and be below the stack).
+; Maximum message size: 12461 byes (just below the stack: (0x0118<<4|0x21cd)-0x20-0x100 == 0x30ad == 12461).
 ; The message size includes the trailing '$'.
 message		db 'Hello, World!', 13, 10, '$'
 end:
