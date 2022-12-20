@@ -6,8 +6,6 @@
 ; The created executable program is 88 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
-; Disassemble: ndisasm -b 32 -e 0x45 hellofli3
-;
 ; Memory usage: 0x6000 == 24576 bytes (including stack).
 ;
 ; Compatibility:
