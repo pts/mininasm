@@ -21,12 +21,12 @@
 ;
 ; Copied from https://github.com/pts/minilibc32/blob/650159f22961744bd6a4f59a6aea149cd18f5d00/hello_min.nasm
 ;
-; ELF32 header based on
+; ELF-32 header based on
 ; https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
 ;
 ; To the best knowledge of the author this is the shortest Linux i386
 ; executable program doing hello-world without overlapping the code and data
-; with the ELF32 headers.
+; with the ELF-32 headers.
 ;
 ; More discussion here (with 95-byte solution): https://www.reddit.com/r/programming/comments/t32i0/smallest_x86_elf_hello_world/
 ;

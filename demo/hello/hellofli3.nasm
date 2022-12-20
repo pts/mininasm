@@ -17,7 +17,7 @@
 ; * FreeBSD 9.3 and 12.04 execute it happily when Linux emulation is active.
 ; * `objdump -x' can dump the ELF-32 headers.
 ;
-; ELF32 header based on
+; ELF-32 header based on
 ; https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
 ;
 
