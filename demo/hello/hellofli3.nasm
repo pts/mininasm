@@ -73,11 +73,11 @@ entry:  ; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 .size		equ $-ehdr
 %endif
 
-phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
+phdr:					; Elf32_Phdr              Elf32_Ehdr (continued):
 		dw 1			;   p_type == PT_LOAD.      e_phum
 		dw 0			;   High word of p_type.    e_shentsize
 		dw 0			;   p_offset                e_shnum
-		dw 0			;   High word of p_offset.  e_shnum
+		dw 0			;   High word of p_offset.  e_shstrndx
 		dd $$			;   p_vaddr
 code2:  ; We have 2 bytes + the 2 bytes for the `jmp strict short' here.
 		mov dl, message.end-message  ; EDX := size of message to write. EDX is 0 since Linux 2.0 (or earlier): ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html

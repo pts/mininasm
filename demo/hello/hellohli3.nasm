@@ -91,11 +91,11 @@ code3:		; We have 6 bytes + the 2 bytes for the `jmp strict short' here.
 ehdr.size	equ $-ehdr
 %endif
 
-phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
+phdr:					; Elf32_Phdr              Elf32_Ehdr (continued):
 		dw 1			;   p_type == PT_LOAD.      e_phum
 		dw 0			;   High word of p_type.    e_shentsize
 		dw 0			;   p_offset                e_shnum
-		dw 0			;   High word of p_offset.  e_shnum
+		dw 0			;   High word of p_offset.  e_shstrndx
 		dd $$			;   p_vaddr
 code4:		; We have 6 bytes here.
 		int 0x80		; Linux i386 syscall.
