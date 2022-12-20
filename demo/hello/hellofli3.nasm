@@ -3,10 +3,12 @@
 ; by pts@fazekas.hu at Mon Dec 19 22:09:09 CET 2022
 ;
 ; Compile: nasm -O9 -f bin -o hellofli3 hellofli3.nasm && chmod +x hellofli3
-; The created executable program is 90 bytes.
+; The created executable program is 88 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
 ; Disassemble: ndisasm -b 32 -e 0x45 hellofli3
+;
+; Memory usage: 0x6000 == 24576 bytes (including stack).
 ;
 ; Compatibility:
 ;
@@ -58,11 +60,24 @@ entry:  ; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 %endif
 		dw 2			;   e_type == ET_EXEC.
 		dw 3			;   e_machine == x86.
-		dd 1			;   e_version
+		dd 1			;   e_version. FreeBSD fails to load the program if this isn't 1.
 		dd entry		;   e_entry
 		dd phdr-$$		;   e_phoff
-		dd 0			;   e_shoff
-		dd 0			;   e_flags
+		dd 0			;   e_shoff. `objdump -x' fails with `File truncated.' if e_shoff is above the file size.
+code4:
+%ifndef __MININASM__
+		;mov eax, 1		; __NR_exit.
+		pop eax			; EAX := 1 == __NR_exit.
+		;mov ebx, 0		; EXIT_SUCCESS.
+		dec ebx			; EBX := 0 == EXIT_SUCCESS.
+%else
+		pop ax			; pop eax
+		dec bx			; dec ebx
+%endif
+		int 0x80		; Linux i386 syscall.
+%if 0  ; The code at `code4' above overlaps with this.
+		dd 0			;   e_flags. Ignored.
+%endif
 		dw 0x34  ; ehdr.size	;   e_ehsize; qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x34.
 		dw 0x20  ; phdr.size	;   e_phentsize; Linux fails with `Exec format error' if it isn't 0x20. qemu-i386 fails with ``Invalid ELF image for this architecture'' if this value isn't 0x20.
 %if 0  ; `phdr' below overlaps with this.
@@ -91,7 +106,7 @@ code3:  ; 5 bytes here (p_memsz and lowest byte of p_flags), then code continues
 		db message-$$		; About 0x5b. Second lowest byte after p_memsz.
 		dw 0			; High word of p_memsz.
 		db P_FLAGS		; Highest byte `message' in `mov ecx, message'. Lowest byte of p_flags: r-x: read and execute, no write.
-%if 0  ; The code at `code3' above overlaps with this.
+%if 0  ; The code at `code3' above and the code below overlaps with this.
 		dd filesize		;   p_memsz. Linux fails unless p_memsz >= p_filesz.
 		db P_FLAGS		;   p_flags: r-x: read and execute, no write.
 					;   These work in the low 3 bits (high bits 5 don't matter):
@@ -103,26 +118,17 @@ code3:  ; 5 bytes here (p_memsz and lowest byte of p_flags), then code continues
 					;   rwx (7, also allows read and write, works in Linux, qemu-i386 and FreeBSD)
 					;   To overlap this byte with code or data, we can use only 0xcd from `int 0x80',
 					;   none of the others match the low 3 bits.
-%endif
-%if 0  ; The code at `code2' below overlaps with this.
-		db 0, 0, 0		;   p_flags, remaining 3 bytes
-		dd 0x1000		;   p_align
+		db 0, 0, 0		;   p_flags, remaining 3 bytes. Ignored.
+		dd 0x1000		;   p_align. Ignored.
 .size		equ $-phdr
 %endif
 %ifndef __MININASM__
 		push ebx
-		int 0x80		; Linux i386 syscall.
-		;mov eax, 1		; __NR_exit.
-		pop eax			; EAX := 1 == __NR_exit.
-		;mov ebx, 0		; EXIT_SUCCESS.
-		dec ebx			; EBX := 0 == EXIT_SUCCESS.
 %else
 		push bx			; push ebx
-		int 0x80		; Linux i386 syscall.
-		pop ax			; pop eax
-		dec bx			; dec ebx
 %endif
 		int 0x80		; Linux i386 syscall.
+		jmp short code4
 
 message:	db 'Hello, World!', 10
 .end:
