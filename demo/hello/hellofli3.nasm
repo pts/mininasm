@@ -6,7 +6,7 @@
 ; The created executable program is 97 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
-; Disassemble: ndisasm -b 32 -e 0x54 hellofli3
+; Disassemble: ndisasm -b 32 -e 0x45 hellofli3
 ;
 ; Compatibility:
 ;
@@ -41,7 +41,7 @@ ehdr:					; Elf32_Ehdr
 		db 0			;   e_ident[EI_ABIVERSION]
 entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
-		mov ecx, message	; Pointer to message string.
+		mov ecx, message	; Pointer to message string. First byte (0xb9) doesn't work for p_flags.
 %else
 		db 0xb9
 		dd message		; B9????0800  mov ecx, message
@@ -76,7 +76,16 @@ phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
 		dd $$			;   p_paddr
 		dd filesize		;   p_filesz
 		dd filesize		;   p_memsz
-		db 5			;   p_flags: r-x: read and execute, no write; TODO(pts): Maybe overlap this with 1 byte of the code (mov ecx?) if FreeBSD allows it.
+		db 5			;   p_flags: r-x: read and execute, no write;
+					;   These work in the low 3 bits (high bits 5 don't matter):
+					;   --x (1, also allows read, works in Linux, not in qemu-i386),
+					;   -wx (3, also allows read and write, works in Linux. not in qemu-i386)
+					;   r-- (4, also allows execute, works in Linux, qemu-i386 and FreeBSD)
+					;   r-x (5, works in Linux, qemu-i386 and FreeBSD)
+					;   rw- (6, also allows execute, works in Linux, qemu-i386 and FreeBSD)
+					;   rwx (7, also allows read and write, works in Linux, qemu-i386 and FreeBSD)
+					;   To overlap this byte with code or data, we can use only 0xcd from `int 0x80',
+					;   none of the others match the low 3 bits.
 %if 0  ; The code at `code2' below overlaps with this.
 		db 0, 0, 0		;   p_flags, remaining 3 bytes
 		dd 0x1000		;   p_align
