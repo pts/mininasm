@@ -76,5 +76,9 @@ exe:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 ; End of 0x1c-byte .exe header.
 %endif
 
+; Feel free to change the message within the size limits.
+; Minimum message size: 4 bytes (to get a complete DOS .exe header).
+; Maximum message size: 488 bytes (to keep .nblocks valid and be below the stack).
+; The message size includes the trailing '$'.
 message		db 'Hello, World!', 13, 10, '$'
 end:

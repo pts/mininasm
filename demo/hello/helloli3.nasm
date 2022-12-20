@@ -104,6 +104,9 @@ _start:
 %endif
 		; Not reached.
 
+; Feel free to change the message within the size limits.
+; Minimum message size: 0 bytes.
+; Maximum message size: 255 byes (for the `mov dl, ...' to fit).
 message:	db 'Hello, World!', 10
 .end:
 

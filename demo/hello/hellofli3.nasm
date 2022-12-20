@@ -128,6 +128,9 @@ code3:  ; 5 bytes here (p_memsz and lowest byte of p_flags), then code continues
 		int 0x80		; Linux i386 syscall.
 		jmp short code4
 
+; Feel free to change the message within the size limits.
+; Minimum message size: 3 bytes (to get a complete Elf32_Phdr).
+; Maximum message size: 255 byes (for the `mov dl, ...' to fit).
 message:	db 'Hello, World!', 10
 .end:
 
