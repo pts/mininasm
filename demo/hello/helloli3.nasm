@@ -8,6 +8,8 @@
 ;
 ; Disassemble: ndisasm -b 32 -e 0x54 helloli3
 ;
+; Memory usage: 0x2000 == 8192 bytes (including stack).
+;
 ; Compatibility:
 ;
 ; * Linux 2.0 i386 (1996-06-06): It works, tested in Debian 1.1 running in QEMU. Also tested that it doesn't print the message without the `xor ebx, ebx'.

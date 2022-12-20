@@ -6,6 +6,8 @@
 ; The created executable program is 83 bytes.
 ; Run on Linux i386 or amd64: ./hellohli3
 ;
+; Memory usage: 0xa000 == 40960 bytes (including stack).
+;
 ; Inspired by:
 ;
 ; * https://pastebin.com/a2RTNhEX (96 bytes)
