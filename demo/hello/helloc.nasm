@@ -45,7 +45,7 @@
 start:		
 		;xchg ax, bp  ; AH := 9, AH := junk, BP := junk. Works on kvikdos, DOSBox and FreeDOS. Doesn't work on MS-DOS or PC DOS earlier than 4.00. The value of BP was different b
 		mov ah, 9  ; This works everywhere, but it is 1 byte longer than `xchg ax, bp'.
-		mov dx, message+(0x100-start)  ; (0x100-exe) to make it work with any `org'.
+		mov dx, message+(0x100-$$)  ; (0x100-$$) to make it work with any `org'.
 		int 0x21  ; Print the message to stdout. https://stanislavs.org/helppc/int_21-9.html
 		ret  ; Exit. Jumps to PSP:0 which contains `int 0x20'. Requires CS == PSP and a .com program with 0 pushed. https://stanislavs.org/helppc/program_segment_prefix.html https://stanislavs.org/helppc/int_20.html
 

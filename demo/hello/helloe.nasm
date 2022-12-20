@@ -58,7 +58,7 @@ exe:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 ..@code:
 %if 1  ; Produces identical .exe output even if we change it to 0.
 .minalloc:	mov ax, 0x903  ; AH := 9, AL := junk. The number 3 matters for minalloc, see below.
-.ss_minus_1:	mov dx, message+(0x100-exe)  ; (0x100-exe) to make it work with any `org'.
+.ss_minus_1:	mov dx, message+(0x100-$$)  ; (0x100-$$) to make it work with any `org'.
 .sp:		int 0x21  ; Print the message to stdout. https://stanislavs.org/helppc/int_21-9.html
 .checksum:	int 0x20  ; Exit. Requires CS == PSP. https://stanislavs.org/helppc/int_20.html
 %else
@@ -68,7 +68,7 @@ exe:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 .sp		dw 0x21cd  ; Actual value doesn't matter. int 0x21
 .checksum	dw 0x20cd  ; Actual value doesn't matter. int 0x20
 %endif
-.ip		dw ..@code+(0x100-exe)  ; Entry point offset. (0x100-exe) to make it work with any `org'.
+.ip		dw ..@code+(0x100-$$)  ; Entry point offset. (0x100-$$) to make it work with any `org'.
 .cs		dw 0xfff0  ; CS := PSP upon entry.
 %if 0
 .relocpos	dw ?  ; Doesn't matter, overlaps with 2 bytes of message: 'He'.
