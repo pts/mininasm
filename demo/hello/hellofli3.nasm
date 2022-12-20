@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Mon Dec 19 22:09:09 CET 2022
 ;
 ; Compile: nasm -O9 -f bin -o hellofli3 hellofli3.nasm && chmod +x hellofli3
-; The created executable program is 97 bytes.
+; The created executable program is 95 bytes.
 ; Run on Linux i386 or amd64: ./hellofli3
 ;
 ; Disassemble: ndisasm -b 32 -e 0x45 hellofli3
@@ -39,7 +39,7 @@ ehdr:					; Elf32_Ehdr
 		db 1			;   e_ident[EI_VERSION]
 		db 3			;   e_ident[EI_OSABI]: Linux
 		db 0			;   e_ident[EI_ABIVERSION]
-entry:		; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
+entry:  ; We have 5 bytes + the 2 bytes for the `jmp strict short' here.
 %ifndef __MININASM__
 		mov ecx, message	; Pointer to message string. First byte (0xb9) doesn't work for p_flags.
 %else
@@ -73,9 +73,23 @@ phdr:					; Elf32_Phdr              ELF32_Ehdr (continued):
 		dw 0			;   p_offset                e_shnum
 		dw 0			;   High word of p_offset.  e_shnum
 		dd $$			;   p_vaddr
-		dd $$			;   p_paddr
-		dd filesize		;   p_filesz
-		dd filesize		;   p_memsz
+code3:  ; We have 4 bytes here.
+%ifndef __MININASM__
+		;mov eax, 1		; __NR_exit.
+		pop eax			; EAX := 1 == __NR_exit.
+		;mov ebx, 0		; EXIT_SUCCESS.
+		dec ebx			; EBX := 0 == EXIT_SUCCESS.
+%else
+		pop ax			; pop eax
+		dec bx			; dec ebx
+%endif
+		int 0x80		; CD80  Linux i386 syscall. Also low word of p_filesz.
+
+%if 0  ; The code at `code3' above overlaps with this.
+		dd $$			;   p_paddr. Ignored.
+%endif
+		dd filesize		;   p_filesz. FreeBSD fails if this is larger than the file. For Linux and qemu-i386, it can be larger.
+		dd filesize		;   p_memsz. Linux fails unless p_memsz >= p_filesz.
 		db 5			;   p_flags: r-x: read and execute, no write;
 					;   These work in the low 3 bits (high bits 5 don't matter):
 					;   --x (1, also allows read, works in Linux, not in qemu-i386),
@@ -97,26 +111,16 @@ code2:
 		;mov ebx, 1		; STDOUT_FILENO.
 		xor ebx, ebx		; EBX := 0. This isn't necessary since Linux 2.2, but it is in Linux 2.0: ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		inc ebx			; EBX := 1 == STDOUT_FILENO.
-		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
 		push ebx
-		mov dl, message.end-message  ; EDX := size of message to write. EDX is 0 since Linux 2.0 (or earlier): ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
-		int 0x80		; Linux i386 syscall.
-		;mov eax, 1		; __NR_exit.
-		pop eax			; EAX := 1 == __NR_exit.
-		;mov ebx, 0		; EXIT_SUCCESS.
-		dec ebx			; EBX := 0 == EXIT_SUCCESS.
 %else  ; Hack for 16-bit assemblers such as mininasm.
 		xor bx, bx		; xor ebx, ebx
 		inc bx			; inc ebx
-		mov al, 4		; mov al, 4
 		push bx			; push ebx
-		mov dl, message.end-message  ; mov dl, message.end-message
-		int 0x80		; int 0x80
-		pop ax			; pop eax
-		dec bx			; dec ebx
 %endif
+		mov al, 4		; EAX := __NR_write == 4. EAX happens to be 0. https://stackoverflow.com/a/9147794
+		mov dl, message.end-message  ; EDX := size of message to write. EDX is 0 since Linux 2.0 (or earlier): ELF_PLAT_INIT: https://asm.sourceforge.net/articles/startup.html
 		int 0x80		; Linux i386 syscall.
-		; Not reached.
+		jmp short code3
 
 message:	db 'Hello, World!', 10
 .end:
