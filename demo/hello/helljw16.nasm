@@ -89,13 +89,13 @@ ne_header:
 .InitSsSegNo	dw 2
 .SegCnt 	dw (SegTab.end-SegTab)>>3
 .ModCnt 	dw (ModRefTab.end-ModRefTab)>>1
-.NonResNameTabSize dw NonResNameTab.end-NonResNameTab
+.NonResNameTabSize dw ..@NonResNameTab.end-..@NonResNameTab
 .SegTabOfs	dw SegTab-ne_header
 .ResourceTabOfs	dw ResourceTab-ne_header
 .ResNameTabOfs	dw ResNameTab-ne_header
 .ModRefTabOfs	dw ModRefTab-ne_header
 .ImpNameTabOfs	dw ImpNameTab-ne_header
-.NonResNameTabOfs dd NonResNameTab-$$
+.NonResNameTabOfs dd ..@NonResNameTab-$$
 .MovableEntryCnt dw 0
 .SegAlignShift	dw FILE_ALIGNMENT_SHIFT
 .ResourceSegCnt	dw 0
@@ -129,34 +129,31 @@ SegTab:
 .seg2.minalloc	dw segment_data_end-segment_data
 .end:
 
-ResourceTab:
+ResourceTab:  ; Must be after SegTab.
 .end:
 
-ResNameTab:
-.entry0		db .entry0.end-.entry0-3, 'm', 0, 0  ; Module name.
+ResNameTab:  ; Must be after ResourceTab.
+..@NonResNameTab:
+.entry0		db .entry0.end-.entry0-3, 'm', 0, 0  ; Module name, module description (NonResNameTab).
 .entry0.end:
 		db 0  ; End of table.
+..@NonResNameTab.end:
+
 ModRefTab:
 .user:		dw ImpNameTab.mod1-ImpNameTab
 .kernel:	dw ImpNameTab.mod2-ImpNameTab
 .end:
 
-ImpNameTab:
+ImpNameTab: ; Must be riht after ModRefTab.
 		db 0
 .mod1		db .mod1.end-$-1, 'USER'
 .mod1.end:
 .mod2		db .mod2.end-$-1, 'KERNEL'
 .mod2.end:
 
-EntryTab:
-		db 0  ; Why?
-		db 0
-.end:
-
-NonResNameTab:
-.entry0:	db .entry0.end-.entry0-3, 'd', 0, 0  ; Module description.
-.entry0.end:
-		db 0  ; End of table.
+EntryTab:  ; Must be right after ImpNameTab.
+                db 0  ; Why?
+                db 0
 .end:
 
 before_segment_code times ($$-$)&((1<<FILE_ALIGNMENT_SHIFT)-1) db 0
