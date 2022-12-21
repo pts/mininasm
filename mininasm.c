@@ -40,6 +40,8 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
+ ** !! TODO(pts): Allow `label :' syntax.
+ **
  */
 
 #ifndef CONFIG_SKIP_LIBC
