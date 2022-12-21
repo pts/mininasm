@@ -8,6 +8,7 @@ Small hello-world programs for various systems:
   Linux emulation layer in FreeBSD, `objdump -x'
 * hellohli3.nasm: Linux i386 ELF-32: compatible with Linux >=2.0, qemu-i386
 * hellos32.nasm: Win32 PE .exe stub in 60 bytes
+* helljw16.nasm: Win16 Windows >=3.x 8086 .exe program
 
 Corresponding precompiled *.golden files are provided. Remove the .golden
 suffix from the filename for running.
