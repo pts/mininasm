@@ -3,12 +3,12 @@
 ; by pts@fazekas.hu at Tue Dec 20 22:40:03 CET 2022
 ;
 ; Compile: nasm -O0 -f bin -o helljw16.exe helljw16.nasm
-; The created executable program is 316 bytes.
+; The created executable program is 312 bytes.
 ;
 ; Compatibility:
 ;
+; * It works on Windows 3.0.
 ; * It works on Windows 3.11.
-; * It wasn't tried on Windows 3.0.
 ; * It works on Windows NT 3.1.
 ; * It works on Windows 95.
 ; * The DOS stub works on DOSBox 0.74.
@@ -161,8 +161,9 @@ before_segment_code times ($$-$)&((1<<FILE_ALIGNMENT_SHIFT)-1) db 0
 @0x0100:
 segment_code:
 
-_start:		xor bp, bp  ; !! TODO(pts): Do we need this? Not on Windows 3.11. Maybe on Windows 3.0? Microsoft libc has it.
-		push bp  ; !! TODO(pts): Do we need this? Not on Windows 3.11.
+_start:
+		; No need to set BP to 0 or push BP in Windows 3.0, 3.1, 95,
+		; Windows NT 3.1. Microsoft C compiler 8.00c libc does it.
 ..@reloc1	equ $+1
 		call 0:0xffff  ; InitTask. 'INITTASK'.'KERNEL' @91 == @0x5b. Segment doesn't seem to matter, offset must be 0xffff.
 		test ax, ax
