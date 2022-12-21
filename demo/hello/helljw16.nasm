@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Tue Dec 20 22:40:03 CET 2022
 ;
 ; Compile: nasm -O0 -f bin -o helljw16.exe helljw16.nasm
-; The created executable program is 312 bytes.
+; The created executable program is 300 bytes.
 ;
 ; Compatibility:
 ;
@@ -118,9 +118,11 @@ $SEG:
 SegTab:
 .seg1.fofs	dw (segment_code-$$)>>FILE_ALIGNMENT_SHIFT
 .seg1.size	dw segment_code_end-segment_code
-.seg1.flags	dw $SEG.REL | $SEG.PRELOAD | $SEG.REL | $SEG.DPL3
+.seg1.flags	dw $SEG.REL | $SEG.PRELOAD | $SEG.DPL3
 .seg1.minalloc	dw segment_code_end-segment_code
-;
+; It's unlikely that merging these two segments (and thus saving 2 bytes)
+; would work, see https://retrocomputing.stackexchange.com/a/25936
+; In fact, it doesn't work on Windows 3.1.
 .seg2.fofs	dw (segment_data-$$)>>FILE_ALIGNMENT_SHIFT
 .seg2.size	dw segment_data_end-segment_data
 .seg2.flags	dw $SEG.DATA | $SEG.PRELOAD | $SEG.DPL3
@@ -179,11 +181,11 @@ _start:
 		jz strict short .fail
 		xor ax, ax
 		push ax
-		push ds
-		mov bx, msg_hello-segment_data
+		push cs
+		mov bx, msg_hello-segment_code
 		push bx
-		push ds
-		mov bx, msg_hi-segment_data
+		push cs
+		mov bx, msg_hi-segment_code
 		push bx
 		push ax
 ..@reloc0	equ $+1
@@ -192,6 +194,9 @@ _start:
 		int 0x21
 .fail:		mov ax,0x4c01  ; EXIT_FAILURE == 1.
 		int 0x21
+
+msg_hi		db 'Hi!', 0
+msg_hello	db 'Hello, World!', 0
 
 segment_code_end:
 
@@ -215,20 +220,17 @@ segment_code_relocs:
 		dw $AT.FARPTR | REL.IMPORDINAL<<8, ..@reloc3  -segment_code, (ModRefTab.user  -ModRefTab+2)>>1, 5     ; 'INITAPP'.'USER' @5.
 .end:
 
-before_segment_data times ($$-$)&((1<<FILE_ALIGNMENT_SHIFT)-1) db 0
-..@0x018a:
-segment_data:
-
-instancedata:
-msg_hi		db 'Hi!', 0
-		times (instancedata+0xa)-$ db 0
-.id0xa		dw 0  ; InitTask overwrites it to stack bottom.
-.id0xc		dw 0  ; InitTask overwrites it to stack bottom.
-.id0xe		dw 0  ; InitTask overwrites it to stack top.
-
-msg_hello	db 'Hello, World!', 0
-
-segment_data_end:
+; We overlap this with mz_header.
+;before_segment_data times ($$-$)&((1<<FILE_ALIGNMENT_SHIFT)-1) db 0
+;segment_data:
+;instancedata:
+;		times (instancedata+0xa)-$ db 0
+;.id0xa		dw 0  ; InitTask overwrites it to stack bottom.
+;.id0xc		dw 0  ; InitTask overwrites it to stack bottom.
+;.id0xe		dw 0  ; InitTask overwrites it to stack top.
+;segment_data_end:
+segment_data equ $$
+segment_data_end equ segment_data+0x10
 
 ..@0x01ac:
 fileend:
