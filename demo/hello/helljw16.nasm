@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Tue Dec 20 22:40:03 CET 2022
 ;
 ; Compile: nasm -O0 -f bin -o helljw16.exe helljw16.nasm
-; The created executable program is 300 bytes.
+; The created executable program is 282 bytes.
 ;
 ; Compatibility:
 ;
@@ -133,7 +133,7 @@ ResourceTab:
 .end:
 
 ResNameTab:
-.entry0		db .entry0.end-.entry0-3, 'hellnw16', 0, 0  ; Module name.
+.entry0		db .entry0.end-.entry0-3, 'm', 0, 0  ; Module name.
 .entry0.end:
 		db 0  ; End of table.
 ModRefTab:
@@ -154,7 +154,7 @@ EntryTab:
 .end:
 
 NonResNameTab:
-.entry0:	db .entry0.end-.entry0-3, 'hellnw16.exe', 0, 0  ; Module description.
+.entry0:	db .entry0.end-.entry0-3, 'd', 0, 0  ; Module description.
 .entry0.end:
 		db 0  ; End of table.
 .end:
