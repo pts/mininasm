@@ -1,5 +1,5 @@
 ;
-; floppy.nasm: NASM source of a 1440 KiB FAT12 filesystem 3.5" floppy image contining a single file (HI.TXT)
+; floppy.nasm: NASM source of a 1440 KiB FAT12 filesystem 3.5" floppy image containing a single file (HI.TXT)
 ; by pts@fazekas.hu at Tue Dec 13 21:59:42 CET 2022
 ;
 ; Compile: nasm -f bin -O0 -o floppy.bin floppy.nasm
