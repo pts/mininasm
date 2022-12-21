@@ -12,7 +12,7 @@
 
 bits 16		; 16 bit mode
 org 100h	; entry point "address"
-cpu 386  ;cpu 186  ; Some instructions need `cpu 386', will be marked later.
+cpu 186		; Some instructions need `cpu 386', will be marked later.
 
 ; entry point
 _start:

@@ -25,5 +25,9 @@ Changes made in this port:
   restricted in mininasm.
 * Some `%define's were changed to `equ' (and moved down in the source file)
   because `%define' bodies are restricted in mininasm.
+* Instructions requiring `cpu 386' were changed to hand-coded `db' or `dw'
+  bytes, because mininasm supports up to `cpu 286'. These instructions are
+  `movsb', `je strict near ...', `jge strict near ...', `jle strict near
+  ...'.
 
 __END__

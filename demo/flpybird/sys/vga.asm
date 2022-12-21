@@ -40,6 +40,14 @@ vsync:
 	popa
 	ret
 
+%ifndef __MININASM__
+%macro nearj 2  ; A near jump. Example: nearj je, .end
+	cpu 386
+	%1 strict near %2
+	cpu 186
+%endm
+%endif
+
 ; =====================================================
 ; PROTOTYPE	: void blit( unsigned char *pixels,
 ;						 short  w, short  h,
@@ -58,28 +66,52 @@ blit:
 	pusha
 
 	cmp word [bp+14], 0 ; sw is 0?
-	je .end
+%ifdef __MININASM__
+	dw 0x840f, .end-$-4
+%else
+	nearj je, .end
+%endif
 
 	cmp word [bp+12], 0 ; sh is 0?
-	je .end
+%ifdef __MININASM__
+	dw 0x840f, .end-$-4
+%else
+	nearj je, .end
+%endif
 
 	cmp word [bp+10], VIDMEW ; dx out of bounds on right
-	jge .end				 ; full clip
+%ifdef __MININASM__
+	dw 0x8d0f, .end-$-4
+%else
+	nearj jge, .end				 ; full clip
+%endif
 
 	cmp word [bp+8], VIDMEH ; dy out of bounds on bottom
-	jge .end				; full clip
+%ifdef __MININASM__
+	dw 0x8d0f, .end-$-4
+%else
+	nearj jge, .end				; full clip
+%endif
 
 	mov ax, [bp+14]		 ;  sw (width)
 	neg ax				 ; -sw
 
 	cmp word [bp+10], ax ; dx out of bounds on left
-	jle .end			 ; full clip
+%ifdef __MININASM__
+	dw 0x8e0f, .end-$-4
+%else
+	nearj jle, .end			 ; full clip
+%endif
 
 	mov bx, [bp+12]		 ; sh (height)
 	neg bx				 ; -sh
 
 	cmp word [bp+8], bx  ; dy out of bounds on top
-	jle .end			 ; full clip
+%ifdef __MININASM__
+	dw 0x8e0f, .end-$-4
+%else
+	nearj jle, .end			 ; full clip
+%endif
 
 	neg ax				 ; revert sw (width)
 	add ax, [bp+10]		 ; add dx
@@ -371,7 +403,14 @@ flpscr:
 
 	mov cx, VIDMES / 4 ; 64000 / 4
 
-	rep movsd  ; copy 4 bytes from [DS:SI] into [ES:DI]
+%ifdef __MININASM__
+	;cpu 386  ; This doesn't work in mininasm.
+	db 0xf3, 0x66, 0xa5  ; rep movsd
+%else
+	cpu 386
+	rep movsd  ; copy 4 bytes from [DS:SI] into [ES:DI]. Possible bug: what if ECX >= 0x10000?
+	cpu 186
+%endif
 
 	pop cx
 	pop ds
