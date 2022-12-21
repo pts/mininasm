@@ -73,7 +73,7 @@ _start:
 	; The version number digits after 2. can be arbitrary.
 	db 'POTTERSOFTWARE_QUOTE_DISPLAYER_2.63', 13, 10, 26, 83h, 0c4h, 14h
 	;db 'POTTERSOFTWARE_FORTUNE_TELLER_2.63', 13, 10, 26, 83h, 0c4h, 16h
-	xor bx, bx
+	dw 0xdb33  ; xor bx, bx
 	mov [idxc], bx
 	mov [idxchw], bx
 	mov bp, errorlevel		;Keep it cached to reduce code size below.
@@ -100,7 +100,7 @@ l18:	mov ax, 3D00h
 	jnz gen				;If failed to open (CF set after int 21h above), then generate it.
 	
 ;=======Reads the index file quote.idx.
-	mov bx, ax
+	dw 0xd88b  ; mov bx, ax		;Some instructions are specified as dw to match the instruction encoding of A86 exactly.
 	mov ah, 3Fh
 	mov cx, idxlen+2
 	mov dx, idxc
@@ -116,7 +116,7 @@ l18:	mov ax, 3D00h
 ;	We don't use the idxc value in the beginning of the index file
 ;	quote.idx, because it's 16-bit only, and we may need 32 bits.
 ;	Prerequisite: CX = number of 1024-block bytes in the index.
-	xor ax, ax
+	dw 0xc033  ; xor ax, ax
 	mov [idxc], ax			;Clear it after read above.
 	mov si, index
 	jcxz r2
@@ -164,7 +164,7 @@ l4b:	add word [idxc], strict byte (1)  ;Count the quote as total. Modifies CF (i
 	adc word [idxchw], strict byte (0)
 l4c:	mov ah, 1
 l4next:	loop l4
-	mov al, dl
+	dw 0xc28a  ; mov al, dl
 	stosb				;Add byte for current block to index.
 	cmp di, index+idxlen
 	jne l2
@@ -198,10 +198,10 @@ l1:	cmp byte [param], 5
 	je l5
 	push bx				;Save .txt filehandle.
 	mov ah, 3Ch
-	xor cx, cx			;Creates with attributes = 0.
+	dw 0xc933  ; xor cx, cx			;Creates with attributes = 0.
 	mov dx, idxfn
 	call error_int21h		;'H' Open index file quote.idx for rewriting.
-	mov bx, ax
+	dw 0xd88b  ; mov bx, ax
 	mov ah, 40h
 	lea cx, [di-idxc]		;CX := DI-ofs(index) == sizeof_index.
 	mov dx, idxc
@@ -222,22 +222,22 @@ l5:	mov byte [bp], 'L'
 ;=======Generates 32-bit random seed in SI:DI. Clobbers flags, AX, BX, CX.
 	mov ah, 0			;Read system clock counter to CX:DX.
 	int 1ah
-	mov si, cx
+	dw 0xf18b  ; mov si, cx
 	mov di, dx
 	call mixes3_si_di
 	mov ah, 2			;Read clock time to CX, DX.
 	int 1ah
 	add si, cx
-	adc di, dx
+	dw 0xfa13  ; adc di, dx
 	call mixes3_si_di
 	mov ah, 4			;Read clock date to CX, DX.
 	int 1ah
 	add si, cx
-	adc di, dx
+	dw 0xfa13  ; adc di, dx
 	call mixes3_si_di
 	mov cx, ds
 	add si, cx
-	adc di, dx
+	dw 0xfa13  ; adc di, dx
 	call mixes3_si_di
 	; Now SI:DI is a 32-bit random number.
 
@@ -245,15 +245,15 @@ l5:	mov byte [bp], 'L'
 ;       It does the multiplication (idxchw:idxc) * (SI:DI), and keeps the
 ;       highest 32 bits of the 64-bit result.
 ;       Clobbers flags, AX, BX, SI, DI.
-	mov ax, di
+	dw 0xc78b  ; mov ax, di
 	mul word [idxchw]  ; DX:AX = ((idxchw*DI))  ; Since idxchw<100h, CX=DX<100h.
-	mov cx, dx
+	dw 0xca8b  ; mov cx, dx
 	xchg bx, ax  ; Clobbers AX. We don't care.
 	xchg ax, di  ; Clobbers DI. We don't care.
 	mul word [idxc]  ; DX:AX = ((idxc*DI))  ; Result ax will be ignored.
-	add bx, dx
+	dw 0xda03  ; add bx, dx
 	adc cx, strict byte (0) 	 ; No overflow here since CX<100h.
-	mov ax, si
+	dw 0xc68b  ; mov ax, si
 	mul word [idxc]  ; DX:AX = ((idxc*SI))
 	add ax, bx  ; Result ax and bx will be ignored.
 	adc cx, dx  ; Overflow goes to CF.
@@ -286,8 +286,8 @@ l6:	sub si, index+2			;SI := 1024-byte block index.
 	mov ax, 4200h
 	mov di, buffer
 	jns l8
-	xor dx, dx			;Our quote is in block 0, seeks to the beginning.
-	xor cx, cx
+	dw 0xd233  ; xor dx, dx		;Our quote is in block 0, seeks to the beginning.
+	dw 0xc933  ; xor cx, cx
 	call error_int21h		;'M' Seek to the beginning of the index file.
 	mov ax, 0A0Ah
 	stosw				;Add sentinel LF+LF before the beginning, for state 1 --> state 0.
@@ -299,7 +299,7 @@ l8:	; Set CX:DX to 1024 * SI + 1021.
 	mov dx, si
 	mov cl, 10
 	rol dx, cl
-	mov cx, dx
+	dw 0xca8b  ; mov cx, dx
 	and cx, ((1 << 10) - 1)
 	and dx, ((1 << 6) - 1) << 10
 	add dx, 1021
@@ -398,7 +398,7 @@ y91:	mov [si], cl			;Set length of Pascal string.
 	jne yc
 	dec ax				;If AnsiCh!=0, skip first 2 characters (-- or -&).
 	dec ax
-	mov dx, ax
+	dw 0xd08b  ; mov dx, ax
 	inc si
 	xchg [si], dl			;Copy Pascal string length to the next byte, get new AnsiCh.
 	inc si
@@ -409,7 +409,7 @@ yc:     dec si
 	cmp dl, 0
 	jne ya
 	mov al, 0
-	xor bx, bx
+	dw 0xdb33  ; xor bx, bx
 	mov cx, 7
 	jmp strict near yb		;TODO: Use jmp_short.
 ya:     cmp dl, '&'
@@ -422,7 +422,7 @@ yb:     sub bx, ax
 	mov ax, 0Eh*256+0b3h		;'│' Start the line.
 	mov bh, 0
 	int 10h
-	mov bx, cx
+	dw 0xd98b  ; mov bx, cx
 	mov cx, 78
 	call filld
 
@@ -430,14 +430,14 @@ yb:     sub bx, ax
 	lodsb				;Get length of Pascal string.
 	mov cl, al
 	mov ch, 0
-	mov dx, cx
+	dw 0xd18b  ; mov dx, cx
 	mov bh, 0
-	mov cx, di
+	dw 0xcf8b  ; mov cx, di
 	jcxz y5
 	mov ax, 256*0Eh+' '
 y2:     int 10h
 	loop y2
-y5:     mov cx, dx
+y5:     dw 0xca8b  ; mov cx, dx
 	mov ah, 0Eh
 y3:     lodsb
 	int 10h
@@ -485,25 +485,25 @@ mixes3_si_di:
 	push bp
 	mov ah, 10			;Do 10 iterations of mix3.
 ml0:	mov bx, di
-	mov bp, si
+	dw 0xee8b  ; mov bp, si
 	mov al, 13
 ml1:	shl bx, 1
 	rcl bp, 1
 	dec al
 	jnz ml1
-	xor di, bx
+	dw 0xfb33  ; xor di, bx
 	xor si, bp
 	mov bx, si
 	shr bx, 1
-	xor di, bx
+	dw 0xfb33  ; xor di, bx
 	mov bx, di
-	mov bp, si
+	dw 0xee8b  ; mov bp, si
 	mov al, 5
 ml2:	shl bx, 1
 	rcl bp, 1
 	dec al
 	jnz ml2
-	xor di, bx
+	dw 0xfb33  ; xor di, bx
 	xor si, bp
 	dec ah
 	jnz ml0				;Continue with next iteration of mix3.
@@ -520,11 +520,11 @@ header:	mov bx, 16
 	call ploop
 	lodsb
 	mov ah, 0
-	mov dx, ax
+	dw 0xd08b  ; mov dx, ax
 	shr ax, 1
 	mov cx, 25
-	sub cx, ax
-	mov bx, cx
+	dw 0xc82b  ; mov cx, ax
+	dw 0xd98b  ; mov bx, cx
 	mov ax, 0Eh*256+' '
 	mov bh, 0
 	jcxz y74
@@ -560,7 +560,7 @@ pline:	int 10h
 	mov al, 196			;'─'.
 y70:    int 10h
 	loop y70
-	mov al, bl
+	dw 0xc38a  ; mov al, bl
 	int 10h
 	ret
 

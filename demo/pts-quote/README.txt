@@ -2,8 +2,7 @@ pts-quote: a DOS program to display a random quote on the console
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This is a port of pts-quote assembly sources to mininasm (and NASM and
 Yasm). The original assembly sources worked with A86, NASM and Yasm. This
-port produces a bitwise identical executable program (except for 8086
-instruction encoding differences): quote63m.com.golden is
+port produces a bitwise identical executable program: quote63m.com.golden is
 the same as
 https://github.com/pts/pts-quote/blob/baefb04fecbaf9fbf37d0a69a837c2aa41fbbe38/quote63.com.orig
 
