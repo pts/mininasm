@@ -16,6 +16,7 @@
 ; See also: https://github.com/alexfru/Win16asm/blob/master/ne.inc
 ; See also: https://board.flatassembler.net/topic.php?t=21339
 ; See also: https://devblogs.microsoft.com/oldnewthing/20071203-00/?p=24323
+; See also: https://bytepointer.com/resources/win16_ne_exe_format_win3.0.htm
 ;
 
 		bits 16
