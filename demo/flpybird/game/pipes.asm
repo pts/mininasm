@@ -288,7 +288,7 @@ reset_pipes:
 	mov word [pipe_a], 0
 	ret
 
-pipes : dw 120, 32, 64, 32, 260, 78, 78, 78, 400, 78, 78, 78 ; offset = 4
+pipes:  dw 120, 32, 64, 32, 260, 78, 78, 78, 400, 78, 78, 78 ; offset = 4
 pipe_a: dw 0 ; active pipe offset [0, 8, 16]
 
 PIPE_1 equ pipes + 0

@@ -29,5 +29,7 @@ Changes made in this port:
   bytes, because mininasm supports up to `cpu 286'. These instructions are
   `movsb', `je strict near ...', `jge strict near ...', `jle strict near
   ...'.
+* A mininasm parsing bug of not allowing whitespace in front of a `:' in a
+  label definition was worked around by moving that whitespace.
 
 __END__
