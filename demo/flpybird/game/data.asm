@@ -1,5 +1,5 @@
 ; Uncompressed TGA with origin set to Top-Left and 256 color map
-%define TGA_HEADER_COLORMAP 18 + 1028 ; 18 bytes header + 1028 bytes 256 colormap
+%assign TGA_HEADER_COLORMAP 18 + 1028 ; 18 bytes header + 1028 bytes 256 colormap
 
 bird:		incbin	"data/bird.tga",		TGA_HEADER_COLORMAP, 96 * 24
 grass:		incbin	"data/grass.tga",	TGA_HEADER_COLORMAP, 16 * 10

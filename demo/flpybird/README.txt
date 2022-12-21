@@ -21,5 +21,9 @@ Changes made in this port:
 * `%define COM' was added to com.asm for covenience. Before that, the
  `-DCOM' flag had to be specified for `nasm'.
 * Compilation instructions were added as comments to com.asm.
+* Some `%define's were changed to `%assign' because `%define' bodies are
+  restricted in mininasm.
+* Some `%define's were changed to `equ' (and moved down in the source file)
+  because `%define' bodies are restricted in mininasm.
 
 __END__

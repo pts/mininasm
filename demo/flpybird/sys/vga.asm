@@ -1,7 +1,7 @@
 %define VIDMEW 320		  ; video memory width
 %define VIDMEH 200		  ; video memory height
 %define VIDMES 64000	  ; video memory size
-%define VIDMEM IMAGE_SIZE ; back buffer video memory
+%assign VIDMEM IMAGE_SIZE ; back buffer video memory
 %define VIDMED 0xA000	  ; system video memory
 
 ; ==========================================

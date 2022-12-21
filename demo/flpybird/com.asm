@@ -1,15 +1,18 @@
 ;
 ; Compile: nasm -O9 -f bin -o flpybird.com com.asm
 ;
+; Compile: mininasm -O9 -f bin -o flpybird.com com.asm
+;
 ; The compiled flpybird.com is bitwise identical to the released version.
 ;
 
-%define COM
-%define SECTORS 16							; keep it under 18
-%define IMAGE_SIZE ((SECTORS + 1) * 512)	; SECTORS + 1 (~= 18) * 512 bytes
+%define COM 1
+%define SECTORS 16				; keep it under 18
+%assign IMAGE_SIZE ((SECTORS + 1) * 512)	; SECTORS + 1 (~= 18) * 512 bytes
 
 bits 16		; 16 bit mode
 org 100h	; entry point "address"
+cpu 386  ;cpu 186  ; Some instructions need `cpu 386', will be marked later.
 
 ; entry point
 _start:

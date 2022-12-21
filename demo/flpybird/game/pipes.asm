@@ -1,6 +1,7 @@
-%define PIPE_1 pipes + 0
-%define PIPE_2 pipes + 8
-%define PIPE_3 pipes + 16
+; Defined as equ below.
+;%define PIPE_1 pipes + 0
+;%define PIPE_2 pipes + 8
+;%define PIPE_3 pipes + 16
 
 update_pipes:
 	sub word [PIPE_1], 2
@@ -289,3 +290,7 @@ reset_pipes:
 
 pipes : dw 120, 32, 64, 32, 260, 78, 78, 78, 400, 78, 78, 78 ; offset = 4
 pipe_a: dw 0 ; active pipe offset [0, 8, 16]
+
+PIPE_1 equ pipes + 0
+PIPE_2 equ pipes + 8
+PIPE_3 equ pipes + 16
