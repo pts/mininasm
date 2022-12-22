@@ -1,5 +1,5 @@
 ;
-; psrinvad.nasm: port of the Space Invaders game to mininasm
+; psrinvad11k.nasm: port of the Space Invaders game to mininasm
 ; ported by pts@fazekas.hu at Wed Dec 21 23:07:44 CET 2022
 ;
 ; The version 1.1k was ported:
