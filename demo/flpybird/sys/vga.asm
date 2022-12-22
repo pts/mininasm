@@ -67,28 +67,32 @@ blit:
 
 	cmp word [bp+14], 0 ; sw is 0?
 %ifdef __MININASM__
-	dw 0x840f, .end-$-4
+	dw 0x840f
+	dw .end-$-2
 %else
 	nearj je, .end
 %endif
 
 	cmp word [bp+12], 0 ; sh is 0?
 %ifdef __MININASM__
-	dw 0x840f, .end-$-4
+	dw 0x840f
+	dw .end-$-2
 %else
 	nearj je, .end
 %endif
 
 	cmp word [bp+10], VIDMEW ; dx out of bounds on right
 %ifdef __MININASM__
-	dw 0x8d0f, .end-$-4
+	dw 0x8d0f
+	dw .end-$-2
 %else
 	nearj jge, .end				 ; full clip
 %endif
 
 	cmp word [bp+8], VIDMEH ; dy out of bounds on bottom
 %ifdef __MININASM__
-	dw 0x8d0f, .end-$-4
+	dw 0x8d0f
+	dw .end-$-2
 %else
 	nearj jge, .end				; full clip
 %endif
@@ -98,7 +102,8 @@ blit:
 
 	cmp word [bp+10], ax ; dx out of bounds on left
 %ifdef __MININASM__
-	dw 0x8e0f, .end-$-4
+	dw 0x8e0f
+	dw .end-$-2
 %else
 	nearj jle, .end			 ; full clip
 %endif
@@ -108,7 +113,8 @@ blit:
 
 	cmp word [bp+8], bx  ; dy out of bounds on top
 %ifdef __MININASM__
-	dw 0x8e0f, .end-$-4
+	dw 0x8e0f
+	dw .end-$-2
 %else
 	nearj jle, .end			 ; full clip
 %endif

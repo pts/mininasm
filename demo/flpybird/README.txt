@@ -10,7 +10,7 @@ flpybird.com in a DOS emulator such as DOSBox. See more instructions in
 the project repository.
 
 To compile flpybird.com with mininasm or NASM from sources, follow the
-instructions in com.asm. Currently it doesn't compile with mininasm.
+instructions in com.asm.
 
 This porting project demonstrates that `%include' and `%incbin' work well in
 mininasm, even nested `%includes'.
@@ -31,5 +31,7 @@ Changes made in this port:
   ...'.
 * A mininasm parsing bug of not allowing whitespace in front of a `:' in a
   label definition was worked around by moving that whitespace.
+* A mininasm code generation bug for `dw ..., $' was worked around by
+  splitting the arguments to separate `dw' instructions.
 
 __END__
