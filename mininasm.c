@@ -3913,6 +3913,7 @@ UNALIGNED const char instruction_set2[] =
     "ROR\0" "j,1 gdzzodk" ALSO "k,1 hdzzodk" ALSO "j,CL D2dzzod" ALSO "k,CL D3dzzod\0"
     "SAHF\0" " 9E\0"
     "SAL\0" "j,1 gdozzdk" ALSO "k,1 hdozzdk" ALSO "j,CL D2dozzd" ALSO "k,CL D3dozzd\0"
+    "SALC\0" " D6\0"
     "SAR\0" "j,1 gdooodk" ALSO "k,1 hdooodk" ALSO "j,CL D2doood" ALSO "k,CL D3doood\0"
     "SBB\0" "j,q 18drd" ALSO "k,r 19drd" ALSO "q,j 1Adrd" ALSO "r,k 1Bdrd" ALSO "vAL,h 1Ci" ALSO "wAX,g 1Dj" ALSO "m,s sdzoodj" ALSO "l,t 80dzoodi\0"
     "SCASB\0" " AE\0"
