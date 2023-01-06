@@ -519,7 +519,6 @@ typedef char assert_value_size[sizeof(value_t) * 8 >= CONFIG_VALUE_BITS];
 static uvalue_t line_number;
 
 static unsigned short assembler_pass;  /* 0 at startup, 1 at offset calculation, >= 2 at code generation. */
-static unsigned char size_decrease_count;
 static value_t default_start_address;
 static value_t start_address;
 static value_t current_address;
@@ -3506,6 +3505,12 @@ int main(int argc, char **argv)
     char *ifname;
     char *listing_filename;
     value_t prev_address;
+    value_t delta;
+    value_t delta_acc;
+    value_t delta_acc_max;
+    unsigned char delta_violation_count;
+    signed char cur_dir;
+    signed char delta_dir;
 #if !CONFIG_MAIN_ARGV
     (void)argc;
 #endif
@@ -3668,6 +3673,10 @@ int main(int argc, char **argv)
             MESSAGE(1, "No output filename provided");
             return 1;
         }
+        delta_violation_count = 0;
+        delta_acc = 0;
+        delta_acc_max = 0;
+        cur_dir = 1;
         do {
             if (GET_U16(++assembler_pass) == 0) { do_special_pass_1 = 2; --assembler_pass; }  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
@@ -3687,7 +3696,7 @@ int main(int argc, char **argv)
             do_assembly(ifname);
             emit_flush(0);
             close(output_fd);
-            if (0) DEBUG3("current_address after pass %d: current_address=0x%x jrb=0x%x\n", (unsigned)assembler_pass, (unsigned)current_address, (unsigned)jump_range_bits);
+            if (0) DEBUG4("current_address after pass %d: current_address=0x%x delta=%" FMT_VALUE "d jrb=0x%x\n", (unsigned)assembler_pass, (unsigned)current_address, current_address - prev_address, (unsigned)jump_range_bits);
             if (!have_labels_changed && jump_range_bits == 1) {
                 ++jump_range_bits;  /* = 2. Report ``short jump out of range'' errors in the next pass. */
                 ++have_labels_changed;  /* = 1. Do another pass. */
@@ -3695,9 +3704,50 @@ int main(int argc, char **argv)
             if (have_labels_changed) {
                 if (opt_level <= 1) {
                     MESSAGE(1, "oops: labels changed");
-                } else if (current_address > prev_address) {  /* It's OK and we don't count that the size increases, converging to and eventually stabilizing at a fixed point. */
-                } else if (++size_decrease_count == 5) {  /* TODO(pts): Make this configurable? NASM also counts increasing. */
-                    MESSAGE(1, "Aborted: Couldn't stabilize moving label");
+                } else {  /* Heuristics to detect too many (possibly infinite) loop of changes. */
+                    /* This heuristic counts delta violations, and fails
+                     * when their count reaches a limit. It is counted like
+                     * this:
+                     *
+                     * * After each pass, the output file size increase
+                     *   (delta) relative is noted. For example: 100 -20 -31
+                     *   50 0 10 0 -100.
+                     * * There is a delta violation for each delta == 0 value.
+                     *   These values are removed. So the example becomes: 100
+                     *   -20 -31 50 10 -60, and there were 2 violations.
+                     * * Consecutive deltas of the same sign are added
+                     *   together, then the absolute value is taken. So the
+                     *   example becomes: 100 61 60 60.
+                     * * The first value and each value not smaller than the
+                     *   maximum so far is a delta violation. So in the example,
+                     *   there are 2 (100 and the last 60).
+                     *
+                     * This heuristic guarantees that after the last delta
+                     * violation (if there was at least 1 decrease) there
+                     * will be a finite number of passes.
+                     */
+                    delta = current_address - prev_address;
+                    if (delta < 0) {
+                        delta = -delta;
+                        delta_dir = -1;
+                    } else {
+                        delta_dir = delta > 0;
+                    }
+                    if (delta_dir == 0) {
+                        ++delta_violation_count;
+                    } else if (delta_dir == cur_dir) {
+                        delta_acc += delta;
+                    } else {
+                        cur_dir = delta_dir;
+                        if (delta_acc >= delta_acc_max) {
+                            delta_acc_max = delta_acc;
+                            ++delta_violation_count;
+                        }
+                    }
+                    if (0) DEBUG1("dvc=%d\n", delta_violation_count);
+                    if (delta_violation_count == 7) {  /* TODO(pts): Make this configurable? NASM also counts increasing. */
+                        MESSAGE(1, "Aborted: Couldn't stabilize moving label");
+                    }
                 }
             }
             if (listing_fd >= 0) {

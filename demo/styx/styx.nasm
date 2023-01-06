@@ -6,7 +6,6 @@
 ; Compile: nasm -O9 -f bin -o styx.exe styx.nasm
 ;
 ; Compile: mininasm -O9 -f bin -o styx.exe styx.nasm
-; !! This doesn't work yet: error: Aborted: Couldn't stabilize moving label
 ;
 ; The produced styx.exe executable program is bitwise identical to the
 ; styx.exe (styx.exe.golden) built from source
