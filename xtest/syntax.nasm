@@ -58,7 +58,9 @@ $cmp		mov aX, _start
 %else
 		mov ax, 0o76  ; Octal. Syntax error in NASM 0.98.39.
 %endif
+%if-1  ; It works even without space.
 		mov ax, 76o
+%endif
 		;mav ax, 768o  ; Syntax error, no octal digit 8.
 		mov ax, ax.value  ; $12AB, defined above. No need for `$' prefix.
 		mov word ax, 129H
@@ -91,7 +93,8 @@ $cmp		mov aX, _start
 		jmp far [bx]
 		;jmp dword ax  ; Error in NASM.
 		;jmp dword [bx]  ; Error in NASM.
-		jmp 0x1234:0xabcd
+		jmp--0x1234:0xabcd  ; It works even without space.
+		jmp 0x1234 :  0xabce
 		;jmp far 0x1234:0xabcd  ; Error in NASM.
 		;jmp dword 0x1234:0xabcd  ; Error in NASM.
 		;call short _start  ; Error in NASM.
@@ -341,7 +344,7 @@ data		db '\', "\", ; $ax  ; $ax is commented out here.
 more_data:	db '', 'M'
 		dw 0xdead
 		dd 0xface432
-		db 0, 1, $-$$
+		db(2), 1, $-$$
 		times 3 db $-$$  ; Each `$' refers to the beginning of the lines.
-		times 3 mov al, $-$$  ; Each `$' refers to the beginning of the lines.
+		times(3)mov al, $-$$  ; Each `$' refers to the beginning of the lines. It works even without space.
 .back:		times 3 jmp strict short .back  ; Each jump is relative to the current instruction.

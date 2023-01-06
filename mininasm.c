@@ -2365,7 +2365,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
 }
 
 /*
- ** Separate a portion of entry up to the first space.
+ ** Separate a portion of entry up to the first nonlabel.
  ** First word gets copied to `instr_name' (silently truncated if needed),
  ** and `p' is advanced after it, and the new p is returned.
  */
@@ -2375,11 +2375,12 @@ static const char *separate(const char *p) {
 
     for (; *p == ' '; ++p) {}
     p2 = instr_name;
+    if (*p == '%') goto do_copy_char;  /* Allow preprocessor directive (`%') at the start. */
     for (;;) {
         if (p2 == instr_name_end) {
-            for (; *p && *p != ' '; ++p) {}  /* Silently truncate instr_name. */
+            for (; islabel(*p); ++p) {}  /* Silently truncate instr_name. */
             break;
-        } else if (*p && *p != ' ') {
+        } else if (islabel(*p)) { do_copy_char:
             *p2++ = *p++;
         } else {
             break;
