@@ -33,7 +33,7 @@ _start:		mov ax, $ax  ; This is a very long comment. More characters follow. Mor
 		mov ax, $$+3
 $ax:		; This label is a syntax error without the `$' prefix.
 		mov ax, $.bx
-.bx:		mov ax, $@$@@  ; `$$$@@' is a syntax error in nasm.
+.bx  :		mov ax, $@$@@  ; `$$$@@' is a syntax error in nasm.
 .value		equ $12aB
 $.cX:		mov ax, @$@@  ; `$$$@@' is a syntax error in nasm.
 		mOV ax, .cX
@@ -239,7 +239,7 @@ $cmp		mov aX, _start
 		cmp bx, _-?+0xfffc  ; With forward reference.
 
 co1		equ 3Bh
-co2		equ 3B0h
+co2 :		equ 3B0h
 %if co2-(co1<<4)
 		db 0/0
 %endif

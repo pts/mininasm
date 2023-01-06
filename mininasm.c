@@ -40,8 +40,6 @@
  **
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
- ** !! TODO(pts): Allow `label :' syntax.
- **
  */
 
 #ifndef CONFIG_SKIP_LIBC
@@ -3163,16 +3161,17 @@ static void do_assembly(const char *input_filename) {
       not_preproc:
 
         /* Parse and process label, if any. */
-        if ((p3 = match_label_prefix(p)) != NULL && p3[0] != '\0' && (psave = avoid_spaces(p3 + 1), p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || (is_colonless_instruction(psave)
+        if ((p3 = match_label_prefix(p)) != NULL && p3[0] != '\0' && (psave = avoid_spaces(p3 + 1), p3[0] == ':' || (p3[0] == ' ' && (p[0] == '$' || psave[0] == ':' || (is_colonless_instruction(psave)
             /* && !is_colonless_instruction(p) */ ))))) {  /* !is_colonless_instruction(p) is implied by match_label_prefix(p) */
             if (p[0] == '$') ++p;
             rc = p3[0];
+            if (rc == ' ' && psave[0] == ':') psave = avoid_spaces(psave + 1);
             if ((pc = casematch(psave, "EQU!")) != 0) psave = match_expression(psave + 3);  /* EQU. */
             if ((pc && p[0] != '.') ||  /* If it's an `EQU' for a non-local label, then use the specified label as a global label, and don't change global_label. */
                 (p[0] == '.' && p[1] == '.' && p[2] == '@')  /* If the label name starts with a `:', then use the specified label as a global label, and don't change global_label. */
                ) {
                 liner = (char*)p;
-                ((char*)p3)[0] = '\0';  /* ASCIIZ string terminator after tha label. We'll restore the original byte from rc later. */
+                ((char*)p3)[0] = '\0';  /* ASCIIZ string terminator after the label. We'll restore the original byte from rc later. */
             } else {
                 liner = (/*pc ||*/ p[0] == '.') ? global_label_end : global_label;  /* If label starts with '.', then prepend global_label. */
 #if CONFIG_USE_MEMCPY_INLINE  /* A few bytes smaller than memcpy(...). */
