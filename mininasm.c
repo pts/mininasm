@@ -41,7 +41,6 @@
  **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
  **
  ** !! TODO(pts): Allow `label :' syntax.
- ** !! TODO(pts): Bugfix: db 0, $
  **
  */
 
@@ -522,6 +521,7 @@ static unsigned short assembler_pass;  /* 0 at startup, 1 at offset calculation,
 static value_t default_start_address;
 static value_t start_address;
 static value_t current_address;
+static value_t line_address;
 static char is_address_used;
 static char is_start_address_set;
 
@@ -1354,9 +1354,9 @@ static const char *match_expression(const char *match_p) {
                 goto parse_hex0;
             } else if (islabel(c)) {
                 goto label_expr;
-            } else {  /* Current address ($). */
+            } else {  /* Current address at the beginning of the line ($). */
                 is_address_used = 1;
-                value1 = current_address;
+                value1 = line_address;
             }
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
@@ -2889,7 +2889,6 @@ static void do_assembly(const char *input_filename) {
     uvalue_t level;
     uvalue_t avoid_level;
     value_t times;
-    value_t line_address;
     value_t incbin_offset;
     value_t incbin_size;
     int discarded_after_read;  /* Number of bytes discarded in an incomplete line since the last file read(...) at line_rend, i.e. the end of the buffer (line_buf). */

@@ -341,3 +341,7 @@ data		db '\', "\", ; $ax  ; $ax is commented out here.
 more_data:	db '', 'M'
 		dw 0xdead
 		dd 0xface432
+		db 0, 1, $-$$
+		times 3 db $-$$  ; Each `$' refers to the beginning of the lines.
+		times 3 mov al, $-$$  ; Each `$' refers to the beginning of the lines.
+.back:		times 3 jmp strict short .back  ; Each jump is relative to the current instruction.
