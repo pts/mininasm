@@ -166,13 +166,15 @@ segment_code:
 msg0		db 'Hello, World!', 10  ; No need for CRLF (13, 10) instead of LF (10).
 .end:
 _start:		cpu 286  ; OS/2 (even 1.0) requires 286 (for protected mode), so we can use 286 instructions below.
-		;xor si, si  ; SI is initialized to 0. https://retrocomputing.stackexchange.com/q/26111 https://github.com/icculus/2ine/blob/490702cc45f53476eb2ef25bfb7501f852faf31d/lx_loader.c#L988-L1003
+		; SI is initialized to 0. https://retrocomputing.stackexchange.com/q/26111 https://github.com/icculus/2ine/blob/490702cc45f53476eb2ef25bfb7501f852faf31d/lx_loader.c#L988-L1003
+		; But we use BP, because according to RBIL, BP is always initialized to 0. https://fd.lod.bz/rbil/interrup/dos_kernel/214b.html
+		;xor bp, bp
 		push strict byte 1  ; ulAction argument of DosExit. EXIT_PROCESS == 1.
-		push si  ; ulResult argument of DosExit. EXIT_SUCCESS == 0.
+		push bp  ; ulResult argument of DosExit. EXIT_SUCCESS == 0.
 		push cs
-		push si  ; push strict byte msg0-segment_code  ; CharStr argument, value is 0.
+		push bp  ; push strict byte msg0-segment_code  ; CharStr argument, value is 0.
 		push strict byte msg0.end-msg0  ; Length argument.
-		push si  ; VioHandle argument. must be 0 for non-GUI programs.
+		push bp  ; VioHandle argument. must be 0 for non-GUI programs.
 ..@reloc1	equ $+1
 		call 0x0:0xffff  ; VioWrtTTY.
 ..@reloc0	equ $+1
