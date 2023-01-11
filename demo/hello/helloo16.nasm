@@ -7,7 +7,7 @@
 ;
 ; Compile: mininasm -O0 -f bin -o helloo16.exe helloo16.nasm
 ;
-; The created executable program is 224 bytes.
+; The created executable program is 222 bytes.
 ;
 ; Compatibility:
 ;
@@ -166,7 +166,7 @@ segment_code:
 msg0		db 'Hello, World!', 10  ; No need for CRLF (13, 10) instead of LF (10).
 .end:
 _start:		cpu 286  ; OS/2 (even 1.0) requires 286 (for protected mode), so we can use 286 instructions below.
-		xor si, si  ; SI is initialized to 0. https://retrocomputing.stackexchange.com/q/26111 https://github.com/icculus/2ine/blob/490702cc45f53476eb2ef25bfb7501f852faf31d/lx_loader.c#L988-L1003
+		;xor si, si  ; SI is initialized to 0. https://retrocomputing.stackexchange.com/q/26111 https://github.com/icculus/2ine/blob/490702cc45f53476eb2ef25bfb7501f852faf31d/lx_loader.c#L988-L1003
 		push strict byte 1  ; ulAction argument of DosExit. EXIT_PROCESS == 1.
 		push si  ; ulResult argument of DosExit. EXIT_SUCCESS == 0.
 		push cs
