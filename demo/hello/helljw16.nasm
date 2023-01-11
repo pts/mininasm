@@ -204,7 +204,7 @@ $AT:  ; .AddrType.
 .FARPTR		equ 3
 .OFFSET16	equ 5
 
-REL:  ; .RelType.
+$REL:  ; .RelType.
 .IMPORDINAL	equ 1
 .IMPNAME	equ 2
 
@@ -212,10 +212,10 @@ REL:  ; .RelType.
 
 segment_code_relocs:
 .count:		dw (.end-.count-2)>>3  ; Each relocation is 8 bytes, 1 line each below.
-		dw $AT.FARPTR | REL.IMPORDINAL<<8, ..@reloc0  -segment_code, (ModRefTab.user  -ModRefTab+2)>>1, 1     ; 'MESSAGEBOX'.'USER' @1.
-		dw $AT.FARPTR | REL.IMPORDINAL<<8, ..@reloc1  -segment_code, (ModRefTab.kernel-ModRefTab+2)>>1, 0x5b  ; 'INITTASK'.'KERNEL' @91 == @0x5b.
-		dw $AT.FARPTR | REL.IMPORDINAL<<8, ..@reloc2  -segment_code, (ModRefTab.kernel-ModRefTab+2)>>1, 0x1e  ; 'WAITEVENT'.'KERNEL' @30 == @0x1e.
-		dw $AT.FARPTR | REL.IMPORDINAL<<8, ..@reloc3  -segment_code, (ModRefTab.user  -ModRefTab+2)>>1, 5     ; 'INITAPP'.'USER' @5.
+		dw $AT.FARPTR | $REL.IMPORDINAL<<8, ..@reloc0  -segment_code, (ModRefTab.user  -ModRefTab+2)>>1, 1     ; 'MESSAGEBOX'.'USER' @1.
+		dw $AT.FARPTR | $REL.IMPORDINAL<<8, ..@reloc1  -segment_code, (ModRefTab.kernel-ModRefTab+2)>>1, 0x5b  ; 'INITTASK'.'KERNEL' @91 == @0x5b.
+		dw $AT.FARPTR | $REL.IMPORDINAL<<8, ..@reloc2  -segment_code, (ModRefTab.kernel-ModRefTab+2)>>1, 0x1e  ; 'WAITEVENT'.'KERNEL' @30 == @0x1e.
+		dw $AT.FARPTR | $REL.IMPORDINAL<<8, ..@reloc3  -segment_code, (ModRefTab.user  -ModRefTab+2)>>1, 5     ; 'INITAPP'.'USER' @5.
 .end:
 
 ; We overlap this with mz_header.
