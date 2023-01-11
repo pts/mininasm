@@ -23,7 +23,7 @@
 		cpu 8086
 		org 0
 
-FILE_ALIGNMENT_SHIFT equ 1
+FILE_ALIGNMENT_SHIFT equ 1  ; 1 is the minimum.
 
 mz_header:  ; DOS .exe header: http://justsolve.archiveteam.org/wiki/MS-DOS_EXE
 .signature	db 'MZ'
