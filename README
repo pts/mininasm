@@ -45,6 +45,26 @@ version 1.24 so that it works with both NASM 0.98.39 and mininasm, and the
 output program file insight.com (32935 bytes) of both is identical to the
 one in the official Insight binary release, achieving full reporoducibility.
 
+mininasm (as well as NASM with `bits 16') can be used to develop for these kind
+of targets conveniently:
+
+* DOS 16-bit .com programs (this is the most convenient, because there are
+  no file headers and no relocations)
+* DOS 16-bit .exe programs with the memory model small or compact
+* DOS 16-bit .sys device drivers
+* Win16 (Windows 16-bit, e.g. Windows 3.x) .exe programs
+* Win16 (Windows 16-bit, e.g. Windows 3.x) .dll libraries
+* OS/2 1.x 16-bit .exe programs
+* 16-bit x86 boot sector and master boot record (MBR) programs
+* ELKS 8086 16-bit programs
+* disk images (which are mostly empty, except for some headers)
+
+Please note that mininasm doesn't contain a linker, it doesn't work with
+extenal linkers, and it can't reorder sections in its binary output. This
+means that in the assembly source file the sections must be written in this
+order: file headers (with `db' and `dw' instructions), code (.text), data
+(.data), uninitialized data (.bss).
+
 Similarities between mininasm and NASM:
 
 * mininasm implements a small subset of NASM (with a few extras), trying
