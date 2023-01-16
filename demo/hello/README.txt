@@ -11,6 +11,7 @@ Small hello-world programs for various systems:
 * helljw16.nasm: Win16 Windows >=3.x 8086 .exe program
 * helloo16.nasm: OS/2 16-bit 286 .exe program
 * helloelk.nasm: ELKS 8086
+* hellocpm.nasm: CP/M-86 and compatibles (e.g. Digital Research DOS Plus)
 
 Corresponding precompiled *.golden files are provided. Remove the .golden
 suffix from the filename for running.
