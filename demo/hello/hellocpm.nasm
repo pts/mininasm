@@ -14,6 +14,12 @@
 ; * It works on Digital Research CP/M-86 1.1.
 ; * It works on Digital Research DOS Plus 1.2.
 ;
+; Here is how to run CP/M-86 1.1 on Linux with QEMU:
+;
+; * Download cpm86-at-1.img from
+;   https://://github.com/tsupplis/cpm86-kernel/releases/download/v1.1-03-07/cpm86-at-1.img
+; * Run: qemu-system-i386 -L isapc -m 1 -net none -soundhw pcspk -drive file=cpm86-at-1.img,format=raw,if=floppy
+;
 ; Here is how to copy the program (as H.CMD) to a CP/M floppy image on Linux:
 ;
 ;   $ sudo apt-get install cpmtools  # cpmrm and cmpcp.
