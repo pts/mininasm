@@ -38,7 +38,9 @@
  **   From Borland C++ >=4.0, the .exe program is ~23 KiB larger.
  **   The -w! flag (treat warnings as errors) is ignored by Borland C++ <4.0.
  **
- **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /Os /AC /W2 /WX mininasm.c
+ **   Microsoft C 6.00a on DOS, creates mininasm.exe: cl /nologo /Os /AC /W2 /WX mininasm.c
+ **
+ **   Microsoft C++ 7.00, 8.00 (in MSVC++ 1.0) and 8.00c (in MSVC++ 1.52c) on DOS >=386, creates mininasm.exe: cl /nologo /batch /Os /AC /W2 /WX mininasm.c
  **
  **   Zortech C++ 3.1, 3.0r4 on DOS 8086, creates mininasm.exe: ztc -b -mc mininasm.c
  **   It doesn't work with Zortech C++ 2.06, because that compiler has some bugs (e.g. Syntax error: lvalue expected).
@@ -181,6 +183,9 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #  if defined(__TURBOC__)
 #    pragma warn -rch  /* Unreachable code. */
 #    pragma warn -ccc  /* Condition is always true/false. */
+#  endif
+#  if defined(_MSC_VER) && _MSC_VER >= 800
+#    pragma warning(disable:4309)  /* warning C4309: 'cast' : truncation of constant value */
 #  endif
 #endif  /* Else ifdef __DOSMC__. */
 
@@ -630,7 +635,7 @@ static struct label MY_FAR *label_list;
 static char has_undefined;
 
 #ifndef CONFIG_SPLIT_INSTRUCTION_SET
-#if defined(_MSC_VER) && _MSC_VER < 900  /* _MSC_VER < 900: Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. */
+#if defined(_MSC_VER) && _MSC_VER < 900  /* _MSC_VER < 900: Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. _MSC_VER == 800 still has the limit.  */
 /* Without this split, Microsoft C 6.00a (_MSC_VER == 600) will report warning C4009: string too big, trailing characters truncated */
 #define CONFIG_SPLIT_INSTRUCTION_SET 1
 #else
