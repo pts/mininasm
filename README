@@ -522,6 +522,9 @@ Info about other assemblers:
 * Many more assemblers listed here:
   https://board.flatassembler.net/topic.php?t=5949
 
+* More assemblers listed here:
+  https://tldp.org/HOWTO/Assembly-HOWTO/other.html
+
 * JWasm is an assembler compatible with MASM v6.
 
   Latest JWasm releases (v2.16pre2 on 2022-07-28):
@@ -530,11 +533,11 @@ Info about other assemblers:
 Known self-hosting assemblers (i.e. those which can compile their own assembly
 source code) for x86:
 
-* FASM: https://flatassembler.net/
+* FASM (works on 32-bit and 64-bit x86): https://flatassembler.net/
 
 * Asmc: https://github.com/nidud/asmc
 
-* LZASM (closed source):
+* LZASM (closed source, works on 32-bit x86):
   http://web.archive.org/web/20071024143102/http://lzasm.hotbox.ru/
 
 * A86 (closed source): https://eji.com/a86/
@@ -544,7 +547,7 @@ source code) for x86:
 
 * A72: https://github.com/swanlizard/a72
 
-* Venski assembler:
+* Venksi assembler:
   http://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/devel/asm/venksi/
 
 * Wolfware Assembler:
@@ -583,6 +586,17 @@ Not self-hosting assemblers:
 * JWasm (open source, written in C).
 
 * vasm (open source, written in C).
+
+* as86 (open source, written in C):
+  https://github.com/lkundrak/dev86/tree/master/as
+
+  It was used targeting ELKS, with the bcc C compiler:
+  https://github.com/lkundrak/dev86/tree/master/bcc
+
+* ASM86 by Digital Research (open source, written in PL/M):
+  https://www.cpm.z80.de/download/ccpmv31.zip  
+
+* RASM86 by Digital Research (closed source, programming language unknown).
 
 Below are excerpts from the README of Tinyasm.
 
