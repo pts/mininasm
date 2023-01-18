@@ -10,8 +10,10 @@ Small hello-world programs for various systems:
 * hellos32.nasm: Win32 PE .exe stub in 60 bytes
 * helljw16.nasm: Win16 Windows >=3.x 8086 .exe program
 * helloo16.nasm: OS/2 16-bit 286 .exe program
-* helloelk.nasm: ELKS 8086
+* helloelk.nasm: ELKS 8086 program
 * hellocpm.nasm: CP/M-86 and compatibles (e.g. Digital Research DOS Plus)
+  program
+* hellowas.nasm: WebAssembly WASI binary .wasm program
 
 Corresponding precompiled *.golden files are provided. Remove the .golden
 suffix from the filename for running.
