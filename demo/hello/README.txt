@@ -12,6 +12,7 @@ Small hello-world programs for various systems:
 * helloo16.nasm: OS/2 16-bit 286 .exe program
 * helloelk.nasm: ELKS 8086 program
 * helloelk.nasm: Minix 1.x and 2.x 8086 program
+* hellocoh.nasm: Coherent 3.x 8086 program
 * hellocpm.nasm: CP/M-86 and compatibles (e.g. Digital Research DOS Plus)
   program
 * hellowas.nasm: WebAssembly WASI binary .wasm program
