@@ -37,6 +37,10 @@
 ;   Then root <Enter>, then helloelk <Enter>.
 ;
 
+		bits 16
+		cpu 8086
+		;org ... ; Later.
+
 A_FLAG:
 .A_EXEC	equ 0x10  ; Executable.
 .A_SEP  equ 0x20  ; Separate I/D.
@@ -62,7 +66,7 @@ section_text:  ; Must follow elks_header.
 _start:		mov ax, 4  ; __NR_write == 4.
 		mov bx, 1  ; STDOUT_FILENO == 1.
 		push bx
-		xor cx, cx  ; mov cx, msg-section_data  ; (0).
+		xor cx, cx  ; mov cx, msg  ; (0).
 		mov dx, msg.end-msg
 		int 0x80  ; ELKS syscall.
 		pop ax  ; __NR_exit == 1.
@@ -70,6 +74,7 @@ _start:		mov ax, 4  ; __NR_write == 4.
 		int 0x80  ; ELKS syscall.
 section_text_end:
 
+		org elks_header-$
 section_data:  ; Must follow section_text.
 msg		db 'Hello, World!', 10
 .end:
