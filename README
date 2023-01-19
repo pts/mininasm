@@ -57,6 +57,7 @@ of targets conveniently:
 * OS/2 1.x 16-bit .exe programs
 * 16-bit x86 boot sector and master boot record (MBR) programs
 * ELKS 8086 16-bit programs
+* Minix 1.x and 2.x 8086 16-bit programs
 * CP/M-86 16-bit programs
 * disk images (which are mostly empty, except for some headers)
 
