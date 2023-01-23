@@ -59,6 +59,7 @@ of targets conveniently:
 * ELKS 8086 16-bit programs
 * Minix 1.x and 2.x 8086 16-bit programs
 * Coherent 3.x 8086 16-bit programs
+* Xenix 86 2.x 8086 16-bit programs (Xenix 286 3.x can also run them)
 * CP/M-86 16-bit programs
 * disk images (which are mostly empty, except for some headers)
 
