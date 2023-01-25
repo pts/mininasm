@@ -61,6 +61,7 @@ of targets conveniently:
 * Coherent 3.x 8086 16-bit programs
 * Xenix 86 2.x 8086 16-bit programs (Xenix 286 3.x can also run them)
 * PC/IX 1.0 8086 16-bit programs
+* Venix/86 2.1 8086 16-bit programs
 * CP/M-86 16-bit programs
 * disk images (which are mostly empty, except for some headers)
 

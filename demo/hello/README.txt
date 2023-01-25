@@ -15,6 +15,7 @@ Small hello-world programs for various systems:
 * hellocoh.nasm: Coherent 3.x 8086 program
 * helloxnx.nasm: Xenix 86 2.x 8086 program
 * hellopci.nasm: PC/IX 1.0 8086 program
+* hellovnx.nasm: Venix/86 2.1 8086 program
 * hellocpm.nasm: CP/M-86 and compatibles (e.g. Digital Research DOS Plus)
   program
 * hellowas.nasm: WebAssembly WASI binary .wasm program
