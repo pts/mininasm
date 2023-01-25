@@ -47,6 +47,8 @@
  **
  **   Zortech C++ 3.1, 3.0r4 on DOS with >= 2 MiB memory, creates size-optimized mininasm.exe: ztc -mc -o+space mininasm.c
  **
+ ** !! TODO(pts): bugfix: badinst1.nasm
+ ** !! TODO(pts): bugfix: badinst2.nasm
  ** !! TODO(pts): NASM compatibility: foo;bar\ : backslash at EOL, NASM 0.98.39 treats as comment continuation
  */
 
