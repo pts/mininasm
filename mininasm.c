@@ -36,6 +36,8 @@
  **   bcc (part of Debian): bcc -ansi -Md    -o mininasb.com mininasm.c
  **   For both of these, compilation finishes successfully, but the code generated is buggy when assembling minnnasm.nasm.
  **
+ **   ACK (built from source on 2013-01-25, targeting DOS): ack -ansi -mmsdos86 -O4 -S -o mininasa.com mininasm.c
+ **
  **   Turbo C++ (1.01 or 3.0) on DOS, creates mininasm.exe: tcc -mc -O -X mininasm.c
  **
  **   Borland C++ (2.0, 3.00, 3.1, 4.00, 4.5, 4.52 or 5.2) on DOS, creates mininasm.exe: bcc -mc -O -X -w! mininasm.c
@@ -169,13 +171,13 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  include <stdio.h>  /* remove(...) */
 #  include <stdlib.h>
 #  include <string.h>
-#  if !defined(MSDOS) && defined(__MSDOS__)  /* Typically with #ifdef __BCC__. */
+#  if !defined(MSDOS) && defined(__MSDOS__)  /* Typically with `#ifdef __BCC__' and `#ifdef __ACK'. */
 #    define MSDOS 1
 #  endif
 #  if (defined(__TURBOC__) || defined(__ZTC__)) && !defined(MSDOS) && !defined(_WIN32) && !defined(_WIN64)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. Zortech C++ 3.1 (__ZTC__) doesn't define MSDOS. */
 #    define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
 #  endif
-#  if (defined(_WIN32) || defined(_WIN64) || defined(MSDOS)) && !defined(__BCC__)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
+#  if (defined(_WIN32) || defined(_WIN64) || defined(MSDOS)) && !defined(__BCC__) && !defined(__ACK)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
 #    include <io.h>  /* setmode(...) */
 #    if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
 #      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
@@ -204,8 +206,22 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 void rmdir(void) {}
 #endif
 
-#ifndef O_BINARY  /* Unix. */
+#if !defined(O_BINARY) && !defined(__ACK)  /* Unix. __ACK has O_BINARY as an enum value. */
 #define O_BINARY 0
+#endif
+
+#if defined(__ACK) && defined(MSDOS)
+/* write(2) is broken in __ACK libc: even for O_BINARY, it tries to call DOS
+ * IOCTL 0x6 (AX == 0x4406) to check for EOF. Thus in DOSBox it always reads
+ * 0 bytes. We fix it by using the raw DOS calls, bypassing the __ACK libc
+ * wrappers, effectively forcing O_BINARY on all fds.
+ */
+extern ssize_t _sys_rawread(int fd, char *buf, size_t count);
+extern ssize_t _sys_rawwrite(int fd, const char *buf, size_t count);
+extern off_t _sys_rawlseek(int fd, off_t offset, int whence);
+#define read(fd, buf, count) _sys_rawread(fd, buf, count)
+#define write(fd, buf, count) _sys_rawwrite(fd, buf, count)
+#define lseek(fd, offset, whence) _sys_rawlseek(fd, offset, whence)
 #endif
 
 #ifndef CONFIG_USE_OPEN2
@@ -1068,7 +1084,7 @@ static int islabel1(int c) {
 }
 #endif
 
-#ifndef __WATCOMC__  /* This c + (0U - 'A') is needed my Microsoft C 6.00 (_MSC_VER == 600), otherwise (e.g. with `c - 'A' + 0U') it generates incorrect code. */
+#if !defined(__WATCOMC__) && !defined(__ACK)  /* This c + (0U - 'A') is needed my Microsoft C 6.00 (_MSC_VER == 600), otherwise (e.g. with `c - 'A' + 0U') it generates incorrect code. */
 #define SUB_U(a, b) ((a) + (0U - (b)))  /* This would also work with __DOSMC__, but it would make the code 6 bytes longer. */
 #else
 #define SUB_U(a, b) ((a) - (b) + 0U)
@@ -2189,7 +2205,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 } else {
                     if (is_wide_instr_in_pass_2(1)) goto force_imm_8bit_1;
                 }
-            } 
+            }
             if (!has_undefined && instruction_value != 1) {
               force_imm_8bit_1:
                 if (cpu_level == 0 && assembler_pass > 1) goto mismatch;
@@ -3545,7 +3561,7 @@ int main(int argc, char **argv)
     (void)argc;
 #endif
 
-#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__) && !defined(__BCC__)
+#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__) && !defined(__BCC__) && !defined(__ACK)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
 #endif
 
