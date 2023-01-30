@@ -32,6 +32,10 @@
  **
  **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c && ls -ld mininasm.win32msvcrt_tcc.exe
  **
+ **   bcc (part of Debian): bcc -ansi -Md -O -o mininasb.com mininasm.c
+ **   bcc (part of Debian): bcc -ansi -Md    -o mininasb.com mininasm.c
+ **   For both of these, compilation finishes successfully, but the code generated is buggy when assembling minnnasm.nasm.
+ **
  **   Turbo C++ (1.01 or 3.0) on DOS, creates mininasm.exe: tcc -mc -O -X mininasm.c
  **
  **   Borland C++ (2.0, 3.00, 3.1, 4.00, 4.5, 4.52 or 5.2) on DOS, creates mininasm.exe: bcc -mc -O -X -w! mininasm.c
@@ -49,6 +53,7 @@
  **
  ** !! TODO(pts): bugfix: badinst1.nasm
  ** !! TODO(pts): bugfix: badinst2.nasm
+ ** !! TODO(pts): bugfix: bad_undefined_label_r00.nasm
  ** !! TODO(pts): NASM compatibility: foo;bar\ : backslash at EOL, NASM 0.98.39 treats as comment continuation
  */
 
@@ -164,10 +169,13 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  include <stdio.h>  /* remove(...) */
 #  include <stdlib.h>
 #  include <string.h>
+#  if !defined(MSDOS) && defined(__MSDOS__)  /* Typically with #ifdef __BCC__. */
+#    define MSDOS 1
+#  endif
 #  if (defined(__TURBOC__) || defined(__ZTC__)) && !defined(MSDOS) && !defined(_WIN32) && !defined(_WIN64)  /* Turbo C++ 3.0 doesn't define MSDOS. Borland C++ 3.0 also defines __TURBOC__, and it doesn't define MSDOS. Microsoft C 6.00a defines MSDOS. Zortech C++ 3.1 (__ZTC__) doesn't define MSDOS. */
 #    define MSDOS 1  /* FYI Turbo C++ 1.00 is not supported, because for the macro MATCH_CASEI_LEVEL_TO_VALUE2 it incorrectly reports the error: Case outside of switch in function match_expression */
 #  endif
-#  if defined(_WIN32) || defined(_WIN64) || defined(MSDOS)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
+#  if (defined(_WIN32) || defined(_WIN64) || defined(MSDOS)) && !defined(__BCC__)  /* tcc.exe with Win32 target doesn't have <unistd.h>. For `owcc -bdos' and `owcc -bwin32', both <io.h> and <unistd.h> works.  For __TURBOC__, only <io.h> works. */
 #    include <io.h>  /* setmode(...) */
 #    if defined(__TURBOC__) || !(defined(_WIN32) || defined(_WIN64))
 #      define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)  /* In __TURBOC__ != 0x296, a nonzero mode must be passed, otherwise creat(...) will fail. */
@@ -191,6 +199,10 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #    pragma warning(disable:4309)  /* warning C4309: 'cast' : truncation of constant value */
 #  endif
 #endif  /* Else ifdef __DOSMC__. */
+
+#ifdef __BCC__  /* Workaround for undefined symbol in bcc 0.16.17: bcc -ansi -Md -O */
+void rmdir(void) {}
+#endif
 
 #ifndef O_BINARY  /* Unix. */
 #define O_BINARY 0
@@ -448,7 +460,7 @@ static void *malloc_far(size_t size) {
  * static const STRING_WITHOUT_NUL(msg, "Hello, World!\r\n$");
  * ... printmsgx(msg);
  */
-#ifdef __cplusplus  /* We must reserve space for the NUL. */
+#if defined(__cplusplus) || defined(__BCC__)  /* We must reserve space for the NUL. */
 #define MY_STRING_WITHOUT_NUL(name, value) UNALIGNED char name[sizeof(value)] = value
 #define STRING_SIZE_WITHOUT_NUL(name) (sizeof(name) - 1)
 #else
@@ -1132,7 +1144,13 @@ static const char *match_label_prefix(const char *p) {
         cd.a[0] = *++p;
         if (isalpha(cd.a[0])) goto goodc;
     } else if (isalpha(cd.a[0])) {
-        if (isalpha(cd.a[1] = p[1])) {
+        if (
+#ifdef __BCC__  /* Workaround for bcc 0.16.17 compiler bug. */
+            cd.a[1] = p[1], isalpha(p[1])
+#else
+            cd.a[1] = p[1], isalpha(cd.a[1] = p[1])
+#endif
+           ) {
             if (!islabel(p[2])) {  /* 2-character label. */
                 if (CONFIG_CPU_UNALIGN && sizeof(short) == 2) {
                     cd.s &= ~0x2020;
@@ -2674,7 +2692,7 @@ static struct assembly_info *assembly_push(const char *input_filename) {
     int extra_nul_count = (sizeof(guess_align_assembly_info) - ((unsigned)(size_t)&((struct assembly_info*)0)->input_filename + input_filename_len + 1) % sizeof(guess_align_assembly_info)) % sizeof(guess_align_assembly_info);
 #endif
     struct assembly_info *aip;
-    if ((size_t)(((char*)&assembly_p->input_filename + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
+    if ((size_t)(((char*)&assembly_p->input_filename[0] + input_filename_len) - (char*)assembly_stack) >= sizeof(assembly_stack)) return NULL;  /* Out of assembly_stack memory. */
     /* TODO(pts): In dosmc, can we generate better assembly code for this initialization? The `mov bx, [assembly_p]' instruction is repeated too much. */
     assembly_p->level = 1;
     assembly_p->line_number = 0;
@@ -2684,7 +2702,7 @@ static struct assembly_info *assembly_push(const char *input_filename) {
     /* strcpy(...) would also work (there are no far pointers here), but we can save a few bytes if we avoid linking strcpy(...), for __DOSMC__. */
     strcpy_far(assembly_p->input_filename, input_filename);
     aip = assembly_p;
-    assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename + 1 + input_filename_len);
+    assembly_p = (struct assembly_info*)((char*)&assembly_p->input_filename[0] + 1 + input_filename_len);
 #if !CONFIG_CPU_UNALIGN
     for (; extra_nul_count > 0; --extra_nul_count, *(char*)assembly_p = '\0', assembly_p = (struct assembly_info*)((char*)(assembly_p) + 1)) {}
 #endif
@@ -3527,7 +3545,7 @@ int main(int argc, char **argv)
     (void)argc;
 #endif
 
-#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__)
+#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__) && !defined(__BCC__)
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
 #endif
 
@@ -3690,7 +3708,13 @@ int main(int argc, char **argv)
         delta_acc_max = 0;
         cur_dir = 1;
         do {
-            if (GET_U16(++assembler_pass) == 0) { do_special_pass_1 = 2; --assembler_pass; }  /* Cappped at 0xffff. */
+            if (
+#ifdef __BCC__  /* Workaround for bcc 0.16.17 compiler bug. */
+                ++assembler_pass, GET_U16(assembler_pass) == 0
+#else
+                GET_U16(++assembler_pass) == 0
+#endif
+               ) { do_special_pass_1 = 2; --assembler_pass; }  /* Cappped at 0xffff. */
             if (listing_filename != NULL) {
                 if (HAS_OPEN_FAILED(listing_fd = creat(listing_filename, 0644))) {
                     MESSAGE1STR(1, "couldn't open '%s' as listing file", output_filename);
