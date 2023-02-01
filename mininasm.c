@@ -32,9 +32,10 @@
  **
  **   $ wine tcc.exe -m32 -mconsole -s -O2 -W -Wall -o mininasm.win32msvcrt_tcc.exe mininasm.c && ls -ld mininasm.win32msvcrt_tcc.exe
  **
- **   bcc (part of Debian): bcc -ansi -Md -O -o mininasb.com mininasm.c
- **   bcc (part of Debian): bcc -ansi -Md    -o mininasb.com mininasm.c
- **   For both of these, compilation finishes successfully, but the code generated is buggy when assembling minnnasm.nasm.
+ **   bcc (0.16.17, part of Debian): bcc -ansi -Md -O -o mininasb.com mininasm.c
+ **   bcc (0.16.17, part of Debian): bcc -ansi -Md    -o mininasb.com mininasm.c
+ **   ncc (0.16.21, https://github.com/lkundrak/dev86): ncc -ansi -Md -o mininasb.com mininasm.c
+ **   For both of these, compilation finishes successfully, but the code generated is buggy (fails with errors) when assembling minnnasm.nasm.
  **
  **   ACK (built from source on 2013-01-25, targeting DOS): ack -ansi -mmsdos86 -O4 -S -o mininasa.com mininasm.c
  **
