@@ -54,6 +54,10 @@
  **
  **   Zortech C++ 3.1, 3.0r4 on DOS with >= 2 MiB memory, creates size-optimized mininasm.exe: ztc -mc -o+space mininasm.c
  **
+ **   Aztec C 5.2a on DOS: c -d__AZTEC__ -dMSDOS mininasm.c
+ **   Compilation doesn't work, the assembler runs out of memory. It also displays many (useless) warnings.
+ **   There is also the `-ansi' flag, but it propagates some warnings to errors.
+ **
  ** !! TODO(pts): bugfix: badinst1.nasm
  ** !! TODO(pts): bugfix: badinst2.nasm
  ** !! TODO(pts): bugfix: bad_undefined_label_r00.nasm
@@ -188,7 +192,7 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #  else
 #    include <unistd.h>
 #  endif
-#  if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER) || defined(__ZTC__)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
+#  if (defined(__TURBOC__) || defined(__PACIFIC__) || defined(_MSC_VER) || defined(__ZTC__) || defined(__AZTEC__)) && defined(MSDOS)  /* __TURBOC__ values: Turbo C++ 1.01 (0x296), Turbo C++ 3.0 (0x401), Borland C++ 2.0 (0x297), Borland C++ 3.0 (0x400), Borland C++ 5.2 (0x520), Microsoft C 6.00a don't have a typedef ... off_t. */
 typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. */
 #  endif
 #  if defined(__WATCOMC__) && defined(__LINUX__)  /* Defined by __WATCOMC__: `owcc -blinux' or wcl `-bt=linux'. */
@@ -667,7 +671,7 @@ static struct label MY_FAR *label_list;
 static char has_undefined;
 
 #ifndef CONFIG_SPLIT_INSTRUCTION_SET
-#if defined(_MSC_VER) && _MSC_VER < 900  /* _MSC_VER < 900: Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. _MSC_VER == 800 still has the limit.  */
+#if (defined(_MSC_VER) && _MSC_VER < 900) || defined(__AZTEC__)  /* _MSC_VER < 900: Microsoft Visual C++ 1.52 (800 <= _MSC_VER < 900) doesn't have this limit (C4009) of 2048 bytes. _MSC_VER == 800 still has the limit.  */
 /* Without this split, Microsoft C 6.00a (_MSC_VER == 600) will report warning C4009: string too big, trailing characters truncated */
 #define CONFIG_SPLIT_INSTRUCTION_SET 1
 #else
