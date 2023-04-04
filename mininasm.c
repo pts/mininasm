@@ -49,6 +49,8 @@
  **
  **   Microsoft C++ 7.00, 8.00 (in Microsoft Visual C++ 1.0) and 8.00c (in Microsoft Visual C++ 1.52c) on DOS >=386, creates mininasm.exe: cl /nologo /batch /Os /AC /W2 /WX mininasm.c
  **
+ **   Microsoft QuickC 2.51 on DOS, creates mininasm.exe: qcl /nologo /Os /AC /W2 /WX mininasm.c
+ **
  **   Zortech C++ 3.1, 3.0r4 on DOS 8086, creates mininasm.exe: ztc -b -mc mininasm.c
  **   It doesn't work with Zortech C++ 2.06, because that compiler has some bugs (e.g. Syntax error: lvalue expected).
  **
@@ -1868,7 +1870,7 @@ static UNALIGNED char emit_buf[512];
 
 static void emit_flush(struct bbprintf_buf *bbb) {
     const int size = emit_bbb.p - emit_buf;
-    (void)bbb;  /* emit_bbb. */
+    (void)!bbb;  /* emit_bbb. The `!' is present to prevent QuickC 2.51 warning C4059: segment lost in conversion */
     if (size) {
         if (write(output_fd, emit_buf, size) != size) {
             MESSAGE(1, "error writing to output file");
@@ -2445,7 +2447,7 @@ static UNALIGNED char message_buf[512];
 
 static void message_flush(struct bbprintf_buf *bbb) {
     const int size = message_bbb.p - message_buf;
-    (void)bbb;  /* message_bbb. */
+    (void)!bbb;  /* message_bbb. */
     if (size) {
         if (message_bbb.data) (void)!write(2 /* stderr */, message_buf, size);
         message_bbb.p = message_buf;
