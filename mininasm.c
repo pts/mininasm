@@ -1834,6 +1834,7 @@ static const char *match_addressing(const char *p, int width) {
             }
             p = avoid_spaces(p);
         }
+        instruction_offset = has_any_undefined ? 0 : GET_U16(instruction_offset);
         if (state == 8) {  /* Absolute address without register. */
             state = 0x06;
             instruction_offset_width = 2;
@@ -1848,7 +1849,6 @@ static const char *match_addressing(const char *p, int width) {
                    if (is_wide_instr_in_pass_2(0)) goto force_16bit_offset;
                }
             }
-            instruction_offset = GET_U16(instruction_offset);
             if (instruction_offset != 0 || state == 6 /* [bp]. */) {
                 if ((instruction_offset + 0x80) & 0xff00U) {
                   force_16bit_offset:
