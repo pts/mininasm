@@ -1020,8 +1020,13 @@ static struct label MY_FAR *find_label(const char MY_FAR *name) {
     return find_cat_label("", name);
 }
 
-/* Prefix characters for macro names in label->label_name. */
-#define LABEL_NAME_MACRO_PREFIX '%'
+/* Prefix characters for macro names in label->label_name.
+ *
+ * Must be larger than any valid start character in a label name, otherwise
+ * RBL_SET_DELETED_0(...) in reset_macros(...) would be run too late. This is
+ * indicated by lines with CMDVAL in xtest/lateorg.nasm would failing.
+ */
+#define LABEL_NAME_MACRO_PREFIX '~'
 
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
@@ -2791,8 +2796,11 @@ static void reset_macros(void) {
                     if (value == MACRO_VALUE && do_special_pass_1 != 1) {
                         if ((value_label = find_label(node->name + 1)) != NULL) RBL_SET_DELETED_1(value_label);
                     }
+                } else if (do_special_pass_1 == 1) {
+                   /* Undo RBL_SET_DELETED_1(node); below. */
+                   if ((value_label = find_label(node->name + 1)) != NULL) RBL_SET_DELETED_0(value_label);
                 }
-            } else if (do_special_pass_1 == 1) {  /* Delete all non-macro labels. !!! TODO(pts): bugfix: don't delete macro value for macros in the command-line */
+            } else if (do_special_pass_1 == 1) {  /* Delete all non-macro labels. As a side effect, deletes MACRO_CMDLINE values, but we will undo it above. */
                 RBL_SET_DELETED_1(node);
             }
             node = RBL_GET_RIGHT(node);

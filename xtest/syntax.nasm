@@ -168,6 +168,10 @@ $cmp		mov aX, _start
 		les ax, [ss:bp]  ; `les ax, [bp]' would be shorter.
 		lds ax, [es:bx]
 
+		; Test macro from the command-line (-DCMDVAL=15)
+		mov ax, CMDVAL
+		mov ax, [bx-CMDVAL]
+
 		; Test 32-bit unsigned arithmetic.
 		mov ax, 23 / 10
 		mov ax, 23/ -10
