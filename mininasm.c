@@ -1020,6 +1020,9 @@ static struct label MY_FAR *find_label(const char MY_FAR *name) {
     return find_cat_label("", name);
 }
 
+/* Prefix characters for macro names in label->label_name. */
+#define LABEL_NAME_MACRO_PREFIX '%'
+
 /*
  ** Print labels sorted to listing_fd (already done by binary tree).
  */
@@ -1040,7 +1043,7 @@ static void print_labels_sorted_to_listing(void) {
         } else {
             RBL_SET_RIGHT(pre, NULL);
           do_print:
-            if (node->name[0] != '%') {  /* Skip macro definitions. */
+            if (node->name[0] != LABEL_NAME_MACRO_PREFIX) {  /* Skip macro definitions. */
 #if USING_FAR
                 strcpy_far(global_label, node->name);  /* We copy because bbprintf(...) below doesn't support far pointers. */
 #endif
@@ -2780,7 +2783,7 @@ static void reset_macros(void) {
         } else {
             RBL_SET_RIGHT(pre, NULL);
           do_work:  /* Do for each node. */
-            if (node->name[0] == '%') {
+            if (node->name[0] == LABEL_NAME_MACRO_PREFIX) {
                 value = node->value;  /* Also make it shorter (char). */
                 if (value != MACRO_CMDLINE) {
                     RBL_SET_DELETED_1(node);
@@ -2789,7 +2792,7 @@ static void reset_macros(void) {
                         if ((value_label = find_label(node->name + 1)) != NULL) RBL_SET_DELETED_1(value_label);
                     }
                 }
-            } else if (do_special_pass_1 == 1) {  /* Delete all non-macro labels. */
+            } else if (do_special_pass_1 == 1) {  /* Delete all non-macro labels. !!! TODO(pts): bugfix: don't delete macro value for macros in the command-line */
                 RBL_SET_DELETED_1(node);
             }
             node = RBL_GET_RIGHT(node);
@@ -2810,7 +2813,7 @@ static void unset_macro(char *name1) {
          MESSAGE(1, "bad macro name");
          return;
     }
-    *name1 = '%';
+    *name1 = LABEL_NAME_MACRO_PREFIX;
     label = find_label(name1);
     *name1 = name1c;
     if (label == NULL || RBL_IS_DELETED(label)) return;  /* No such macro, unset is a noop. */
@@ -2820,7 +2823,7 @@ static void unset_macro(char *name1) {
         return;
     }
     RBL_SET_DELETED_1(label);
-    if (c == MACRO_VALUE) {  /* Also delete the corresponding label. */
+    if (c == MACRO_VALUE) {  /* Also delete the corresponding label with the INTVALUE. */
         if ((label = find_label(name1 + 1)) != NULL) RBL_SET_DELETED_1(label);
     }
 }
@@ -2846,7 +2849,7 @@ static void set_macro(char *name1, char *name_end, const char *value, char macro
          MESSAGE(1, "bad macro name");
          goto do_return;
     }
-    *name1 = '%';  /* Macro NAME prefixed by '%'. */
+    *name1 = LABEL_NAME_MACRO_PREFIX;  /* Macro NAME prefixed by LABEL_NAME_MACRO_PREFIX character. */
     macro_label = find_label(name1);
     if (0) DEBUG3("set_macro mode 0x%x strcmp (%s) (%s)\n", macro_set_mode, name1 + 1, value);
     /* strcmp(...) would also work (there are no far pointers here), but we can save a few bytes if we avoid linking strcmp(...), for __DOSMC__. */
@@ -3134,7 +3137,7 @@ static void do_assembly(const char *input_filename) {
                 MESSAGE(1, "bad macro name");
             } else {
                 pc = *--p;
-                *(char*)p = '%';  /* Prefix the macro name with a '%'. */
+                *(char*)p = LABEL_NAME_MACRO_PREFIX;
                 if (((label = find_label(p)) != NULL && !RBL_IS_DELETED(label)) == is_if_not) {
                     avoid_level = level;  /* Our %IFDEF or %IFNDEF is false, start hiding. */
                 }
