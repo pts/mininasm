@@ -7,6 +7,8 @@ if test $# = 0; then
   shift
 fi
 
+test "${0##*/*}" || cd "${0%/*}"
+
 # !! TODO(pts): Also test with -O1. What to comare against?
 for F in "$@"; do
   nasm-0.98.39 -O9 -f bin -o "$F".nasm98o9.bin "$F".nasm
