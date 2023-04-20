@@ -3,7 +3,7 @@
 set -ex
 
 if test $# = 0; then
-  set x syntax new186 xchg jmpdist arbyte cjump cmpax ifdef iopt org reg simple jmpopt
+  set x syntax new186 xchg jmpdist arbyte cjump cmpax ifdef iopt org reg simple jmpopt lateorg
   shift
 fi
 
