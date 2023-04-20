@@ -308,6 +308,13 @@ Differences between mininasm and NASM:
   `%ifidn __OUTPUT_FORMAT__, bin' (always true in mininasm, but may be false
   in NASM).
 
+* In mininasm some instructions using labels or macros are not allowed
+  before a non-zero `org'. These are the instructions whose optimized size
+  may depend on the label and the origin (`org' value) for optimization. 
+  For example, `add bx, mylabel' is not allowed before a non-zero `org'
+  with -O9, but `add bx, strict word mylabel' is allowed. This is mostly to
+  avoid creating a differently optimized output file than NASM.
+
 Optional improvements in mininasm over NASM (disabled by default):
 
 * Optimization of the `lea' instruction (enable with flag `-OL').

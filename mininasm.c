@@ -64,6 +64,7 @@
  ** !! TODO(pts): bugfix: badinst2.nasm
  ** !! TODO(pts): bugfix: bad_undefined_label_r00.nasm
  ** !! TODO(pts): NASM compatibility: foo;bar\ : backslash at EOL, NASM 0.98.39 treats as comment continuation
+ ** !! TODO(pts): Add `times 3 times 2 nop'.
  */
 
 #ifndef CONFIG_SKIP_LIBC
@@ -569,7 +570,7 @@ static value_t start_address;
 static value_t current_address;
 static value_t line_address;
 static char is_address_used;
-static char is_start_address_set;
+static char is_start_address_set;  /* 2 if has been set in special pass 1. */
 
 static unsigned char instruction_addressing;
 static unsigned char instruction_offset_width;
@@ -1228,11 +1229,17 @@ static value_t value_mod(value_t a, value_t b) {
 
 static const char *match_register(const char *p, int width, unsigned char *reg);
 
+static char is_start_used;
+
 /*
  ** Match expression at match_p, update (increase) match_p or set it to NULL on error.
  ** level == 0 is top tier, that's how callers should call it.
  ** Saves the result to `instruction_value', or 0 if there was an undefined label.
  ** Sets `has_undefined' indicating whether ther was an undefined label.
+ ** Sets `is_start_used' to 1 iff any label or $ or $$ is used. (It could
+ ** be more careful and not set it for $$-$ etc., but it's complicated to
+ ** differentiate `label-$$' from `MACRO-$4'.)
+
  */
 static const char *match_expression(const char *match_p) {
     static ALIGN_MAYBE_4 struct match_stack_item {
@@ -1403,6 +1410,7 @@ static const char *match_expression(const char *match_p) {
             if (c == '$') {  /* Start address ($$). */
                 ++match_p;
                 is_address_used = 1;
+                is_start_used = 1;
                 value1 = start_address;
                 if (islabel(match_p[0])) { bad_label:
                     MESSAGE(1, "bad label");
@@ -1416,10 +1424,12 @@ static const char *match_expression(const char *match_p) {
                 goto label_expr;
             } else {  /* Current address at the beginning of the line ($). */
                 is_address_used = 1;
+                is_start_used = 1;
                 value1 = line_address;
             }
         } else if (match_label_prefix(match_p)) {  /* This also matches c == '$', but we've done that above. */
           label_expr:
+            is_start_used = 1;
             p2 = (char*)match_p;
             for (; islabel(match_p[0]); ++match_p) {}
             c = match_p[0];
@@ -1730,7 +1740,7 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
     uvalue_t MY_FAR *vp;
     char is_next_block;
     if (do_add_1) ++fpos;
-    if (0) DEBUG2("guess from fpos=0x%x rp=%p\r\n", (unsigned)fpos, (void*)wide_instr_read_at);
+    if (0) DEBUG3("guess from fpos=0x%x rp=%p added=0x%x\r\n", (unsigned)fpos, (void*)wide_instr_read_at, wide_instr_read_at ? (unsigned)*wide_instr_read_at : 0);
     if (wide_instr_read_at) {
         if (fpos == *wide_instr_read_at) {  /* Called again with the same fpos as last time. */
             return 1;
@@ -1768,6 +1778,14 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
 }
 
 /* --- */
+
+static unsigned char need_origin_count;
+
+static void update_need_origin_count(void) {
+    if (is_start_used && do_special_pass_1 && assembler_pass && is_start_address_set <= 1) {
+        ++need_origin_count;
+    }
+}
 
 /* Table for describing a single register addition (+..) to an effective address.
 
@@ -1839,6 +1857,7 @@ static const char *match_addressing(const char *p, int width) {
             state = 0x06;
             instruction_offset_width = 2;
         } else {
+            update_need_origin_count();
             if (opt_level <= 1) {  /* With -O0, `[...+ofs]' is 8-bit offset iff there are no undefined labels in ofs and it fits to 8-bit signed in assembler_pass == 0. This is similar to NASM. */
                if (assembler_pass == 0) {
                    if (has_any_undefined) {
@@ -1993,6 +2012,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
     if (0) DEBUG1("match pattern=(%s)\n", pattern_and_encode);
     instruction_addressing_segment = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
     instruction_offset_width = 0;  /* Reset it in case something in the previous pattern didn't match after a matching match_addressing(...). */
+    is_start_used = 0;
     /* Unused pattern characters: 'z'. */
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != ' ';) {
         if (SUB_U(dc, 'j') <= 'o' - 'j' + 0U) {  /* Addressing: 'j': %d8, 'k': %d16 (reg/mem16), 'l': %db8, 'm': %dw16 (reg/mem16 with explicit size qualifier), 'n': effective address without a size qualifier (for lds, les), 'o' effective address without a size qualifier (for lea). */
@@ -2075,11 +2095,14 @@ static const char *match(const char *p, const char *pattern_and_encode) {
              *
              * Specifying !do_opt_int below (`-O1' and `-OI') is just a cosmetic improvement: the output size remains the same. It also deviates from `-O9'.
              */
-            if (p != NULL && (qualifier == 0 || !was_strict) && opt_level > 1 && !do_opt_int &&
-                GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a harmless quirk (not affecting the output size) of NASM 0.98.39, but not NASM 2.13.02. */
-                /*!((GET_UVALUE(instruction_value) + 0x80U) & ~(uvalue_t)0xffU)*/   /* It matches NASM 0.98.39 with -O9. Same result as above, but 4 bytes longer for __DOSMC__. */
-                /*!(((unsigned)instruction_value + 0x80U) & 0xff00U)*/  /* It matches NASM 2.13.02 with -O9. It matches both `0xffffc' and `-4'. */
-               ) goto mismatch;
+            if (p != NULL) {
+                if (qualifier == 0 || !(was_strict || opt_level <= 1)) update_need_origin_count();
+                if ((qualifier == 0 || !was_strict) && opt_level > 1 && !do_opt_int &&
+                    GET_UVALUE(instruction_value) + 0x80U <= 0xffU  /* It matches NASM 0.98.39 with -O9. It matches `cmp ax, -4', but it doesn't match 0xfffc. This is a harmless quirk (not affecting the output size) of NASM 0.98.39, but not NASM 2.13.02. */
+                    /*!((GET_UVALUE(instruction_value) + 0x80U) & ~(uvalue_t)0xffU)*/   /* It matches NASM 0.98.39 with -O9. Same result as above, but 4 bytes longer for __DOSMC__. */
+                    /*!(((unsigned)instruction_value + 0x80U) & 0xff00U)*/  /* It matches NASM 2.13.02 with -O9. It matches both `0xffffc' and `-4'. */
+                   ) goto mismatch;
+            }
         } else if (dc == 'a' || dc == 'c') {  /* Address for jump, 8-bit. 'c' is jmp, 'a' is everything else (e.g. jc, jcxz, loop) for which short is the only allowed qualifier. */
             p = avoid_strict(p);  /* STRICT doesn't matter for jumps, qualifiers are respected without it. */
             qualifier = 0;
@@ -2126,56 +2149,58 @@ static const char *match(const char *p, const char *pattern_and_encode) {
                 qualifier = 2;
             }
             p = match_expression(p);
-            if (p == NULL) {
-            } else if (qualifier != 0) {
-                if (opt_level > 1 && !was_strict && qualifier != 1) goto detect_si8_size;  /* For -O9, ignore `word', but respect `strict word'. */
-                if (qualifier == 1) is_imm_8bit = 1;
-                if (opt_level == 0) goto do_nasm_o0_immediate_compat;
-            } else if (opt_level == 0) {
-                if (pattern_and_encode[-2] == ',') {  /* "m,s" rathern than "xs" (`push'). */
-              do_nasm_o0_immediate_compat:
-                /* With -O0, match NASM 0.98.39 (but not later NASM)
-                 * behavior: if there are undefined labels in the immediate,
-                 * then don't optimize the effective address.
-                 *
-                 * The opposite direction (with -O0, if there are undefined
-                 * labels in the effective address, then don't optimize the
-                 * immediate) is implemented by never optimizing the
-                 * immediate with -O0.
-                 */
-                if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
+            if (p != NULL) {
+                if (qualifier == 0 || !(was_strict || opt_level <= 1)) update_need_origin_count();
+                if (qualifier != 0) {
+                    if (opt_level > 1 && !was_strict && qualifier != 1) goto detect_si8_size;  /* For -O9, ignore `word', but respect `strict word'. */
+                    if (qualifier == 1) is_imm_8bit = 1;
+                    if (opt_level == 0) goto do_nasm_o0_immediate_compat;
+                } else if (opt_level == 0) {
+                    if (pattern_and_encode[-2] == ',') {  /* "m,s" rathern than "xs" (`push'). */
+                      do_nasm_o0_immediate_compat:
+                        /* With -O0, match NASM 0.98.39 (but not later NASM)
+                         * behavior: if there are undefined labels in the immediate,
+                         * then don't optimize the effective address.
+                         *
+                         * The opposite direction (with -O0, if there are undefined
+                         * labels in the effective address, then don't optimize the
+                         * immediate) is implemented by never optimizing the
+                         * immediate with -O0.
+                         */
+                        if ((unsigned char)instruction_addressing < 0xc0) {  /* Effective address (not register). */
+                            if (assembler_pass == 0) {
+                                if (has_undefined) {
+                                    do_add_wide_imm8 = 1;
+                                }
+                            } else {
+                                if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
+                            }
+                            if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39 and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
+                                /* We assume that the pattern is "m,s" or "m,u". */
+                                if (instruction_offset_width == 0) {
+                                    instruction_addressing |= 0x80;
+                                    instruction_offset_width = 2;
+                                } else if (instruction_offset_width == 1) {
+                                    instruction_addressing ^= 0xc0;
+                                    ++instruction_offset_width;
+                                }
+                            }
+                        }
+                    }
+                } else if (opt_level == 1) {
                     if (assembler_pass == 0) {
-                        if (has_undefined) {
-                            do_add_wide_imm8 = 1;
-                        }
+                        if (!has_undefined) goto detect_si8_size;
+                        do_add_wide_imm8 = 1;
                     } else {
-                        if (is_wide_instr_in_pass_2(1)) has_undefined = 1;
+                        if (!is_wide_instr_in_pass_2(1)) goto detect_si8_size;
                     }
-                    if (has_undefined) {  /* Missed optimization opportunity in NASM 0.98.39 and 0.99.06, mininasm does the same with -O0, but mininasm optimizes it with -O1. */
-                        /* We assume that the pattern is "m,s" or "m,u". */
-                        if (instruction_offset_width == 0) {
-                            instruction_addressing |= 0x80;
-                            instruction_offset_width = 2;
-                        } else if (instruction_offset_width == 1) {
-                            instruction_addressing ^= 0xc0;
-                            ++instruction_offset_width;
-                        }
-                    }
-                }
-                }
-            } else if (opt_level == 1) {
-                if (assembler_pass == 0) {
-                    if (!has_undefined) goto detect_si8_size;
-                    do_add_wide_imm8 = 1;
                 } else {
-                    if (!is_wide_instr_in_pass_2(1)) goto detect_si8_size;
+                  detect_si8_size:
+                    /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
+                    is_imm_8bit = !(/* !has_undefined && */
+                        !do_opt_int && pattern_and_encode[-2] != ',' ?  GET_UVALUE(instruction_value) + 0x80U > 0xffU :  /* It matches NASM 0.98.39 with -O9. It matches `push -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39 making the output file longer. */
+                        (((unsigned)instruction_value + 0x80) & 0xff00U));
                 }
-            } else {
-              detect_si8_size:
-                /* 16-bit integer cannot be represented as signed 8-bit, so don't use this encoding. Doesn't happen for has_undefined. */
-                is_imm_8bit = !(/* !has_undefined && */
-                    !do_opt_int && pattern_and_encode[-2] != ',' ?  GET_UVALUE(instruction_value) + 0x80U > 0xffU :  /* It matches NASM 0.98.39 with -O9. It matches `push -4', but it doesn't match 0xfffc. This is a quirk of NASM 0.98.39 making the output file longer. */
-                    (((unsigned)instruction_value + 0x80) & 0xff00U));
             }
         } else if (dc == 't') {  /* 8-bit immediate, with the NASM -O0 compatibility. Used with pattern "l,t", corresponding to an 8-bit addressing. */
             p = avoid_strict(p);
@@ -2307,6 +2332,7 @@ static const char *match(const char *p, const char *pattern_and_encode) {
         emit_byte(instruction_addressing_segment);
       omit_segreg: ;
     }
+    if (0) DEBUG2("do_encode p0=(%s) encode=(%s)\r\n", p0, pattern_and_encode);
     for (error_base = pattern_and_encode; (dc = *pattern_and_encode++) != '\0' && dc != '-' /* ALSO */;) {
         dw = 0;
         if (dc == '+') {  /* Instruction is a prefix. */
@@ -2966,6 +2992,7 @@ static void do_assembly(const char *input_filename) {
     char is_bss;
     struct label MY_FAR *label;
 
+    if (0) DEBUG2("--- do_assembly start_address=0x%x default_start_address=0x%x\r\n", start_address, default_start_address);
     have_labels_changed = 0;
     jump_range_bits &= ~1;
     if (opt_level <= 1) jump_range_bits |= 2;  /* Report ``short jump is out of range'' errors early. */
@@ -3354,13 +3381,15 @@ static void do_assembly(const char *input_filename) {
             } else if (has_undefined) {
                 MESSAGE(1, "Cannot use undefined labels");
             } else if (is_start_address_set) {
+                if (do_special_pass_1 && assembler_pass) is_start_address_set = 2;
                 if (instruction_value != default_start_address) {
+                    if (0) DEBUG2("program origin redefined instruction_value=0x%x default_start_address=0x%x\r\n", instruction_value, default_start_address);
                     MESSAGE(1, "program origin redefined");  /* Same error as in NASM. */
                     aip = (struct assembly_info*)assembly_stack;  /* Also abort %includers. */
                     goto close_return;
                 }
             } else {
-                is_start_address_set = 1;
+                ++is_start_address_set; /* = 1; */
                 if (instruction_value != default_start_address) {
                     default_start_address = instruction_value;
                     if (is_address_used) {
@@ -3485,8 +3514,12 @@ static void do_assembly(const char *input_filename) {
           do_instruction_with_times:
             line_address = current_address;
             generated_cur = generated_ptr;
+            need_origin_count = 0;
             for (; (uvalue_t)times != 0; --times) {
                 process_instruction(p);
+            }
+            if (need_origin_count) {
+                MESSAGE(1, "origin not yet defined");  /* Precaution to prevent output different from NASM, see xtest/lateorg.nasm for examples. */
             }
         }
       after_line:
@@ -3724,6 +3757,7 @@ int main(int argc, char **argv)
             reset_address();
             reset_macros();  /* Delete all (non-macro) labels because since do_special_pass is true. */
             do_assembly(ifname);
+            if (errors) goto do_remove;
             ++do_special_pass_1;  /* = 2. */
             if (opt_level <= 1) wide_instr_read_at = NULL;
         }
