@@ -2,7 +2,7 @@
 ; hellohli3.nasm: minimalistic hello-world for Linux i386, with ELF-32 header overlap
 ; by pts@fazekas.hu at Sat Dec 17 17:17:43 CET 2022
 ;
-; Compile: nasm -O9 -f bin -o hellohli3 hellohli3.nasm && chmod +x hellohli3
+; Compile: nasm -O0 -f bin -o hellohli3 hellohli3.nasm && chmod +x hellohli3
 ; The created executable program is 83 bytes.
 ; Run on Linux i386 or amd64: ./hellohli3
 ;

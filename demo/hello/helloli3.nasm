@@ -2,7 +2,7 @@
 ; helloli3.nasm: minimalistic hello-world for Linux i386
 ; by pts@fazekas.hu at Wed Dec  7 04:13:28 CET 2022
 ;
-; Compile: nasm -O9 -f bin -o helloli3 helloli3.nasm && chmod +x helloli3
+; Compile: nasm -O0 -f bin -o helloli3 helloli3.nasm && chmod +x helloli3
 ; The created executable program is 117 bytes.
 ; Run on Linux i386 or amd64: ./helloli3
 ;
