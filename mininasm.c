@@ -3719,15 +3719,13 @@ int main(int argc, char **argv)
     } else {
         ++assembler_pass;  /* = 1. */
         is_start_address_set = 1;
-        if (opt_level <= 1) {
-            /* wide_instr_add_at = NULL; */  /* Keep for reading. */
-            wide_instr_read_at = NULL;
-        }
+        if (opt_level <= 1) wide_instr_read_at = NULL;
         if (do_special_pass_1) {  /* In this special pass 1, we recompute all labels (starting with the right, final start_address) from scratch, and we don't emit any bytes. */
             reset_address();
             reset_macros();  /* Delete all (non-macro) labels because since do_special_pass is true. */
             do_assembly(ifname);
             ++do_special_pass_1;  /* = 2. */
+            if (opt_level <= 1) wide_instr_read_at = NULL;
         }
         if (0) DEBUG2("current_address after pass %d: 0x%x\n", (unsigned)assembler_pass, (unsigned)current_address);
         /*
