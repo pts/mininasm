@@ -1780,6 +1780,7 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
 /* --- */
 
 static unsigned char need_origin_count;
+static char do_special_pass_1;
 
 static void update_need_origin_count(void) {
     if (is_start_used && do_special_pass_1 && assembler_pass && is_start_address_set <= 1) {
@@ -2792,7 +2793,6 @@ static struct assembly_info *assembly_pop(struct assembly_info *aip) {
 #define MACRO_VALUE 3  /* Macro defined in the assembly source as `%DEFINE NAME INTVALUE' or `%assign NAME EXPR'. */
 
 static char has_macros;
-static char do_special_pass_1;
 
 static void reset_macros(void) {
     struct label MY_FAR *node = label_list;
