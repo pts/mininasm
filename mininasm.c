@@ -61,7 +61,6 @@
  **   There is also the `-ansi' flag, but it propagates some warnings to errors.
  **
  ** !! TODO(pts): bugfix: badinst1.nasm
- ** !! TODO(pts): bugfix: badinst2.nasm
  ** !! TODO(pts): bugfix: bad_undefined_label_r00.nasm
  ** !! TODO(pts): NASM compatibility: foo;bar\ : backslash at EOL, NASM 0.98.39 treats as comment continuation
  ** !! TODO(pts): Add `times 3 times 2 nop'.
@@ -1229,6 +1228,7 @@ static value_t value_mod(value_t a, value_t b) {
 
 static const char *match_register(const char *p, int width, unsigned char *reg);
 
+static char do_special_pass_1;
 static char is_start_used;
 
 /*
@@ -1438,6 +1438,11 @@ static const char *match_expression(const char *match_p) {
             label = find_cat_label(p2[0] == '.' && !(p2[1] == '.' && p2[2] == '@') ? global_label : "", p2);
             if (0) DEBUG1("use_label=(%s)\r\n", p2);
             if (label == NULL || RBL_IS_DELETED(label)) {
+#if 0
+                if (label != NULL && RBL_IS_DELETED(label) && !(do_special_pass_1 && assembler_pass == 1)) {
+                    MESSAGE1STR(1, "Unexpected deleted label '%s'", p2);  /* Doesn't contain the global label prefix. */
+                }
+#endif
                 /*value1 = 0;*/
                 has_undefined = 1;
                 if (assembler_pass > 1) {
@@ -2992,7 +2997,7 @@ static void do_assembly(const char *input_filename) {
     char is_bss;
     struct label MY_FAR *label;
 
-    if (0) DEBUG2("--- do_assembly start_address=0x%x default_start_address=0x%x\r\n", start_address, default_start_address);
+    if (0) DEBUG3("--- do_assembly start_address=0x%x default_start_address=0x%x do_special_pass_1=%d\r\n", start_address, default_start_address, do_special_pass_1);
     have_labels_changed = 0;
     jump_range_bits &= ~1;
     if (opt_level <= 1) jump_range_bits |= 2;  /* Report ``short jump is out of range'' errors early. */
