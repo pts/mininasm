@@ -200,6 +200,9 @@ typedef long off_t;  /* It's OK to define it multiple times, so not a big risk. 
 #  if defined(__WATCOMC__) && defined(__LINUX__)  /* Defined by __WATCOMC__: `owcc -blinux' or wcl `-bt=linux'. */
 #    undef O_BINARY  /* Fix bug in OpenWatcom <unistd.h>. It defines O_BINARY as O_TRUNC, effectively overwriting input files. */
 #  endif
+#  if defined(__MINILIBC686__)
+#    define malloc(size) malloc_simple_unaligned(size)  /* malloc_simple_unaligned(...) is defined in <stdlib.h> of __MINILIBC686__ */
+#  endif
 #  if defined(__TURBOC__)
 #    pragma warn -rch  /* Unreachable code. */
 #    pragma warn -ccc  /* Condition is always true/false. */
