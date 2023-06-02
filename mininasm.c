@@ -3592,7 +3592,12 @@ static void do_assembly(const char *input_filename) {
     line_number = 0;  /* Global variable. */
 }
 
-static MY_STRING_WITHOUT_NUL(mininasm_macro_name, " __MININASM__");
+/* We merge append the help message to the end of the macro name, just to
+ * save a NUL byte. It's an ugly hack.
+ */
+#define mininasm_macro_name_size 13
+static MY_STRING_WITHOUT_NUL(mininasm_macro_name, " __MININASM__" /* 13 bytes. */
+    "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
 
 #ifndef CONFIG_MAIN_ARGV
 #define CONFIG_MAIN_ARGV 0
@@ -3637,8 +3642,7 @@ int main(int argc, char **argv)
      ** If ran without arguments then show usage
      */
     if (*++argv == NULL) {
-        static const MY_STRING_WITHOUT_NUL(msg, "Typical usage:\r\nmininasm -f bin input.asm -o input.bin\r\n");
-        (void)!write(2, (char*)msg, STRING_SIZE_WITHOUT_NUL(msg));  /* Without the (char*), Borland C++ 2.0 reports warning: Suspicious pointer conversion in function main */
+        (void)!write(2, (char*)(mininasm_macro_name + mininasm_macro_name_size), STRING_SIZE_WITHOUT_NUL(mininasm_macro_name) - mininasm_macro_name_size);  /* Without the (char*), Borland C++ 2.0 reports warning: Suspicious pointer conversion in function main */
         return 1;
     }
 
@@ -3651,7 +3655,7 @@ int main(int argc, char **argv)
     /* default_start_address = 0; */  /* Default. */
     /* is_start_address_set = 0; */  /* Default. */
     malloc_init();
-    set_macro(mininasm_macro_name, mininasm_macro_name + STRING_SIZE_WITHOUT_NUL(mininasm_macro_name), "6", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
+    set_macro(mininasm_macro_name, mininasm_macro_name + mininasm_macro_name_size, "6", MACRO_SET_DEFINE_CMDLINE);  /* `%DEFINE __MININASM__ ...'. */
     while (argv[0] != NULL) {
         if (0) DEBUG1("arg=(%s)\n", argv[0]);
         if (argv[0][0] == '-') {    /* All arguments start with dash */
