@@ -1790,7 +1790,6 @@ static char is_wide_instr_in_pass_2(char do_add_1) {
 /* --- */
 
 static unsigned char need_origin_count;
-static char do_special_pass_1;
 
 static void update_need_origin_count(void) {
     if (is_start_used && do_special_pass_1 && assembler_pass && is_start_address_set <= 1) {
