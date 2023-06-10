@@ -2554,11 +2554,11 @@ static void message_end(void) {
 #if CONFIG_SUPPORT_WARNINGS
 static void message(int error, const char *message)
 #else
-static void message(const char *message)
+static void message(const char *message_arg)
 #endif
 {
     MESSAGE_START(error);
-    bbprintf(&message_bbb, "%s", message);
+    bbprintf(&message_bbb, "%s", message_arg);
     message_end();
 }
 
