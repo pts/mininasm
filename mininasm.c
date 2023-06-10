@@ -3723,7 +3723,6 @@ int main(int argc, char **argv)
             } else if (d == 'l') {  /* Listing file name */
                 if (*++argv == NULL) {
                     goto error_no_argument;
-                    return 1;
                 } else if (listing_filename != NULL) {
                     MESSAGE(1, "already a -l argument is present");
                     return 1;
