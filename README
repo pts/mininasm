@@ -223,7 +223,7 @@ Differences between mininasm and NASM:
 * Only the binary output format (`-f bin' command-line flag) is supported,
   others (e.g. `-f elf', `-f obj', `-f win32') aren't.
 
-* Only `db', `dw' and `dq' are the supported data instructions (so no `dq'
+* Only `db', `dw' and `dd' are the supported data instructions (so no `dq'
   or `dt').
 
 * Floating point literals are not supported.
