@@ -21,7 +21,7 @@
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
 ; * qemu-i386 (on Linux, any architecture) executes it happily.
-; * FreeBSD 9.3 and 12.04 fail with ``./hellohli3: Exec format error. Binary file not executable.'', while the 119-byte ./helloli3 works on it.
+; * FreeBSD 9.3 and 12.04 fail with ``./hellohli3: Exec format error. Binary file not executable.''. See hellofli3.nasm for a 88-byte executable which also works on FreeBSD.
 ; * `objdump -x' fails with ``File truncated'' to dump the headers (see below why).
 ;
 ; More discussion here (with 95-byte solution): https://www.reddit.com/r/programming/comments/t32i0/smallest_x86_elf_hello_world/

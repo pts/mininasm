@@ -14,7 +14,7 @@
 ; * Linux 2.6.20 i386 executes it happily.
 ; * Linux 5.4.0 amd64 executes it happily.
 ; * qemu-i386 (on Linux, any architecture) executes it happily.
-; * FreeBSD 9.3 and 12.04 execute it happily when Linux emulation is active.
+; * FreeBSD 9.3 and 12.04 execute it happily when Linux emulation is active. See hellohli3.nasm for a 83-byte executable which doesn't work on FreeBSD.
 ; * `objdump -x' can dump the ELF-32 headers.
 ;
 ; ELF-32 header based on
