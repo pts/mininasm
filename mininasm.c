@@ -18,6 +18,10 @@
  **
  **   $ xtiny gcc -march=i386 -ansi -pedantic -W -Wall Wno-overlength-strings -o mininasm.xtiny mininasm.c && ls -ld mininasm.xtiny
  **
+ **   $ mmlibcc.sh -o mininasm.mm mininasm.c
+ **
+ **   $ mmlibcc.sh -bwin32 -D_FILE_OFFSET_BITS=32 -o mininasm.mm.exe mininasm.c
+ **
  **   $ xstatic gcc -ansi -pedantic -s -O2 -W -Wall Wno-overlength-strings -o mininasm.xstatic mininasm.c && ls -ld mininasm.xstatic
  **
  **   $ dosmc -mt -cpn mininasm.c && ls -ld mininasm.com
@@ -164,11 +168,25 @@ int __cdecl setmode(int _FileHandle,int _Mode);
 #if !CONFIG_SKIP_LIBC && defined(__XTINY__)
 #  undef  CONFIG_SKIP_LIBC
 #  define CONFIG_SKIP_LIBC 1
-#  define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
+#  ifndef _FILE_OFFSET_BITS
+#    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
+#  endif
 #  include <xtiny.h>
 #  ifndef CONFIG_MALLOC_FAR_USING_SYS_BRK
 #    define CONFIG_MALLOC_FAR_USING_SYS_BRK 1
 #  endif
+#endif
+
+#if !CONFIG_SKIP_LIBC && defined(__MMLIBC386__)
+#  undef  CONFIG_SKIP_LIBC
+#  define CONFIG_SKIP_LIBC 1
+#  ifndef _FILE_OFFSET_BITS
+#    define _FILE_OFFSET_BITS 64  /* Make off_t for lseek(..) 64-bit, if available. */
+#  endif
+#  include <mmlibc386.h>
+#  define malloc(size) malloc_simple_unaligned(size)
+#  define creat(filename, mode) open(filename, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, mode)
+#  define setmode(fd, mode) do {} while (0)
 #endif
 
 #if !CONFIG_SKIP_LIBC  /* More or less Standard C. */
