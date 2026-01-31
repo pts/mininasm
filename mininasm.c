@@ -502,7 +502,11 @@ static void *malloc_far(size_t size) {
     return free - size;
 }
 #  else  /* Of if CONFIG_MALLOC_FAR_USING_SYS_BRK. */
-#    define malloc_far(size) malloc(size)
+#    if defined(CONFIG_CPU_UNALIGN) && defined(_LIBC_HAVE_MALLOC_UNALIGNED)  /* https://github.com/pts/ssmcc */
+#      define malloc_far(size) malloc_unaligned(size)
+#    else
+#      define malloc_far(size) malloc(size)
+#    endif
 #  endif  /* Else if CONFIG_MALLOC_FAR_USING_SYS_BRK. */
 #endif  /* Else ifdef __DOSMC__. */
 
