@@ -258,7 +258,11 @@ extern off_t _sys_rawlseek(int fd, off_t offset, int whence);
 #  define CONFIG_USE_OPEN2 0
 #endif
 #if !CONFIG_USE_OPEN2
-#  define open2(pathname, flags) open(pathname, flags, 0)
+#  if defined(_LIBC_HAVE_OPEN00) && !O_BINARY  /* https://github.com/pts/ssmcc */
+#    define open2(pathname, flags) open00(pathname)  /* We assume that `flags' is always O_RDONLY | O_BINARY. */
+#  else
+#    define open2(pathname, flags) open(pathname, flags, 0)
+#  endif
 #endif
 
 #ifndef CONFIG_USE_MEMCPY_INLINE
