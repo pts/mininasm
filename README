@@ -38,6 +38,12 @@ mininasm is reflected in the size of the released executable programs: about
 21 KiB each, while the corresponding NASM 0.98.39 would be more than
 260 KiB.
 
+The largest and most complex program known to be compiled with mininasm is
+the vc.com main DOS .com program file of Volkov Commander 4.05, it's a bit
+longer than 65000 bytes (about 64 KiB). See the directory demo/vc405/ for
+details. Workarounds had to be added for the directives section, %define,
+%macro, struc and the operators <= and !=.
+
 For a case study and step-by-step examples of converting NASM source code to
 mininasm, see the commit history of https://github.com/pts/insight-mininasm .
 It converts the NASM source code of Insight real-mode DOS 16-bit debugger,
@@ -384,6 +390,7 @@ the following improvements:
   through as long as the output file size increases (see the proof below
   that it converges). Tinyasm fails to generate any output file after 5
   passes, unsure if it would converge.
+
 Output file size limits of various assemblers:
 
 * mininasm doesn't have a output file size limit. (This means is that the
