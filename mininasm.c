@@ -265,6 +265,11 @@ extern off_t _sys_rawlseek(int fd, off_t offset, int whence);
 #  endif
 #endif
 
+#if defined(_LIBC_HAVE_CREAT1) && !O_BINARY
+#  undef creat
+#  define creat(pathname, mode) creat1(pathname)
+#endif
+
 #ifndef CONFIG_USE_MEMCPY_INLINE
 #  define CONFIG_USE_MEMCPY_INLINE 0
 #endif
