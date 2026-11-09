@@ -3652,7 +3652,7 @@ int main(int argc, char **argv)
     (void)argc;
 #endif
 
-#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__) && !defined(__BCC__) && !defined(__ACK)
+#if (defined(MSDOS) || defined(_WIN32)) && !defined(__DOSMC__) && !defined(__BCC__) && !defined(__ACK) && O_BINARY
     setmode(2, O_BINARY);  /* STDERR_FILENO. */
 #endif
 
