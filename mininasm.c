@@ -73,7 +73,11 @@
  */
 
 #ifndef CONFIG_SKIP_LIBC
-#define CONFIG_SKIP_LIBC 0
+#  ifdef _ALL_LIBC_INCLUDED
+#    define CONFIG_SKIP_LIBC 1
+#  else
+#    define CONFIG_SKIP_LIBC 0
+#  endif
 #endif
 
 #if !CONFIG_SKIP_LIBC && defined(__LIBCH__)  /* Works with gcc, tcc, pts-tcc (Linux i386 target) and `owcc -blinux'. */
@@ -368,9 +372,13 @@ extern off_t _sys_rawlseek(int fd, off_t offset, int whence);
 #  define CONFIG_CAN_FD_BE_NEGATIVE 0
 #endif
 #if CONFIG_CAN_FD_BE_NEGATIVE
-#  define HAS_OPEN_FAILED(result) ((result) == -1)
+#  define HAS_OPEN_FAILED(fd_result) ((fd_result) == -1)
 #else
-#  define HAS_OPEN_FAILED(result) ((result) < 0)
+#  ifdef _LIBC_HAS_OPEN_FAILED
+#    define HAS_OPEN_FAILED(fd_result) _LIBC_HAS_OPEN_FAILED(fd_result)
+#  else
+#    define HAS_OPEN_FAILED(fd_result) ((fd_result) < 0)
+#  endif
 #endif
 
 #ifdef __GNUC__
